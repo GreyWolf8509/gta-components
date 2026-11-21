@@ -10,6 +10,24 @@
 "hb": 4.65
 },
 {
+"slug": "47-selection-wheel",
+"name": "Selection wheel",
+"cat": "Game UI",
+"a": "Character wheel",
+"b": "Radio wheel",
+"ha": 2.28,
+"hb": 2.45
+},
+{
+"slug": "26-transformation-meter",
+"name": "Transformation meter",
+"cat": "Challenge",
+"a": "Badge and fill",
+"b": "Power tube",
+"ha": 5.0,
+"hb": 5.1
+},
+{
 "slug": "08-title-sting",
 "name": "Title sting",
 "cat": "Everyday",
@@ -25,6 +43,15 @@
 "a": "Tilted 3D map",
 "b": "Game map",
 "ha": 4.5,
+"hb": 3.3
+},
+{
+"slug": "65-scale-slider",
+"name": "Scale slider",
+"cat": "Challenge",
+"a": "Choice slider",
+"b": "Vertical slider",
+"ha": 3.3,
 "hb": 3.3
 },
 {
@@ -64,31 +91,13 @@
 "hb": 4.2
 },
 {
-"slug": "22-celebration-fx",
-"name": "Celebration FX",
-"cat": "Everyday",
-"a": "Money rain (3D)",
-"b": "Confetti burst",
-"ha": 2.2,
-"hb": 1.3
-},
-{
-"slug": "26-transformation-meter",
-"name": "Transformation meter",
+"slug": "64-bond-meter",
+"name": "Bond meter",
 "cat": "Challenge",
-"a": "Badge and fill",
-"b": "Power tube",
-"ha": 5.0,
-"hb": 5.1
-},
-{
-"slug": "47-selection-wheel",
-"name": "Selection wheel",
-"cat": "Game UI",
-"a": "Character wheel",
-"b": "Radio wheel",
-"ha": 2.28,
-"hb": 2.45
+"a": "Heart meter",
+"b": "Bond for Shorts",
+"ha": 4.35,
+"hb": 4.2
 },
 {
 "slug": "71-lineage-board",
@@ -98,6 +107,15 @@
 "b": "Lineage board (Shorts)",
 "ha": 4.5,
 "hb": 4.5
+},
+{
+"slug": "75-honor-profile-slider",
+"name": "Honor to profile slider",
+"cat": "Comparison",
+"a": "Honor to profile slider",
+"b": "Honor to profile slider (Shorts)",
+"ha": 4.0,
+"hb": 4.0
 },
 {
 "slug": "20-game-title-card",
@@ -116,15 +134,6 @@
 "b": "Three-way split (Shorts)",
 "ha": 2.0,
 "hb": 2.0
-},
-{
-"slug": "65-scale-slider",
-"name": "Scale slider",
-"cat": "Challenge",
-"a": "Choice slider",
-"b": "Vertical slider",
-"ha": 3.3,
-"hb": 3.3
 },
 {
 "slug": "32-timer-badge",
@@ -262,15 +271,6 @@
 "hb": 4.35
 },
 {
-"slug": "64-bond-meter",
-"name": "Bond meter",
-"cat": "Challenge",
-"a": "Heart meter",
-"b": "Bond for Shorts",
-"ha": 4.35,
-"hb": 4.2
-},
-{
 "slug": "62-like-goal",
 "name": "Like goal",
 "cat": "Everyday",
@@ -350,15 +350,6 @@
 "b": "Character stats",
 "ha": 2.45,
 "hb": 2.55
-},
-{
-"slug": "75-honor-profile-slider",
-"name": "Honor to profile slider",
-"cat": "Comparison",
-"a": "Honor to profile slider",
-"b": "Honor to profile slider (Shorts)",
-"ha": 4.0,
-"hb": 4.0
 },
 {
 "slug": "76-police-report-icons",
@@ -539,6 +530,15 @@
 "b": "Keyword headline",
 "ha": 2.35,
 "hb": 4.3
+},
+{
+"slug": "22-celebration-fx",
+"name": "Celebration FX",
+"cat": "Everyday",
+"a": "Money rain (3D)",
+"b": "Confetti burst",
+"ha": 2.2,
+"hb": 1.3
 },
 {
 "slug": "21-speed-lines",
