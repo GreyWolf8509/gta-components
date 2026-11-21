@@ -1,0 +1,438 @@
+<!doctype html>
+<!-- 64 Bond meter, variant A (16:9, 1920x1080, 30 fps, 6.4 s): "Heart meter".
+     A relationship meter at the bottom centre: two portrait medallions joined by a glass tube on a lacquered pill, a real 3D
+     candy heart in the middle. Pink liquid pours from both portraits toward the heart; on a drain the heart cracks open, on the
+     refill it slams shut, ignites and spins (MAX BOND). Everything but the status word is Three.js. Variable bg: "plate" / "none". -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      #shadow { position: absolute; left: 0; top: 0; width: 1000px; height: 170px; border-radius: 50%; opacity: 0;
+        background: radial-gradient(closest-side, rgba(10,3,14,.58) 0%, rgba(10,3,14,.34) 50%, rgba(10,3,14,.10) 80%, rgba(10,3,14,0) 100%); }
+      #gl { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; }
+      #status { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+      #status .win { position: absolute; left: -420px; width: 840px; overflow: hidden; }
+      #status .strip { position: absolute; left: 0; top: 0; width: 100%; }
+      #status .w { display: block; width: 100%; text-align: center; white-space: nowrap; font-weight: 900; font-family: "Archivo";
+        font-stretch: 72%; letter-spacing: -0.005em; text-transform: uppercase; color: #FFFFFF;
+        paint-order: stroke fill; -webkit-text-stroke: 6px #1A0A21; }
+      #status .w.c0 { color: #FF6BCF; text-shadow: 0 0 18px rgba(255,79,200,.45), 0 4px 10px rgba(0,0,0,.45); }
+      #status .w.c1 { color: #B58BFF; text-shadow: 0 0 16px rgba(155,92,255,.40), 0 4px 10px rgba(0,0,0,.45); }
+      #status .w.c2 { color: #FFFFFF; text-shadow: 0 0 22px rgba(255,79,200,.85), 0 0 6px rgba(255,140,210,.9), 0 4px 10px rgba(0,0,0,.4); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.4" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="shot1" class="clip shot" style="z-index:5" src="assets/shots/v06-franklin-lamar-portrait-h.mp4" muted playsinline
+               data-start="0" data-duration="1.6" data-media-start="0" data-track-index="0"></video>
+        <video id="shot2" class="clip shot" style="z-index:4" src="assets/shots/v30-street-explosion-h.mp4" muted playsinline
+               data-start="1.533" data-duration="1.317" data-media-start="0.2" data-track-index="2"></video>
+        <video id="shot3" class="clip shot" style="z-index:3" src="assets/shots/v05-franklin-lamar-street-h.mp4" muted playsinline
+               data-start="2.783" data-duration="1.267" data-media-start="0" data-track-index="0"></video>
+        <video id="shot4" class="clip shot" style="z-index:2" src="assets/shots/v18-pool-skyline-h.mp4" muted playsinline
+               data-start="3.983" data-duration="1.317" data-media-start="0" data-track-index="2"></video>
+        <video id="shot5" class="clip shot" style="z-index:1" src="assets/shots/v24-sunset-powerlines-h.mp4" muted playsinline
+               data-start="5.233" data-duration="1.167" data-media-start="0.2" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="6.4" data-track-index="4">
+        <div id="shadow"></div>
+        <canvas id="gl" width="1920" height="1080"></canvas>
+        <div id="status"><div class="win"><div class="strip"></div></div></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        portraits: ["media/lamar.jpg", "media/franklin.jpg"],   // left, right (square crops, face centred)
+        states: ["TIGHT", "BEEF", "MAX BOND"],                    // status word for: start level, after the drain, at max
+        levels: { start: 0.62, low: 0.16 },                      // bond level (0-1) before and after the drain; the refill goes to 1
+        colors: { magenta: "#B832E6", pink: "#FF5BC8", heart: "#FF2F7D", cracked: "#7A3352", hot: "#FF5AA0",
+                  neon: "#FF4FC8", housing: "#1C0F25", chrome: "#FFC9E8" },
+        layout: { cx: 960, cy: 954, spread: 362, portraitR: 56, bezelR: 68, housingH: 76, tubeR: 15, heartW: 132,
+                  heartLift: 6, statusSize: 54, statusBase: 856 },
+        timing: { in: 0.20, pour: 0.80, pourEnd: 1.40, statusIn: 0.98, crack: 1.78, drainEnd: 2.40, refill: 3.05, max: 4.05, out: 5.50, end: 6.40 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, Lc = CONFIG.layout, C = CONFIG.colors, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const W = 1920, H = 1080;
+        const clamp = (v, a, b) => Math.min(b, Math.max(a, v)), lerp = (a, b, u) => a + (b - a) * u;
+        const seg = (t, a, d) => clamp((t - a) / d, 0, 1), E = (n) => gsap.parseEase(n);
+        const eBack = (s) => E("back.out(" + s + ")"), eO3 = E("power3.out"), eI3 = E("power3.in"), eIO2 = E("power2.inOut"), eO2 = E("power2.out");
+        const hash = (n) => Look.hash(n);
+        // a 1-frame attack, a 3-frame hold, then an exponential decay (light peaks)
+        const flash = (t, at, tau) => { const d = t - at; if (d < 0) return 0; if (d < 0.1) return 1; return Math.exp(-(d - 0.1) / (tau || 0.22)); };
+        const pulse = (t, at, dur) => { const d = (t - at) / dur; return d <= 0 || d >= 1 ? 0 : Math.sin(Math.PI * d); };
+
+        // ---------- status word: a rolling window (lesson 15) ----------
+        const strip = $("#status .strip");
+        strip.setAttribute("data-layout-allow-overflow", "");
+        CONFIG.states.forEach((s, i) => { const sp = document.createElement("span"); sp.className = "w c" + i; sp.textContent = s; sp.setAttribute("data-layout-allow-occlusion", ""); sp.setAttribute("data-layout-allow-overflow", ""); strip.appendChild(sp); });
+
+        // ---------- Three.js: the z = 0 plane maps 1:1 to canvas px ----------
+        const canvas = $("#gl");
+        const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+        renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 0);
+        renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
+        const scene = new THREE.Scene();
+        const FOV = 24, DIST = (H / 2) / Math.tan((FOV / 2) * Math.PI / 180);
+        const camera = new THREE.PerspectiveCamera(FOV, W / H, 10, DIST * 3);
+        camera.position.set(0, 0, DIST); camera.lookAt(0, 0, 0);
+        const wx = (x) => x - W / 2, wy = (y) => H / 2 - y;
+
+        // studio environment: overhead softbox, a front-left strip, a pink bounce on the right, dark floor
+        const envScene = new THREE.Scene();
+        envScene.add(new THREE.Mesh(new THREE.SphereGeometry(50, 48, 24), new THREE.ShaderMaterial({
+          side: THREE.BackSide, depthWrite: false,
+          vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 top = vec3(0.80,0.78,0.86), hor = vec3(0.12,0.08,0.13), low = vec3(0.015,0.01,0.02);" +
+            " vec3 c = y > 0.0 ? mix(hor, top, smoothstep(0.1, 0.9, y)) : mix(hor, low, smoothstep(0.0, 0.4, -y)); gl_FragColor = vec4(c, 1.0); }"
+        })));
+        const panel = (w, h, x, y, z, c) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); envScene.add(m); };
+        panel(40, 12, -4, 30, 22, new THREE.Color(5.0, 4.9, 4.9));
+        panel(4, 34, -30, 4, 22, new THREE.Color(4.4, 4.3, 4.3));
+        panel(6, 26, 32, -2, 14, new THREE.Color(3.6, 1.0, 2.6));
+        panel(44, 1.6, 0, 24, 28, new THREE.Color(3.0, 3.0, 3.0));
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        scene.environment = pmrem.fromScene(envScene, 0.0, 0.1, 200).texture;
+        const key = new THREE.DirectionalLight(0xfff2ea, 1.5); key.position.set(-0.6, 0.9, 1.0); scene.add(key);
+        const rim = new THREE.DirectionalLight(0xff7ccf, 1.1); rim.position.set(0.9, -0.3, 0.4); scene.add(rim);
+        scene.add(new THREE.HemisphereLight(0xfff0f8, 0x140814, 0.55));
+
+        // ---------- geometry helpers ----------
+        function smooth(g) {   // merge coincident vertices so normals are smooth everywhere (no seams)
+          const p = g.attributes.position, idx = g.index ? g.index.array : null, map = new Map(), verts = [], remap = new Uint32Array(p.count);
+          for (let i = 0; i < p.count; i++) {
+            const x = p.getX(i), y = p.getY(i), z = p.getZ(i), key = Math.round(x * 64) + "," + Math.round(y * 64) + "," + Math.round(z * 64);
+            let j = map.get(key); if (j === undefined) { j = verts.length / 3; verts.push(x, y, z); map.set(key, j); } remap[i] = j;
+          }
+          const out = [], n = idx ? idx.length : p.count;
+          for (let i = 0; i < n; i += 3) { const a = remap[idx ? idx[i] : i], b = remap[idx ? idx[i + 1] : i + 1], c = remap[idx ? idx[i + 2] : i + 2]; if (a !== b && b !== c && a !== c) out.push(a, b, c); }
+          const G = new THREE.BufferGeometry(); G.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3)); G.setIndex(out); G.computeVertexNormals(); return G;
+        }
+        const heartXY = (t) => [16 * Math.pow(Math.sin(t), 3), 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)];
+        function heartGeo(w, th) {   // a balloon heart: a sphere mapped onto the heart outline, elliptical cross-section
+          const k = w / 32, cy = -2.5, pts = [];
+          for (let i = 0; i < 2880; i++) { const [x, y] = heartXY(i / 2880 * Math.PI * 2); pts.push([Math.atan2(y - cy, x), Math.hypot(x, y - cy) * k]); }
+          pts.sort((a, b) => a[0] - b[0]);
+          const B = 4096, lut = new Float32Array(B);
+          for (let b = 0; b < B; b++) {
+            const a = -Math.PI + (b + 0.5) / B * 2 * Math.PI; let lo = 0, hi = pts.length - 1;
+            if (a <= pts[0][0] || a >= pts[hi][0]) { lut[b] = a <= pts[0][0] ? pts[0][1] : pts[hi][1]; continue; }
+            while (hi - lo > 1) { const m = (lo + hi) >> 1; if (pts[m][0] < a) lo = m; else hi = m; }
+            const p0 = pts[lo], p1 = pts[hi], u = p1[0] - p0[0] > 1e-9 ? (a - p0[0]) / (p1[0] - p0[0]) : 0; lut[b] = p0[1] + (p1[1] - p0[1]) * u;
+          }
+          const R = (a) => { let f = (a + Math.PI) / (2 * Math.PI) * B - 0.5; f = ((f % B) + B) % B; const i0 = Math.floor(f) % B, i1 = (i0 + 1) % B, u = f - Math.floor(f); return lut[i0] * (1 - u) + lut[i1] * u; };
+          const g = new THREE.SphereGeometry(1, 220, 140); g.rotateX(Math.PI / 2);
+          const p = g.attributes.position;
+          for (let i = 0; i < p.count; i++) { const dx = p.getX(i), dy = p.getY(i), dz = p.getZ(i), r = R(Math.atan2(dy, dx)); p.setXYZ(i, dx * r, dy * r, dz * th); }
+          return smooth(g);
+        }
+        function heartFlat(w) { const k = w / 32, s = new THREE.Shape(); for (let i = 0; i <= 96; i++) { const [x, y] = heartXY(i / 96 * Math.PI * 2); if (i === 0) s.moveTo(x * k, (y + 2.5) * k); else s.lineTo(x * k, (y + 2.5) * k); } return s; }
+        function stadium(len, h, hole) {   // a pill outline centred on 0 (len includes the round caps)
+          const r = h / 2, hx = len / 2 - r, s = hole ? new THREE.Path() : new THREE.Shape();
+          s.moveTo(-hx, -r); s.lineTo(hx, -r); s.absarc(hx, 0, r, -Math.PI / 2, Math.PI / 2, false); s.lineTo(-hx, r); s.absarc(-hx, 0, r, Math.PI / 2, Math.PI * 1.5, false);
+          return s;
+        }
+        const glowMat = (col, kind, a, b) => new THREE.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending, toneMapped: false,
+          uniforms: { uCol: { value: new THREE.Color(col) }, uAmp: { value: 0 }, uA: { value: a }, uB: { value: b }, uW: { value: 18 } },
+          vertexShader: "varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "uniform vec3 uCol; uniform float uAmp, uA, uB, uW; varying vec2 vP; void main(){" +
+            (kind === "pill" ? " float d = length(vec2(max(abs(vP.x) - uA, 0.0), vP.y)) - uB;" : " float d = length(vP) - uA;") +
+            " float g = d > 0.0 ? exp(-d / uW) : 1.0; g *= g; gl_FragColor = vec4(uCol * g * uAmp, g * uAmp); }" });
+
+        // ---------- the meter ----------
+        const S = Lc.spread, TR = Lc.tubeR, HH = Lc.housingH, HW = Lc.heartW, PR = Lc.portraitR, BR = Lc.bezelR;
+        const meter = new THREE.Group(); scene.add(meter);
+        const bar = new THREE.Group(); meter.add(bar);           // scales in x on the extrude
+        // housing: lacquered plum pill with a bevel
+        const HB = 5, HD = 8, HF = HD + HB;                       // bevel, depth, front face z
+        const housingMat = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.housing), metalness: 0.25, roughness: 0.34, clearcoat: 1, clearcoatRoughness: 0.1, envMapIntensity: 1.3 });
+        const hGeo = new THREE.ExtrudeGeometry(stadium(2 * S + HH - 2 * HB, HH - 2 * HB), { depth: HD, bevelEnabled: true, bevelThickness: HB, bevelSize: HB, bevelSegments: 5, curveSegments: 48 });
+        bar.add(new THREE.Mesh(hGeo, housingMat));
+        // neon inlay line just inside the top face, and the soft outer glow (the evidence's glowing pink border)
+        const nShape = stadium(2 * S + HH - 12, HH - 12); nShape.holes.push(stadium(2 * S + HH - 20, HH - 20, true));
+        const neonMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(C.neon), toneMapped: false, transparent: true, opacity: 1 });
+        const neon = new THREE.Mesh(new THREE.ShapeGeometry(nShape, 48), neonMat); neon.position.z = HF + 0.3; bar.add(neon);
+        const halo = new THREE.Mesh(new THREE.PlaneGeometry(2 * S + HH + 220, HH + 220), glowMat(C.neon, "pill", S, HH / 2)); halo.position.z = -6; halo.renderOrder = 1; bar.add(halo);
+        // recessed channel behind the tube (inner shadow at the top, lit lip at the bottom)
+        const CH = 2 * TR + 10;
+        const chanMat = new THREE.ShaderMaterial({ uniforms: { uH: { value: CH / 2 } },
+          vertexShader: "varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "uniform float uH; varying vec2 vP; void main(){ float y = vP.y / uH; vec3 c = mix(vec3(0.030,0.012,0.040), vec3(0.11,0.05,0.13), smoothstep(-0.2, -1.0, y));" +
+            " c *= 1.0 - 0.55 * smoothstep(0.45, 1.0, y); gl_FragColor = vec4(c, 1.0); }" });
+        const chan = new THREE.Mesh(new THREE.ShapeGeometry(stadium(2 * S, CH), 48), chanMat); chan.position.z = HF + 0.2; bar.add(chan);
+        // liquid: two cylinders + meniscus caps, shaded in a custom shader (gradient fixed in meter space)
+        const TZ = HF + 0.35 * TR;
+        const liqUniforms = () => ({ uOx: { value: 0 }, uSx: { value: 1 }, uHalf: { value: S }, uTime: { value: 0 }, uDim: { value: 0 }, uHot: { value: 0 }, uCap: { value: 0 },
+          uC0: { value: new THREE.Color(C.magenta) }, uC1: { value: new THREE.Color(C.pink) } });
+        const liqVS = "uniform float uOx, uSx; varying vec3 vN; varying float vX; void main(){ vec4 wp = modelMatrix * vec4(position,1.0); vX = (wp.x - uOx) / uSx; vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * viewMatrix * wp; }";
+        const liqFS = "uniform float uHalf, uTime, uDim, uHot, uCap; uniform vec3 uC0, uC1; varying vec3 vN; varying float vX; void main(){" +
+          " float ax = clamp(abs(vX) / uHalf, 0.0, 1.0); vec3 base = mix(uC1, uC0, smoothstep(0.05, 0.95, ax));" +
+          " float ny = vN.y; float body = 0.50 + 0.55 * smoothstep(-0.95, 0.55, ny);" +
+          " float flow = 0.5 + 0.5 * sin(ax * uHalf * 0.075 + uTime * 11.0);" +
+          " float rim = pow(1.0 - abs(vN.z), 2.2);" +
+          " float spec = smoothstep(0.40, 0.62, ny) * (1.0 - smoothstep(0.70, 0.92, ny));" +
+          " vec3 c = base * body * (0.92 + 0.16 * flow) + uC1 * rim * 0.45 + vec3(1.0, 0.86, 0.96) * spec * 0.55;" +
+          " c += vec3(1.0, 0.80, 0.94) * uCap * (0.35 + 0.65 * pow(max(vN.z, 0.0), 2.0));" +
+          " c = mix(c, vec3(1.0, 0.86, 0.95), 0.42 * uHot) + base * 0.35 * uHot;" +
+          " c *= 1.0 - 0.5 * uDim; c = mix(c, vec3(dot(c, vec3(0.3, 0.5, 0.2))), 0.35 * uDim); gl_FragColor = vec4(c, 1.0); }";
+        const liqMat = new THREE.ShaderMaterial({ uniforms: liqUniforms(), vertexShader: liqVS, fragmentShader: liqFS });
+        const capMat = new THREE.ShaderMaterial({ uniforms: liqUniforms(), vertexShader: liqVS, fragmentShader: liqFS });
+        const LR = TR - 2.5;
+        const cylGeo = new THREE.CylinderGeometry(LR, LR, 1, 48, 1, true); cylGeo.rotateZ(Math.PI / 2); cylGeo.translate(0.5, 0, 0);
+        const capGeo = new THREE.SphereGeometry(LR * 0.985, 40, 24);
+        const liq = [new THREE.Mesh(cylGeo, liqMat), new THREE.Mesh(cylGeo, liqMat)], caps = [new THREE.Mesh(capGeo, capMat), new THREE.Mesh(capGeo, capMat)];
+        liq.concat(caps).forEach((m) => { m.position.z = TZ; bar.add(m); });
+        // glass tube
+        const glassMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false,
+          uniforms: { uOx: { value: 0 }, uSx: { value: 1 }, uSweep: { value: -1e4 }, uSweepAmp: { value: 0 }, uGlint: { value: 0 } },
+          vertexShader: "uniform float uOx, uSx; varying vec3 vN; varying float vX; void main(){ vec4 wp = modelMatrix * vec4(position,1.0); vX = (wp.x - uOx) / uSx; vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * viewMatrix * wp; }",
+          fragmentShader: "uniform float uSweep, uSweepAmp, uGlint; varying vec3 vN; varying float vX; void main(){ float ny = vN.y; float fr = pow(1.0 - abs(vN.z), 1.7);" +
+            " float top = smoothstep(0.38, 0.52, ny) * (1.0 - smoothstep(0.60, 0.74, ny)); float low = smoothstep(-0.62, -0.86, ny);" +
+            " float sw = exp(-pow((abs(vX) - uSweep) / 34.0, 2.0)) * uSweepAmp; float gl = exp(-pow((vX - uGlint) / 60.0, 2.0)) * 0.55;" +
+            " vec3 c = vec3(1.0, 0.94, 0.98) * (0.16 + 0.55 * fr) + vec3(1.0) * top * (0.75 + 0.6 * gl) + vec3(1.0, 0.5, 0.85) * low * 0.35 + vec3(1.0, 0.92, 0.98) * sw * (0.6 + 0.4 * fr);" +
+            " float a = clamp(0.06 + 0.42 * fr + 0.75 * top + 0.25 * low + 0.7 * sw, 0.0, 1.0); gl_FragColor = vec4(c, a); }" });
+        const glassGeo = new THREE.CylinderGeometry(TR, TR, 2 * S, 64, 1, true); glassGeo.rotateZ(Math.PI / 2);
+        const glass = new THREE.Mesh(glassGeo, glassMat); glass.position.z = TZ; glass.renderOrder = 3; bar.add(glass);
+        // heart ticks on the glass: 3 per side, light and pop as the liquid passes
+        const X0 = S - BR + 5, X1 = HW * 0.3, Q = [0.25, 0.5, 0.75];
+        const headX = (f) => lerp(X0, X1, f);
+        const tickGeo = new THREE.ShapeGeometry(heartFlat(TR * 0.95), 24); tickGeo.center();
+        const ticks = [];
+        [-1, 1].forEach((sd) => Q.forEach((q) => { const m = new THREE.Mesh(tickGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, toneMapped: false, depthTest: false }));
+          m.position.set(sd * headX(q), 0, TZ + TR + 2); m.renderOrder = 4; bar.add(m); ticks.push({ m, q, sd }); }));
+
+        // portraits: raised lacquer medallions, photo disc, inner shadow, pink-chrome ring, neon edge
+        const chromeMat = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.chrome), metalness: 1, roughness: 0.16, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 1.6 });
+        const bezelProfile = [[0, 16], [BR - 9, 16], [BR - 4, 14.5], [BR - 1, 11], [BR, 6], [BR, -10], [0, -10]].map(([r, z]) => new THREE.Vector2(r, z));
+        const bezelGeo = new THREE.LatheGeometry(bezelProfile, 128); bezelGeo.rotateX(Math.PI / 2);
+        const shadeMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { uR: { value: PR } },
+          vertexShader: "varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "uniform float uR; varying vec2 vP; void main(){ float r = length(vP) / uR; float a = smoothstep(0.80, 1.0, r) * 0.62 + smoothstep(0.55, 1.0, r) * smoothstep(0.0, 0.9, vP.y / uR) * 0.25; gl_FragColor = vec4(0.04, 0.0, 0.05, a); }" });
+        const medal = [], MZ = HF + 8;   // medallions sit proud of the bar, in front of the tube ends
+        const bezelMat = housingMat.clone(); bezelMat.side = THREE.DoubleSide;
+        const neonRingMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(C.neon), toneMapped: false });
+        for (let i = 0; i < 2; i++) {
+          const g = new THREE.Group(), spin = new THREE.Group(); g.add(spin); meter.add(g);
+          const bz = new THREE.Mesh(bezelGeo, bezelMat); bz.position.z = MZ; spin.add(bz);
+          const photoMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
+          const photo = new THREE.Mesh(new THREE.CircleGeometry(PR, 96), photoMat); photo.position.z = MZ + 16.4; spin.add(photo);
+          const sh = new THREE.Mesh(new THREE.CircleGeometry(PR, 96), shadeMat); sh.position.z = MZ + 16.6; spin.add(sh);
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(PR + 3, 5, 28, 128), chromeMat); ring.position.z = MZ + 17; spin.add(ring);
+          const nr = new THREE.Mesh(new THREE.TorusGeometry(BR - 2.5, 1.5, 12, 128), neonRingMat); nr.position.z = MZ + 13.5; spin.add(nr);
+          const hal = new THREE.Mesh(new THREE.PlaneGeometry(2 * BR + 160, 2 * BR + 160), glowMat(C.neon, "disc", BR, 0)); hal.position.z = HF - 6; hal.renderOrder = 1; g.add(hal);
+          medal.push({ g, spin, photoMat, hal });
+        }
+        // the heart: one balloon mesh drawn as two halves split on a zig-zag crack (seamless when shut)
+        const hGeoH = heartGeo(HW, HW * 0.21);
+        const HZ = TZ + TR + HW * 0.21 + 6;
+        const heartG = new THREE.Group(); heartG.position.z = HZ; meter.add(heartG);
+        const tipY = -14.5 * HW / 32;   // the bottom tip in heart space (the halves hinge off it)
+        function heartMat(side) {
+          const u = { uSide: { value: side }, uZig: { value: HW * 0.05 }, uPer: { value: HW * 0.3 }, uInner: { value: new THREE.Vector3(0.78, 0.09, 0.30) },
+                      uSeam: { value: 0 }, uSeamCol: { value: new THREE.Color(1.0, 0.8, 0.92) }, uSeamW: { value: HW * 0.03 } };
+          const m = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.heart), roughness: 0.24, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05,
+            sheen: 0.25, sheenColor: new THREE.Color("#FF6FB5"), sheenRoughness: 0.4, emissive: new THREE.Color(C.heart), emissiveIntensity: 0.18, envMapIntensity: 1.15, side: THREE.DoubleSide });
+          m.onBeforeCompile = (sh) => {
+            Object.assign(sh.uniforms, u);
+            sh.vertexShader = "varying vec3 vLp;\n" + sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\nvLp = position;");
+            sh.fragmentShader = "varying vec3 vLp; uniform float uSide, uZig, uPer, uSeam, uSeamW; uniform vec3 uInner, uSeamCol;\n" +
+              "float crackX(float y){ float p = y / uPer + 0.25; return uZig * (2.0 * abs(2.0 * fract(p) - 1.0) - 1.0); }\n" +
+              sh.fragmentShader
+                .replace("#include <clipping_planes_fragment>", "#include <clipping_planes_fragment>\n float cxk = crackX(vLp.y); if (uSide > 0.5 && vLp.x < cxk) discard; if (uSide < -0.5 && vLp.x >= cxk) discard;")
+                .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n { float sd = abs(vLp.x - crackX(vLp.y)); totalEmissiveRadiance += uSeamCol * uSeam * exp(-sd * sd / (uSeamW * uSeamW)); }")
+                .replace("#include <dithering_fragment>", "#include <dithering_fragment>\n if (!gl_FrontFacing) { float gy = smoothstep(-uPer * 1.6, uPer * 1.6, vLp.y); float ed = smoothstep(uSeamW * 6.0, 0.0, abs(vLp.x - crackX(vLp.y))); gl_FragColor = vec4(mix(uInner * 0.42, uInner, gy) + vec3(0.25, 0.05, 0.12) * ed, 1.0); }");
+          };
+          m.userData.u = u; return m;
+        }
+        const halves = [-1, 1].map((sd) => {
+          const pivot = new THREE.Group(); pivot.position.y = tipY; heartG.add(pivot);
+          const mat = heartMat(sd), mesh = new THREE.Mesh(hGeoH, mat); mesh.position.y = -tipY; pivot.add(mesh);
+          return { pivot, mesh, mat, sd };
+        });
+        const hHalo = new THREE.Mesh(new THREE.PlaneGeometry(HW * 3.2, HW * 3.2), glowMat(C.neon, "disc", HW * 0.36, 0)); hHalo.position.z = HZ - HW * 0.3; hHalo.renderOrder = 2; meter.add(hHalo);
+        // embers at the payoff
+        const emberMat = () => new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, uniforms: { uAmp: { value: 0 } },
+          vertexShader: "varying vec2 vU; void main(){ vU = uv - 0.5; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "uniform float uAmp; varying vec2 vU; void main(){ float r = length(vU) * 2.0; float g = exp(-r * r * 9.0) + 0.5 * exp(-r * r * 2.5); vec3 c = mix(vec3(1.0, 0.35, 0.78), vec3(1.0, 0.95, 0.98), exp(-r * r * 16.0)); gl_FragColor = vec4(c * g * uAmp, g * uAmp); }" });
+        const embers = []; for (let i = 0; i < 9; i++) { const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), emberMat()); m.renderOrder = 6; meter.add(m); embers.push(m); }
+
+        const cHeart = new THREE.Color(C.heart), cCracked = new THREE.Color(C.cracked), cHot = new THREE.Color(C.hot), cTmp = new THREE.Color();
+
+        // ---------- the story: bond level over time ----------
+        const Lv = CONFIG.levels;
+        const slosh = (t, at, amp, f) => { const d = t - at; return d < 0 ? 0 : amp * Math.exp(-d / 0.28) * Math.sin(d * Math.PI * 2 * (f || 3.0)); };
+        function fillAt(t) {
+          if (t < T.pour) return 0;
+          if (t < T.crack) return Lv.start * eIO2(seg(t, T.pour, T.pourEnd - T.pour)) + slosh(t, T.pourEnd, 0.035);
+          if (t < T.refill) return lerp(Lv.start, Lv.low, eO3(seg(t, T.crack + 0.05, T.drainEnd - T.crack - 0.05))) + slosh(t, T.drainEnd, -0.03);
+          if (t < T.max) return lerp(Lv.low, 1, E("back.in(1.5)")(seg(t, T.refill, T.max - T.refill)));
+          return 1;
+        }
+
+        let LH = 90;
+        function renderAt(t) {
+          const f = fillAt(t);
+          // entrance / exit of the meter
+          const hin = seg(t, T.in, 0.46), hinB = eBack(2.0)(hin), hinO = eO3(hin);
+          const extIn = eBack(1.25)(seg(t, T.in + 0.14, 0.42)), extOut = eI3(seg(t, T.out + 0.04, 0.28));
+          const ext = Math.max(0.002, extIn * (1 - extOut));
+          const pin = eBack(1.8)(seg(t, T.in + 0.16, 0.40)), pout = eI3(seg(t, T.out + 0.16, 0.2));
+          const hout = seg(t, T.out + 0.30, 0.25), houtE = eI3(hout);
+          const vis = t >= T.in && hout < 1;
+          meter.visible = vis;
+          meter.position.set(wx(Lc.cx), wy(Lc.cy), 0);
+          bar.scale.set(ext, lerp(0.55, 1, Math.min(1, extIn)) * (1 - 0.5 * extOut), 1);
+          // crack state
+          const crackOn = t >= T.crack + 0.06 && t < T.max;
+          const crackAmt = t < T.crack ? 0 : (t < T.max ? eO2(seg(t, T.crack + 0.05, 0.25)) : 0);
+          const close = clamp((f - Lv.low) / (1 - Lv.low), 0, 1);
+          const shut = eI3(seg(t, T.max - 0.1, 0.1));
+          const split = crackOn ? eBack(2.4)(seg(t, T.crack + 0.06, 0.34)) * (1 - 0.5 * close) * (1 - shut) : 0;
+          const shiver = crackOn ? 0.03 * Math.sin(t * Math.PI * 2 * 13) * seg(t, T.max - 0.5, 0.4) : 0;
+          // payoff light
+          const fl = flash(t, T.max, 0.22), after = t >= T.max ? 1 : 0;
+          // heart transform
+          let hs = lerp(0.12, 1, hinB) * (1 - houtE);
+          const sq = pulse(t, T.crack, 0.12);
+          hs *= 1 + 0.06 * pulse(t, T.pourEnd + 0.04, 0.3);
+          const punchA = seg(t, T.max, 0.07), punchB = seg(t, T.max + 0.07, 0.45);
+          if (t >= T.max) hs *= punchB > 0 ? lerp(1.42, 1.12, eBack(2.2)(punchB)) : lerp(1, 1.42, eO2(punchA));
+          if (t >= T.max) hs *= 1 + 0.05 * pulse(t, 4.86, 0.16) + 0.04 * pulse(t, 5.04, 0.16);
+          if (t >= T.out + 0.3) hs = Math.max(0.0001, hs);
+          heartG.scale.set(hs * (1 + 0.09 * sq), hs * (1 - 0.13 * sq), hs);
+          const hy = Lc.heartLift + 90 * (1 - hinO) - 7 * split * (1 - close);
+          heartG.position.set(0, hy, HZ);
+          let ry = -2.5 * (1 - hinO) + 0.2 * Math.sin(1.7 * t + 0.6) * (1 - 0.6 * crackAmt);
+          ry += Math.PI * 2 * eO3(seg(t, T.max + 0.04, 0.55)) + 3.2 * E("power2.in")(hout);
+          heartG.rotation.set(-0.1 + 0.05 * Math.sin(1.3 * t), ry, 0);
+          halves.forEach((h) => {
+            const g = HW * 0.075 * split;
+            h.pivot.position.x = h.sd * g;
+            h.pivot.rotation.set(0, h.sd * 0.28 * split, -h.sd * (0.14 * split + shiver));
+            const u = h.mat.userData.u, m = h.mat;
+            cTmp.copy(cHeart).lerp(cCracked, crackAmt);
+            if (after) cTmp.copy(cHeart).lerp(cHot, 0.3 * fl);
+            m.color.copy(cTmp); m.emissive.copy(cHeart);
+            m.emissiveIntensity = (0.18 * (1 - crackAmt)) + (after ? 0.9 * fl + 0.2 : 0) + 0.25 * pulse(t, 4.86, 0.16) + 0.2 * pulse(t, 5.04, 0.16);
+            u.uSeam.value = 3.2 * pulse(t, T.crack - 0.02, 0.1) + 3.5 * flash(t, T.max, 0.08) * after;
+                      });
+          hHalo.position.set(0, hy, HZ - HW * 0.3); hHalo.scale.setScalar(Math.max(0.001, hs));
+          hHalo.material.uniforms.uAmp.value = vis ? (0.30 * (1 - crackAmt) + 1.2 * fl + 0.38 * after) * Math.min(1, hin * 2) : 0;
+          hHalo.material.uniforms.uW.value = HW * 0.16;
+          // fill: both sides pour toward the heart
+          const hx = headX(clamp(f, -0.2, 1.08)) + slosh(t, T.max - 0.02, 3, 4);
+          [-1, 1].forEach((sd, i) => {
+            const len = Math.max(0.5, S - hx);
+            liq[i].position.x = sd < 0 ? -S : hx; liq[i].scale.x = len;
+            caps[i].position.x = sd * hx; caps[i].scale.set(0.55 + 0.25 * Math.abs(slosh(t, T.pourEnd, 1, 3)), 1, 1);
+          });
+          const mw = new THREE.Vector3(); meter.getWorldPosition(mw);
+          [liqMat, capMat].forEach((m) => { const u = m.uniforms; u.uOx.value = mw.x; u.uSx.value = ext; u.uTime.value = t; u.uDim.value = 0.55 * crackAmt * (1 - close); u.uHot.value = 0.9 * fl + 0.25 * after; });
+          capMat.uniforms.uCap.value = 0.35 + 0.5 * pulse(t, T.max - 0.05, 0.3);
+          glassMat.uniforms.uOx.value = mw.x; glassMat.uniforms.uSx.value = ext;
+          const sw = seg(t, T.max, 0.42);
+          glassMat.uniforms.uSweep.value = sw > 0 && sw < 1 ? lerp(10, S, eO2(sw)) : -1e4; glassMat.uniforms.uSweepAmp.value = Math.sin(Math.PI * sw);
+          glassMat.uniforms.uGlint.value = lerp(-S * 1.3, S * 1.3, (t * 0.32) % 1);
+          // ticks
+          ticks.forEach((k) => {
+            const lit = clamp((f - k.q + 0.02) / 0.04, 0, 1), bell = Math.exp(-Math.pow((f - k.q) / 0.06, 2));
+            const swHit = sw > 0 && sw < 1 ? Math.exp(-Math.pow((headX(k.q) - lerp(10, S, eO2(sw))) / 40, 2)) : 0;
+            k.m.material.color.set(lit > 0.5 ? "#FFE6F5" : "#FFFFFF");
+            k.m.material.opacity = (0.34 + 0.66 * lit) * (1 - pout);
+            k.m.scale.setScalar(1 + 0.7 * bell * (t > T.pour ? 1 : 0) + 0.5 * swHit);
+          });
+          // housing light
+          const nAmp = (0.95 - 0.45 * crackAmt * (1 - close)) + 0.9 * fl;
+          neonMat.color.set(C.neon).multiplyScalar(nAmp);
+          halo.material.uniforms.uAmp.value = vis ? 0.26 * (1 - 0.5 * crackAmt) + 0.75 * fl + 0.08 * after : 0;
+          halo.material.uniforms.uW.value = 16 + 10 * fl;
+          // medallions
+          medal.forEach((md, i) => {
+            const sd = i ? 1 : -1, ps = Math.max(0.0001, pin * (1 - pout));
+            md.g.position.set(sd * S * ext, 0, 0); md.g.scale.set(ps, ps, 1);
+            md.spin.rotation.set(0, sd * 1.3 * (1 - pin) + sd * 0.9 * pout, 0);
+            const pf = flash(t, T.max + 0.16, 0.25) * after;
+            md.hal.material.uniforms.uAmp.value = vis ? (0.28 * (1 - 0.5 * crackAmt) + 1.0 * pf + 0.1 * after) * ps : 0; md.hal.material.uniforms.uW.value = 14 + 8 * pf;
+          });
+          neonRingMat.color.set(C.neon).multiplyScalar(0.9 - 0.4 * crackAmt * (1 - close) + 1.2 * flash(t, T.max + 0.16, 0.25) * after);
+          chromeMat.envMapIntensity = 1.6 + 2.2 * flash(t, T.max + 0.16, 0.25) * after;
+          // embers
+          embers.forEach((m, i) => {
+            const t0 = T.max + 0.02 + hash(i + 3) * 0.3, life = 0.75 + 0.45 * hash(i + 17), u = (t - t0) / life;
+            if (u <= 0 || u >= 1 || !vis) { m.material.uniforms.uAmp.value = 0; m.visible = false; return; }
+            m.visible = true;
+            const ang = -Math.PI / 2 + (hash(i + 29) - 0.5) * 2.4, dist = HW * (0.45 + 0.75 * hash(i + 41)) * eO2(u);
+            m.position.set(Math.cos(ang) * dist * 1.1, hy + HW * 0.2 + Math.abs(Math.sin(ang)) * dist + 30 * u, HZ + HW * 0.3);
+            m.scale.setScalar(10 + 10 * hash(i + 53));
+            m.material.uniforms.uAmp.value = Math.sin(Math.PI * Math.min(1, u * 1.4)) * (1 - u) * 1.4;
+          });
+          // light: the key rakes across on the payoff
+          const rk = eIO2(seg(t, T.max - 0.05, 0.5));
+          key.position.set(lerp(-0.7, 0.9, rk), 0.9, 1.0); key.intensity = 1.5 + 1.4 * fl;
+          rim.intensity = 1.1 * (1 - 0.4 * crackAmt) + 0.8 * fl;
+          renderer.render(scene, camera);
+          const bl = (t >= T.in && t < T.in + 0.16 ? 5 * (1 - (t - T.in) / 0.16) : 0) + 5 * houtE;
+          canvas.style.filter = bl > 0.2 ? "blur(" + bl.toFixed(2) + "px)" : "none";
+          // contact shadow on the footage
+          const sh = $("#shadow");
+          sh.style.transform = "translate(" + (Lc.cx - 500) + "px," + (Lc.cy + 34 - 85) + "px) scale(" + (ext * 0.92 + 0.08).toFixed(4) + "," + (0.9 + 0.1 * pin).toFixed(3) + ")";
+          sh.style.opacity = vis ? (0.9 * Math.min(1, hin * 2) * (1 - extOut)).toFixed(3) : 0;
+          // status word: roll window
+          let idx = -1;
+          const ev = [[T.statusIn, -1, 0, 0.34, eBack(1.3)], [T.crack + 0.1, 0, 1, 0.3, eBack(1.3)], [T.max + 0.06, 1, 2, 0.2, eBack(1.2)], [T.out, 2, 3, 0.2, eI3]];
+          ev.forEach(([at, a, b, d, e]) => { if (t >= at) idx = lerp(a, b, e(seg(t, at, d))); });
+          strip.style.transform = "translateY(" + (-idx * LH).toFixed(2) + "px)";
+          const slam = t >= T.max + 0.06 ? lerp(1.2, 1, eBack(2.0)(seg(t, T.max + 0.06, 0.32))) : 1;
+          $("#status .win").style.transform = "scale(" + slam.toFixed(4) + ")";
+        }
+        window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+
+        const loader = new THREE.TextureLoader();
+        const loadTex = (u) => new Promise((res) => loader.load(u, (tx) => res(tx), undefined, () => res(null)));
+        const FACES = ["900 100px Archivo", "900 100px Inter"];
+        Promise.all([Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready), loadTex(CONFIG.portraits[0]), loadTex(CONFIG.portraits[1])]).then(([, t0, t1]) => {
+          [t0, t1].forEach((tx, i) => { if (!tx) return; tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 8; medal[i].photoMat.map = tx; medal[i].photoMat.needsUpdate = true; });
+          // status window: line box LH, the cap line centred in it, the baseline at CONFIG statusBase
+          const FS = Lc.statusSize; LH = Math.round(FS * 1.7);
+          const ctx = document.createElement("canvas").getContext("2d"); ctx.font = "900 " + FS + "px Archivo";
+          const m = ctx.measureText("H"), A = m.fontBoundingBoxAscent, D = m.fontBoundingBoxDescent;
+          const baseInLine = (LH - (A + D)) / 2 + A;
+          document.querySelectorAll("#status .w").forEach((w) => { w.style.fontSize = FS + "px"; w.style.height = LH + "px"; w.style.lineHeight = LH + "px"; });
+          const win = $("#status .win"); win.style.height = LH + "px"; win.style.top = (Lc.statusBase - baseInLine) + "px";
+          win.style.transformOrigin = "50% " + (baseInLine - m.actualBoundingBoxAscent / 2) + "px";
+          $("#status").style.left = Lc.cx + "px";
+          const tl = gsap.timeline({ paused: true });
+          renderAt(0);
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          if (plate) {
+            Look.impact(tl, T.crack, { shake: "#shake", amp: 5, dur: 0.26, flash: 0, host: "#root", zoom: 1.01 });
+            Look.impact(tl, T.max, { shake: "#shake", amp: 7, dur: 0.32, flash: 0, host: "#root", zoom: 1.016 });
+          }
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

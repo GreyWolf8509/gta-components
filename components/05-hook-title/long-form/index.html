@@ -1,0 +1,244 @@
+<!doctype html>
+<!-- GTA-niche 05 Hook title, variant A: "Meme top bar" (9:16 Shorts, 1080x1920, 30 fps).
+     The classic Shorts meme format: a white top bar with heavy black sentence-case type, the gameplay clip in the window
+     below. The bar slams down from the top edge and pushes the footage window into place with a tiny bounce, the words
+     stamp on, and the keyword drops in as real geometry (Three.js: extruded, bevelled Inter outlines) that lands as black
+     ink and floods to glossy red enamel behind a hot light front, with a contact shadow on the paper. See ../DECISIONS.md.
+     Variable: bg "plate" (sample GTA V footage in the window) / "none" (transparent: the bar alone, for your own clip). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <script src="media/word3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      /* the footage window under the bar: its top edge rides the bar's bottom edge */
+      #win { position: absolute; left: 0; width: 1080px; top: 0; bottom: 0; overflow: hidden; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; pointer-events: none; }
+      /* the bar: a white slab, its face running up past the top edge so the bounce never opens a gap */
+      #bar { position: absolute; left: 0; top: 0; width: 1080px; }
+      #barFace { position: absolute; left: 0; right: 0; bottom: 0; top: -400px;
+        background: radial-gradient(130% 120% at 32% 18%, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 62%),
+          linear-gradient(180deg, #FFFFFF 0%, #FBFBFC 70%, #F3F4F7 92%, #ECEEF2 100%); }
+      #barLip { position: absolute; left: 0; right: 0; bottom: 0; height: 8px;
+        background: linear-gradient(180deg, #FFFFFF 0px, #FFFFFF 2px, #E9ECF1 2.5px, #D6DBE2 5px, #C3C9D2 8px); }
+      #barShadow { position: absolute; left: 0; right: 0; height: 96px;
+        background: linear-gradient(180deg, rgba(6,8,12,.66) 0px, rgba(6,8,12,.46) 5px, rgba(6,8,12,.30) 14px, rgba(6,8,12,.16) 32px, rgba(6,8,12,.06) 60px, rgba(6,8,12,0) 96px); }
+      .line { filter: drop-shadow(0 3px 3px rgba(14,15,19,.16)) drop-shadow(0 8px 10px rgba(14,15,19,.10)); }
+      #kwGlow { position: absolute; opacity: 0; }
+      #title { position: absolute; left: 0; top: 0; width: 1080px; height: 100%; }
+      .line { position: absolute; left: 0; width: 1080px; text-align: center; white-space: nowrap; line-height: 1; }
+      .w { display: inline-block; white-space: nowrap; opacity: 0; }
+      .kw { visibility: hidden; }
+      .probe { display: inline-block; width: 0; height: 0; vertical-align: baseline; }
+      #kw3d { position: absolute; left: 0; top: 0; }
+      .fx { position: absolute; width: 0; height: 0; overflow: hidden; }
+    </style>
+  </head>
+  <body>
+    <svg class="fx" aria-hidden="true"><filter id="vblur" x="-2%" y="-20%" width="104%" height="140%"><feGaussianBlur id="vblurG" in="SourceGraphic" stdDeviation="0 0" /></filter></svg>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5.7" data-width="1080" data-height="1920">
+      <div id="win"><div id="shake"><div id="push">
+        <video id="s1" class="clip shot" src="assets/shots/v52-gp-police-bridge-h.mp4" muted playsinline data-start="0" data-duration="1.0" data-media-start="1.05" data-track-index="0"></video>
+        <video id="s2" class="clip shot" src="assets/shots/v11-yacht-h.mp4" muted playsinline data-start="1.0" data-duration="2.1" data-media-start="0.0" data-track-index="0"></video>
+        <video id="s3" class="clip shot" src="assets/shots/v46-gp-speedboat-h.mp4" muted playsinline data-start="3.1" data-duration="1.75" data-media-start="0.45" data-track-index="0"></video>
+        <video id="s4" class="clip shot" src="assets/shots/v45-beach-aerial-h.mp4" muted playsinline data-start="4.85" data-duration="0.85" data-media-start="0.04" data-track-index="0"></video>
+      </div></div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="5.7" data-track-index="1">
+        <div id="bar">
+          <div id="barShadow"></div>
+          <div id="barFace" data-layout-allow-overflow></div>
+          <div id="barLip"></div>
+          <div id="title"></div>
+          <div id="kwGlow"></div>
+          <div id="kw3d"></div>
+        </div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        // The hook. One line break (\n); wrap the keyword in *stars*: it drops in as the red 3D word.
+        title: "When the cops\ncan’t *swim*",
+        type: { family: "Inter", weight: 900, size: 112, lineHeight: 1.08, tracking: -0.035, wordSpacing: 0.03, maxWidth: 792, ink: "#0E0F13" },
+        bar: { height: 532, textCentreY: 352 },       // px: bar bottom edge at rest; the type block's optical centre
+        keyword: {
+          scale: 1.16,                                    // keyword size vs the running words
+          depth: 30, bevel: 4.6, tilt: 0.38, dropScale: 1.3,
+          face: ["#FF5E68", "#F21E2E", "#B80614", "#D30C1C", "#860410"],   // glossy red enamel, top to bottom, with a reflection horizon
+          lip: "#FF9AA0", side: ["#9A0814", "#2A0104"],  // lit lip, then the graded wall
+          pre: ["#2A2C33", "#0E0F13"], preSide: ["#1C1D22", "#000000"],   // lands as the same black ink as the words
+          hot: "#FF8E80", shadow: 0.46,
+          glow: { color: "255,59,71", peak: 0.55, rest: 0.1 }   // the payoff light: red bounce on the paper around the word
+        },
+        timing: { barIn: 0.05, barLand: 0.27, words: 0.33, stagger: 0.065, line2: 0.6, kwIn: 0.84, kwLand: 1.0, out: 5.42, end: 5.7 },
+        shots: ["#s1", "#s2", "#s3", "#s4"]
+      };
+
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const $ = (s) => document.querySelector(s);
+        const C = CONFIG, T = C.type, TM = C.timing, K = C.keyword, BH = C.bar.height, FR = 1 / 30;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        else $("#win").style.background = "#0E0F13";
+
+        Promise.all([document.fonts.load(T.weight + " 100px \"" + T.family + "\"", "When the cops can’t swim")]).then(() => document.fonts.ready).then(() => {
+          const bar = $("#bar"), title = $("#title");
+          bar.style.height = BH + "px";
+          $("#barShadow").style.top = BH + "px";
+
+          // ---------- type: build the lines, fit to maxWidth, set on exact baselines ----------
+          const F = window.KEY_GLYPHS;
+          let size = T.size;
+          const lines = C.title.split("\n").map((ln) => ln.trim().split(/\s+/));
+          const words = [];
+          let kwSpan = null, kwText = "";
+          const lineEls = lines.map((ws, li) => {
+            const el = document.createElement("div"); el.className = "line";
+            ws.forEach((w, wi) => {
+              const isKw = /^\*.+\*$/.test(w), txt = isKw ? w.slice(1, -1) : w;
+              const s = document.createElement("span"); s.className = "w" + (isKw ? " kw" : ""); s.textContent = txt;
+              el.appendChild(s);
+              if (wi < ws.length - 1) el.appendChild(document.createTextNode(" "));
+              if (isKw) { kwSpan = s; kwText = txt; s.style.fontSize = K.scale + "em"; } else words.push({ el: s, line: li });
+            });
+            const pr = document.createElement("span"); pr.className = "probe"; el.appendChild(pr);
+            title.appendChild(el); return el;
+          });
+          const applyFont = () => lineEls.forEach((el) => { el.style.font = T.weight + " " + size + "px/1 '" + T.family + "'"; el.style.letterSpacing = T.tracking + "em"; el.style.wordSpacing = T.wordSpacing + "em"; });
+          applyFont();
+          function measure(el) { const r = document.createRange(); r.selectNodeContents(el); return r.getBoundingClientRect().width; }
+          const widest = Math.max.apply(null, lineEls.map(measure));
+          if (widest > T.maxWidth) { size = Math.floor(size * T.maxWidth / widest); applyFont(); }
+          const cap = F.cap / F.upm * size, LH = size * T.lineHeight, n = lineEls.length;
+          const B0 = C.bar.textCentreY - ((n - 1) * LH - cap) / 2;
+          lineEls.forEach((el, i) => { const base = el.querySelector(".probe").offsetTop; el.style.top = (B0 + i * LH - base).toFixed(2) + "px"; });
+          // each word stamps around its own baseline centre
+          words.forEach((w) => { const li = lineEls[w.line], base = li.querySelector(".probe").offsetTop; w.el.style.transformOrigin = "50% " + base + "px"; });
+
+          // ---------- the keyword: real geometry, inline on its line ----------
+          let KW = null;
+          if (kwSpan) {
+            const li = lineEls[lines.findIndex((ws) => ws.some((w) => /^\*.+\*$/.test(w)))];
+            const baseY = parseFloat(li.style.top) + li.querySelector(".probe").offsetTop;
+            const penX = kwSpan.offsetLeft;
+            let dist = 1800, halfW = 0;
+            const land = TM.kwLand, kin = TM.kwIn;
+            const kSize = size * K.scale, kCap = cap * K.scale;
+            KW = Word3D({
+              W: 1080, H: BH, glyphs: F, text: kwText, upper: false, size: kSize, tracking: T.tracking, penX: penX, cy: baseY - kCap / 2,
+              depth: K.depth, bevel: K.bevel, tilt: K.tilt, inkPx: 0, shadow: K.shadow, shadowOff: 9, shadowColor: "#1A0A0C",
+              envTint: [1.9, 1.84, 1.76],
+              material: { faceMetal: 0.0, faceRough: 0.3, clearcoat: 0.7, faceEnv: 0.16, sideMetal: 0.5, faceEmissive: 0.42, preEmissive: 0.0 },
+              colors: { face: K.face, lip: K.lip, side: K.side, preFace: K.pre, preSide: K.preSide, hot: K.hot },
+              timing: { ignite: land, frontDur: 0.16, specAt: land + 0.26, specDur: 0.42, specAmp: 0.38, rakeAt: land - 0.06, rakeDur: 0.7,
+                holdStart: land + 0.3, holdEnd: TM.out, turn: 0.05, hotAmp: 1.6, bloomBase: 0.0, bloomPeak: 0.5, bloomTh: 1.0 },
+              pose: (t) => {
+                if (t < kin) return { fade: 0 };
+                if (t < land) {      // dropped from above the paper: big, a touch rotated, shadow wide and faint
+                  const p = (t - kin) / (land - kin), e = 1 - p * p;
+                  const sc = 1 + (K.dropScale - 1) * e;
+                  const sk = Math.max(0, (p - 0.5) / 0.5);   // no shadow until it is close to the paper (no grey ghost over the bar edge)
+                  return { z: dist * (1 - 1 / sc), x: halfW * (1 - 1 / sc), rz: 0.05 * e, shadow: K.shadow * sk * sk, shadowOff: 9 + 14 * e };
+                }
+                const u = t - land;      // the stamp: squash on the paper, spring back, the shadow snaps tight
+                const k = Math.exp(-u / 0.06) * Math.cos(2 * Math.PI * u / 0.24);
+                const sx = 1 + 0.06 * k;
+                return { sy: 1 - 0.13 * k, sx: sx, x: halfW * (sx - 1), shadow: K.shadow, shadowOff: 9 - 3 * Math.max(0, k) };   // squash grows rightward: never onto the word before it
+              }
+            });
+            dist = (BH / 2) / Math.tan(9 * Math.PI / 180); halfW = KW.inkW / 2;
+            $("#kw3d").appendChild(KW.canvas);
+            const gl = $("#kwGlow"), gw = KW.inkW * 1.7, gh = kCap * 2.9;
+            gl.style.cssText = "left:" + (KW.cx - gw / 2).toFixed(1) + "px;top:" + (KW.cy - gh / 2 + 8).toFixed(1) + "px;width:" + gw.toFixed(1) + "px;height:" + gh.toFixed(1) + "px;" +
+              "background:radial-gradient(closest-side, rgba(" + K.glow.color + ",.62) 0%, rgba(" + K.glow.color + ",.26) 45%, rgba(" + K.glow.color + ",0) 100%)";
+          }
+          document.querySelectorAll("#ov *").forEach((nd) => { nd.setAttribute("data-layout-allow-overlap", ""); nd.setAttribute("data-layout-allow-occlusion", ""); });
+
+          const tl = gsap.timeline({ paused: true });
+
+          // ---------- the bar: one pure function of time (fall, slam, tiny bounce, the keyword's hit, exit) ----------
+          const barTop = -(BH + 95);
+          function barY(t) {
+            if (t < TM.barIn) return barTop;
+            if (t < TM.barLand) { const p = (t - TM.barIn) / (TM.barLand - TM.barIn); return barTop + (22 - barTop) * p * p * p; }
+            let y = 0;
+            const u = t - TM.barLand;
+            y += 22 * Math.exp(-u / 0.07) * Math.cos(2 * Math.PI * u / 0.26);
+            if (KW && t >= TM.kwLand) { const v = t - TM.kwLand; y += 7 * Math.exp(-v / 0.06) * Math.cos(2 * Math.PI * v / 0.2); }
+            if (t >= TM.out) { const q = Math.min(1, (t - TM.out) / 0.22); y += (barTop - y) * q * q * q; }
+            return y;
+          }
+          function barBlur(t) {   // vertical motion blur while it travels
+            if (t >= TM.barIn && t < TM.barLand) { const p = (t - TM.barIn) / (TM.barLand - TM.barIn); return 26 * p * p; }
+            if (t >= TM.out && t < TM.out + 0.22) { const q = (t - TM.out) / 0.22; return 26 * q * q; }
+            return 0;
+          }
+          const vb = document.getElementById("vblurG"), win = $("#win");
+          function barSY(t) {      // a 2.5% stretch from the top edge on the slam, relaxing with the bounce
+            if (t < TM.barLand || t >= TM.out) return 1;
+            const u = t - TM.barLand; return 1 + 0.025 * Math.max(0, Math.exp(-u / 0.05) * Math.cos(2 * Math.PI * u / 0.26));
+          }
+          bar.style.transformOrigin = "50% 0%";
+          Look.drive(tl, 0, TM.end, (p) => {
+            const t = p * TM.end, y = barY(t), b = barBlur(t), sy = barSY(t);
+            bar.style.transform = "translate3d(0," + y.toFixed(2) + "px,0) scaleY(" + sy.toFixed(4) + ")";
+            vb.setAttribute("stdDeviation", "0 " + b.toFixed(2));
+            bar.style.filter = b > 0.05 ? "url(#vblur)" : "none";
+            win.style.top = Math.max(0, BH * sy + y).toFixed(2) + "px";
+            if (KW) KW.renderAt(t);
+          });
+
+          // ---------- the words stamp on: snap in big and soft, squash onto the baseline, spring back ----------
+          words.forEach((w, i) => {
+            const t0 = w.line === 0 ? TM.words + i * TM.stagger : TM.line2 + (i - lines[0].length) * TM.stagger;
+            const dy = w.line === 0 ? -24 : -14;          // line 2 drops less, so it never reaches line 1's ink
+            gsap.set(w.el, { opacity: 0, scale: 1.08, y: dy });
+            tl.set(w.el, { opacity: 1, filter: "blur(6px)" }, t0);
+            tl.fromTo(w.el, { scale: 1.08, y: dy }, { scale: 0.97, y: 2, duration: 3 * FR, ease: "power2.in", immediateRender: false }, t0);
+            tl.set(w.el, { filter: "blur(2px)" }, t0 + FR);
+            tl.set(w.el, { filter: "none" }, t0 + 2 * FR);
+            tl.to(w.el, { scale: 1, y: 0, duration: 0.18, ease: "back.out(2.4)" }, t0 + 3 * FR);
+          });
+
+          // ---------- the payoff light: red bounce on the paper, 2-frame attack, 3-frame hold, settles ----------
+          if (KW) {
+            const g = $("#kwGlow"), G = K.glow;
+            tl.fromTo(g, { opacity: 0 }, { opacity: G.peak, duration: 2 * FR, ease: "power2.out", immediateRender: false }, TM.kwLand);
+            tl.to(g, { opacity: G.rest, duration: 0.6, ease: "power2.out" }, TM.kwLand + 5 * FR);
+          }
+
+          // ---------- footage: 1.0x, a gentle push per shot, the slam and the keyword hit land on it ----------
+          if (plate) {
+            C.shots.forEach((s) => {
+              const v = $(s), st = parseFloat(v.dataset.start), du = parseFloat(v.dataset.duration);
+              gsap.set(v, { scale: 1, transformOrigin: "50% 45%" });
+              tl.fromTo(v, { scale: 1 }, { scale: 1.035, duration: du, ease: "none", immediateRender: false }, st);
+            });
+            Look.impact(tl, TM.barLand, { shake: "#shake", amp: 9, dur: 0.3, zoom: 1.03, flash: 0 });
+            if (KW) Look.impact(tl, TM.kwLand, { shake: "#shake", amp: 6, dur: 0.26, zoom: 1.02, flash: 0 });
+          }
+
+          if (KW) KW.renderAt(0);
+          tl.set({}, {}, TM.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

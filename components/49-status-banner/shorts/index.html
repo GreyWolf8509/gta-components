@@ -1,0 +1,365 @@
+<!doctype html>
+<!-- 49 Status banner, variant B: "Wasted banner". 9:16 1080x1920 (Shorts), 30 fps, 4.16 s. Full kind: the footage always shows.
+     The creators' "wasted" moment, our way: the minigun threat, a cut to the train going off the bridge, the hit (a small knock),
+     and the shot eases into slow motion (media/bridge-ramp-v.mp4: v26 at 1.0x, then 0.48x built from real frames and straight
+     two-frame blends, no optical flow; media/gen-ramp.py) and drains to hard black-and-white. A full-width smoked-glass band
+     splits open and WASTED slams out of the lens as real Three.js geometry (traced Archivo outlines, extruded; red lacquer face,
+     polished red lip, black-chrome walls). It accelerates into one contact frame, stops dead on its mark and flattens, the band
+     flexes and its rules flare, the lacquer lands hot and cools, then a light rakes across it (HDR bloom). The only colour left
+     in the frame is the word. Exit: the band and word collapse into the band's line. Our own lettering; no Pricedown, no game
+     logos. See gta/DESIGN.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #000; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif; background: #000;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake { position: absolute; inset: 0; }
+      .layer { position: absolute; inset: 0; }
+      .pushed { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #vig { position: absolute; inset: 0; background: radial-gradient(ellipse 78% 62% at 50% 46%, rgba(0,0,0,0) 40%, rgba(0,0,0,.62) 100%); }
+      #bandTint { position: absolute; left: 0; width: 100%;
+        background: linear-gradient(180deg, rgba(255,255,255,.08) 0%, rgba(255,255,255,0) 7%, rgba(0,0,0,0) 70%, rgba(0,0,0,.3) 100%),
+                    radial-gradient(ellipse 62% 70% at 46% 50%, rgba(4,3,4,.34) 0%, rgba(4,3,4,.18) 60%, rgba(4,3,4,0) 100%),
+                    linear-gradient(180deg, rgba(5,4,5,.42), rgba(5,4,5,.5));
+        box-shadow: inset 0 2px 0 rgba(255,170,160,.22), inset 0 6px 14px rgba(255,90,80,.06), inset 0 -18px 30px rgba(0,0,0,.5); }
+      #glow { position: absolute; left: 0; width: 100%; mix-blend-mode: screen;
+        background: radial-gradient(ellipse 52% 34% at 46% 54%, rgba(255,40,52,.38) 0%, rgba(255,30,44,.14) 50%, rgba(255,30,44,0) 100%); }
+      .shade { position: absolute; left: 0; width: 100%; height: 110px; }
+      #shadeT { background: linear-gradient(0deg, rgba(0,0,0,.5), rgba(0,0,0,0)); }
+      #shadeB { background: linear-gradient(180deg, rgba(0,0,0,.5), rgba(0,0,0,0)); }
+      .edge { position: absolute; left: 0; top: 0; width: 1080px; height: 4px; transform-origin: 50% 50%;
+        background: linear-gradient(90deg, rgba(255,60,60,0) 0%, rgba(255,58,62,.75) 18%, #FF8A84 47%, rgba(255,58,62,.75) 82%, rgba(255,60,60,0) 100%);
+        box-shadow: 0 0 12px rgba(255,36,48,.55), 0 0 2px rgba(255,140,130,.8); }
+      #edgeB { opacity: .7; }
+      #glWrap { position: absolute; inset: 0; }
+      #gl { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; display: block; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="4.16" data-width="1080" data-height="1920">
+      <div id="shake">
+        <!-- footage: the minigun threat, then the derailing train on the bridge (it starts 2 frames early underneath the cut) at 1.0x easing into slow motion -->
+        <div class="layer" id="plateWrap"><div class="pushed">
+          <video id="shotB" class="clip shot" src="media/bridge-ramp-v.mp4" muted playsinline data-start="1.2" data-duration="2.96" data-media-start="0" data-track-index="0"></video>
+          <video id="shotA" class="clip shot" src="assets/shots/v23-minigun-park-v.mp4" muted playsinline data-start="0" data-duration="1.2667" data-media-start="0" data-track-index="1"></video>
+        </div><div id="vig"></div></div>
+        <!-- the band: the same shot pre-blurred (media/bridge-ramp-glass-v.mp4, sigma 40), smoked and drained with the plate -->
+        <div class="layer" id="bandWrap"><div class="pushed">
+          <video id="shotBband" class="clip shot" src="media/bridge-ramp-glass-v.mp4" muted playsinline data-start="1.2" data-duration="2.96" data-media-start="0" data-track-index="2"></video>
+        </div><div id="bandTint"></div><div id="glow"></div></div>
+        <div class="shade" id="shadeT"></div>
+        <div class="shade" id="shadeB"></div>
+        <div class="edge" id="edgeT"></div>
+        <div class="edge" id="edgeB"></div>
+        <div id="glWrap"><canvas id="gl" width="1080" height="1920"></canvas></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        title: "WASTED",                                  // the status word (A-Z, 0-9, space . , ' ! ? - & : # $ +), e.g. BUSTED
+        tracking: 14,                                     // extra letter spacing, font units (cap height = 688)
+        // material: red candy-lacquer face (top -> bottom), the polished lip of the bevel, and the deep walls (black chrome)
+        face: [[0, "#FF5E52"], [0.1, "#F8323A"], [0.235, "#E8262E"], [0.25, "#C8121F"], [0.62, "#B5121E"], [1, "#6E0610"]],   // [stop, colour]: a lacquer reflection horizon at 24 %
+        lip: "#FF4A44",
+        wallMid: "#7A0E14",                               // the walls behind the lip: deep red, then black chrome at the back
+        wall: "#0B0A0C",
+        // layout in canvas px: the band (centre y, height) and the word (centre x, cap-centre y, ink width). Safe zone x 72-936.
+        band: { y: 880, h: 380 },
+        word: { x: 540, y: 877, width: 740 },            // centred in the band; cap centre 3 px high so face + underside centre on 880
+        bloom: { strength: 0.42, threshold: 1.2 },
+        tilt: -0.19,                                      // settled tilt (rad): the top leans back, so the underside walls show
+        grade: { saturate: 0.05, lift: 1.5, contrast: 1.5, brightness: 0.92 },   // the death grade: B&W, a levels stretch (lift, then contrast about mid-grey), then trim
+        slamFrom: 1.45,                                   // apparent scale the word slams in from
+        squash: 0.13,                                     // how flat the word goes on contact (scaleY 1 - squash)
+        timing: { hit: 1.58, drain: 0.45, band: 1.76, slam: 1.9, slamDur: 0.1333, rakeDur: 0.6, exit: 3.72, end: 4.16 }
+      };
+
+      (function () {
+        const T = CONFIG.timing, W = 1080, H = 1920, $ = (s) => document.querySelector(s);
+        const F = window.BANNER_GLYPHS;
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+        const lerp = (a, b, p) => a + (b - a) * p;
+        const smooth = (a, b, x) => { const p = clamp((x - a) / (b - a), 0, 1); return p * p * (3 - 2 * p); };
+        const E = (n) => gsap.parseEase(n);
+        const eSlam = E("power2.in");           // the approach accelerates into the contact frame
+        const eOpen = E("back.out(1.5)"), eExpo = E("expo.out"), eIn3 = E("power3.in"), eSine = E("sine.inOut"), eRake = E("power2.inOut");
+
+        // ---------- renderer + HDR bloom ----------
+        const canvas = $("#gl");
+        const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+        renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 0);
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.84;
+        const scene = new THREE.Scene();
+        const FOV = 30, PPU = CONFIG.word.width / 16;
+        const DIST = (H / PPU / 2) / Math.tan(FOV * Math.PI / 360);
+        const camera = new THREE.PerspectiveCamera(FOV, W / H, 0.1, 400);
+        // the camera always aims at the word (so the slam travels straight down the lens axis and the drift only
+        // turns the extrusion), and a lens shift moves that axis from the canvas centre to the word's mark
+        camera.setViewOffset(W, H, W / 2 - CONFIG.word.x, H / 2 - CONFIG.band.y, W, H);
+
+        const BLOOM_OK = renderer.capabilities.isWebGL2 && renderer.extensions.has("EXT_color_buffer_float");
+        const rtMain = new THREE.WebGLRenderTarget(W, H, { type: THREE.HalfFloatType, samples: 4 });
+        const RTO = { type: THREE.HalfFloatType, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false };
+        const LV = [2, 4, 8].map((d) => [new THREE.WebGLRenderTarget(W / d, H / d, RTO), new THREE.WebGLRenderTarget(W / d, H / d, RTO)]);
+        const postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), postScene = new THREE.Scene();
+        const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2)); quad.frustumCulled = false; postScene.add(quad);
+        const VS = "varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }";
+        const post = (u, fs, extra) => new THREE.ShaderMaterial(Object.assign({ uniforms: u, vertexShader: VS, fragmentShader: fs, depthTest: false, depthWrite: false, blending: THREE.NoBlending }, extra || {}));
+        const brightMat = post({ tSrc: { value: null }, uTh: { value: 1.2 }, uKnee: { value: 0.6 } }, [
+          "uniform sampler2D tSrc; uniform float uTh, uKnee; varying vec2 vUv;",
+          "void main(){ vec4 c = texture2D(tSrc, vUv); float l = max(c.r, max(c.g, c.b)); if (!(l < 6.0e4)) { c = vec4(0.0); l = 0.0; }",
+          "  float k = smoothstep(uTh, uTh + uKnee, l); gl_FragColor = vec4(c.rgb * k * c.a, 1.0); }"].join("\n"));
+        const blurMat = post({ tSrc: { value: null }, uDir: { value: new THREE.Vector2() } }, [
+          "uniform sampler2D tSrc; uniform vec2 uDir; varying vec2 vUv;",
+          "void main(){ vec3 c = texture2D(tSrc, vUv).rgb * 0.2270270270;",
+          "  c += (texture2D(tSrc, vUv + uDir * 1.3846153846).rgb + texture2D(tSrc, vUv - uDir * 1.3846153846).rgb) * 0.3162162162;",
+          "  c += (texture2D(tSrc, vUv + uDir * 3.2307692308).rgb + texture2D(tSrc, vUv - uDir * 3.2307692308).rgb) * 0.0702702703;",
+          "  gl_FragColor = vec4(c, 1.0); }"].join("\n"));
+        const compMat = post({ tMain: { value: null }, t1: { value: null }, t2: { value: null }, t3: { value: null }, uStr: { value: 0.7 } }, [
+          "uniform sampler2D tMain, t1, t2, t3; uniform float uStr; varying vec2 vUv;",
+          "void main(){ vec4 m = texture2D(tMain, vUv); if (!(m.r + m.g + m.b + m.a < 1.0e5)) m = vec4(0.0);",
+          "  vec3 b = texture2D(t1, vUv).rgb + texture2D(t2, vUv).rgb * 0.75 + texture2D(t3, vUv).rgb * 0.5; if (!(b.r + b.g + b.b < 1.0e5)) b = vec3(0.0);",
+          "  gl_FragColor = vec4(m.rgb + b * uStr, m.a);",
+          "  #include <tonemapping_fragment>",
+          "  #include <colorspace_fragment>",
+          "}"].join("\n"), { toneMapped: true });
+        function runPass(mat, target) { quad.material = mat; renderer.setRenderTarget(target); renderer.render(postScene, postCam); }
+        function renderFrame(bloomStr) {
+          if (!BLOOM_OK) { renderer.setRenderTarget(null); renderer.render(scene, camera); return; }
+          renderer.setRenderTarget(rtMain); renderer.render(scene, camera);
+          brightMat.uniforms.tSrc.value = rtMain.texture; brightMat.uniforms.uTh.value = CONFIG.bloom.threshold; runPass(brightMat, LV[0][0]);
+          let src = LV[0][0];
+          LV.forEach(([A, B]) => {
+            blurMat.uniforms.tSrc.value = src.texture; blurMat.uniforms.uDir.value.set(1 / A.width, 0); runPass(blurMat, B);
+            blurMat.uniforms.tSrc.value = B.texture; blurMat.uniforms.uDir.value.set(0, 1 / A.height); runPass(blurMat, A);
+            src = A;
+          });
+          compMat.uniforms.tMain.value = rtMain.texture;
+          compMat.uniforms.t1.value = LV[0][0].texture; compMat.uniforms.t2.value = LV[1][0].texture; compMat.uniforms.t3.value = LV[2][0].texture;
+          compMat.uniforms.uStr.value = bloomStr;
+          runPass(compMat, null);
+        }
+
+        // ---------- studio environment (computed once): dark room, a top softbox, a hot horizon strip, side cards ----------
+        const envScene = new THREE.Scene();
+        envScene.add(new THREE.Mesh(new THREE.SphereGeometry(60, 48, 24), new THREE.ShaderMaterial({
+          side: THREE.BackSide, depthWrite: false,
+          vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: [
+            "varying vec3 vP;",
+            "void main(){",
+            "  float y = vP.y;",
+            "  vec3 c = mix(vec3(0.010, 0.010, 0.012), vec3(0.07, 0.07, 0.075), smoothstep(-0.4, 0.5, y));",
+            "  c += vec3(1.0, 0.98, 0.95) * 3.0 * smoothstep(0.62, 0.86, y);",
+            "  c += vec3(1.0, 0.96, 0.92) * 1.6 * exp(-pow((y - 0.22) / 0.05, 2.0)) * smoothstep(-0.2, 0.6, vP.z);",
+            "  c += vec3(1.0, 0.9, 0.86) * 0.65 * smoothstep(0.72, 0.94, abs(vP.x)) * smoothstep(-0.3, 0.3, y);",
+            "  c += vec3(1.0, 0.06, 0.05) * 0.7 * (1.0 - smoothstep(-0.32, -0.06, y)) * smoothstep(-0.95, -0.5, y);",   // low red floor bounce: lights the undersides
+            "  gl_FragColor = vec4(c, 1.0);",
+            "}"].join("\n")
+        })));
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        scene.environment = pmrem.fromScene(envScene, 0.0, 0.1, 200).texture;
+
+        // ---------- lights ----------
+        const key = new THREE.DirectionalLight(0xffffff, 2.0); key.position.set(-6, 10, 10); scene.add(key);
+        const rim = new THREE.DirectionalLight(0xff9a90, 1.2); rim.position.set(7, 4, -8); scene.add(rim);
+        scene.add(new THREE.HemisphereLight(0xf2f2ff, 0x1a0a0a, 0.65));
+
+        // ---------- materials; the rake light lives in both ----------
+        const RAKE = { pos: { value: new THREE.Vector3(-99, 0, 3) }, amt: { value: 0 }, hot: { value: 0 } };
+        const rakeGLSL = (face) =>
+          "  { vec3 Nw = inverseTransformDirection(normal, viewMatrix); if (!(dot(Nw, Nw) > 1e-6 && dot(Nw, Nw) < 10.0)) Nw = vec3(0.0, 0.0, 1.0);\n" +
+          "    vec3 Lr = uRakePos - vWP; Lr = normalize(Lr);\n" +
+          "    vec3 Hh = normalize(Lr + normalize(cameraPosition - vWP));\n" +
+          "    float wx = (vWP.x - uRakePos.x) / 0.85;\n" +
+          "    float sp = pow(max(dot(Nw, Hh), 0.0), 70.0) * exp(-wx * wx);\n" +
+          "    float sheet = exp(-wx * wx * 1.4) * 0.07;\n" +
+          (face ? "    outgoingLight += diffuseColor.rgb * (sp + sheet) * uRakeAmt * 1.6 + vec3(0.6, 0.0, 0.0) * uHot;\n" +
+                   "    outgoingLight.r = min(outgoingLight.r, 1.45 + 0.5 * uHot); outgoingLight.gb = min(outgoingLight.gb, vec2(0.16)); }\n#include <opaque_fragment>"
+                 : "    outgoingLight += mix(diffuseColor.rgb, vec3(1.0, 0.9, 0.86), 0.3) * (sp + sheet) * uRakeAmt; }\n#include <opaque_fragment>");
+        function addRake(mat, extraFrag, face) {
+          mat.onBeforeCompile = (sh) => {
+            sh.uniforms.uRakePos = RAKE.pos; sh.uniforms.uRakeAmt = RAKE.amt; sh.uniforms.uHot = RAKE.hot;
+            if (extraFrag) Object.assign(sh.uniforms, extraFrag.uniforms);
+            sh.vertexShader = "varying vec3 vWP; varying float vLZ;\n" + sh.vertexShader.replace("#include <worldpos_vertex>",
+              "#include <worldpos_vertex>\n  vWP = (modelMatrix * vec4(transformed, 1.0)).xyz; vLZ = position.z;");
+            let fs = "varying vec3 vWP; varying float vLZ; uniform vec3 uRakePos; uniform float uRakeAmt, uHot;\n" + (extraFrag ? extraFrag.decl : "") + sh.fragmentShader;
+            if (extraFrag) fs = fs.replace("#include <color_fragment>", "#include <color_fragment>\n" + extraFrag.color);
+            sh.fragmentShader = fs.replace("#include <opaque_fragment>", rakeGLSL(!!face));
+          };
+          return mat;
+        }
+        function faceTexture() {
+          const c = document.createElement("canvas"); c.width = 64; c.height = 512;
+          const x = c.getContext("2d"), g = x.createLinearGradient(0, 0, 0, 512);
+          CONFIG.face.forEach(([o, col]) => g.addColorStop(o, col));
+          x.fillStyle = g; x.fillRect(0, 0, 64, 512);
+          const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+        }
+
+        // ---------- the word: traced Archivo outlines, kerned, extruded with a rounded bevel ----------
+        const DEPTH = 2.0, BT = 0.1, BS = 0.095, MIN_SEG = 0.03, CURVE_SEG = 10;
+        function glyphShapes(d, ox, oy, s) {
+          const sp = new THREE.ShapePath(); const re = /([MLQCZ])([^MLQCZ]*)/g; let m;
+          while ((m = re.exec(d))) {
+            const n = m[2].trim() ? m[2].trim().split(/[\s,]+/).map(Number) : [];
+            const P = []; for (let i = 0; i < n.length; i += 2) P.push(ox + n[i] * s, oy - n[i + 1] * s);
+            if (m[1] === "M") sp.moveTo(P[0], P[1]);
+            else if (m[1] === "L") sp.lineTo(P[0], P[1]);
+            else if (m[1] === "Q") sp.quadraticCurveTo(P[0], P[1], P[2], P[3]);
+            else if (m[1] === "C") sp.bezierCurveTo(P[0], P[1], P[2], P[3], P[4], P[5]);
+          }
+          const clean = (pts) => {
+            const out = [];
+            for (const p of pts) if (!out.length || p.distanceTo(out[out.length - 1]) > MIN_SEG) out.push(p);
+            while (out.length > 3 && out[0].distanceTo(out[out.length - 1]) <= MIN_SEG) out.pop();
+            return out;
+          };
+          return sp.toShapes(false).map((sh) => {
+            const s2 = new THREE.Shape(clean(sh.getPoints(CURVE_SEG)));
+            sh.holes.forEach((h) => s2.holes.push(new THREE.Path(clean(h.getPoints(CURVE_SEG)))));
+            return s2;
+          });
+        }
+        const text = CONFIG.title.toUpperCase();
+        const glyphs = []; let pen = 0;
+        for (let i = 0; i < text.length; i++) {
+          const ch = F.g[text[i]] ? text[i] : " ", g = F.g[ch];
+          glyphs.push({ ch, x: pen, g });
+          pen += g[0] + (i < text.length - 1 ? (F.k[text[i] + text[i + 1]] || 0) + CONFIG.tracking : 0);
+        }
+        const ink = glyphs.filter((o) => o.ch !== " ");
+        const inkL = ink[0].x + ink[0].g[2], inkR = ink[ink.length - 1].x + ink[ink.length - 1].g[3];
+        const S = 16 / (inkR - inkL), CAP = F.cap * S;
+        // the group's origin is the band centre (the slam scales about it, the exit collapses into it)
+        const group = new THREE.Group(); scene.add(group);
+        const gx = (CONFIG.word.x - W / 2) / PPU, gy = (H / 2 - CONFIG.band.y) / PPU;
+        const capMid = (CONFIG.band.y - CONFIG.word.y) / PPU;
+        const base = capMid - CAP / 2;
+        const ox0 = -8 - inkL * S;
+        const tex = faceTexture(); tex.repeat.set(1, 1 / CAP); tex.offset.set(0, -base / CAP);
+        const faceMat = addRake(new THREE.MeshPhysicalMaterial({ map: tex, metalness: 0.3, roughness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.05, envMapIntensity: 0.5 }), null, true);
+        const wallMat = addRake(new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 1, roughness: 0.2, envMapIntensity: 1.25 }), {
+          uniforms: { uLip: { value: new THREE.Color(CONFIG.lip) }, uMid: { value: new THREE.Color(CONFIG.wallMid) }, uWall: { value: new THREE.Color(CONFIG.wall) }, uBT: { value: BT }, uD: { value: DEPTH + 2 * BT } },
+          decl: "uniform vec3 uLip, uMid, uWall; uniform float uBT, uD;\n",
+          color: "  diffuseColor.rgb = mix(mix(uWall, uMid, smoothstep(-uD * 0.95, -uD * 0.2, vLZ)), uLip, smoothstep(-uBT * 1.6, -uBT * 0.55, vLZ));"
+        });
+        const letters = [];
+        glyphs.forEach((G) => {
+          if (G.ch === " ") return;
+          const shapes = glyphShapes(G.g[1], ox0 + G.x * S, base, S);
+          const geo = new THREE.ExtrudeGeometry(shapes, { depth: DEPTH, bevelEnabled: true, bevelThickness: BT, bevelSize: BS, bevelOffset: -BS, bevelSegments: 4, curveSegments: 1 });
+          geo.translate(0, 0, -(DEPTH + BT));     // front face at z = 0
+          geo.computeVertexNormals();
+          const nA = geo.attributes.normal;   // degenerate bevel triangles give zero / NaN normals: point them forward
+          for (let q = 0; q < nA.count; q++) { const l = Math.hypot(nA.getX(q), nA.getY(q), nA.getZ(q)); if (!(l > 1e-6)) nA.setXYZ(q, 0, 0, 1); }
+          const mesh = new THREE.Mesh(geo, [faceMat, wallMat]);
+          group.add(mesh); letters.push(mesh);
+        });
+
+        // ---------- DOM parts ----------
+        const plateIn = $("#plateWrap .pushed"), bandIn = $("#bandWrap .pushed"), vig = $("#vig");
+        const bandWrap = $("#bandWrap"), tint = $("#bandTint"), glow = $("#glow");
+        const shadeT = $("#shadeT"), shadeB = $("#shadeB"), edgeT = $("#edgeT"), edgeB = $("#edgeB");
+
+        // ---------- per-frame ----------
+        const G = CONFIG.grade;
+        function renderAt(t) {
+          t = clamp(t, 0, T.end);
+          const BY = CONFIG.band.y, BH = CONFIG.band.h;
+          // the contact frame: the word arrives at the end of its accelerating approach and stops dead on its mark
+          const land = T.slam + T.slamDur, u = Math.max(0, t - land), hit = t >= land;
+          // contact spring: 1 on the contact frame (flattened), through a small stretch, settled by ~0.22 s
+          const sq = hit ? Math.exp(-14 * u) * Math.cos(30 * u) : 0;
+          // the death grade: drains to hard black-and-white with deep blacks (contrast up), the vignette closes in;
+          const d = E("power2.out")(clamp((t - T.hit - 0.02) / T.drain, 0, 1));
+          const fade = 1;
+          plateIn.style.filter = "saturate(" + lerp(1, G.saturate, d).toFixed(3) + ") brightness(" + lerp(1, G.lift, d).toFixed(3) + ") contrast(" + lerp(1, G.contrast, d).toFixed(3) + ") brightness(" + (lerp(1, G.brightness, d) * fade).toFixed(3) + ")";
+          bandIn.style.filter = "saturate(" + lerp(0.6, G.saturate, d).toFixed(3) + ") contrast(1.12) brightness(" + (0.46 * fade).toFixed(3) + ")";
+          vig.style.opacity = d.toFixed(3);
+          // band: the line draws out from the centre, then splits open; on the exit it closes and the line retracts
+          const lineK = eExpo(clamp((t - T.band) / 0.14, 0, 1)) * (1 - E("power2.in")(clamp((t - T.exit - 0.25) / 0.13, 0, 1)));
+          const openK = eOpen(clamp((t - T.band - 0.07) / 0.3, 0, 1));
+          const exitK = eIn3(clamp((t - T.exit) / 0.26, 0, 1));
+          const hh = (BH / 2 + 7 * sq) * openK * (1 - exitK);          // the band takes the hit: it flexes 7 px and rings out
+          const top = BY - hh, bot = BY + hh;
+          bandWrap.style.clipPath = hh > 0.25 ? "inset(" + top.toFixed(2) + "px 0px " + (H - bot).toFixed(2) + "px 0px)" : "inset(50% 0px 50% 0px)";
+          bandWrap.style.visibility = hh > 0.25 ? "visible" : "hidden";
+          tint.style.top = glow.style.top = top + "px"; tint.style.height = glow.style.height = (bot - top) + "px";
+          shadeT.style.top = (top - 110) + "px"; shadeB.style.top = bot + "px";
+          shadeT.style.opacity = shadeB.style.opacity = (openK * (1 - exitK)).toFixed(3);
+          const lineOn = lineK > 0.002;
+          edgeT.style.visibility = edgeB.style.visibility = lineOn ? "visible" : "hidden";
+          edgeT.style.transform = "translateY(" + (top - 1.5).toFixed(2) + "px) scaleX(" + lineK.toFixed(4) + ")";
+          edgeB.style.transform = "translateY(" + (bot - 1.5).toFixed(2) + "px) scaleX(" + lineK.toFixed(4) + ")";
+          // the rules flare on contact (3 frames at peak, then cool)
+          const flare = !hit ? 0 : (u < 3 / 30 ? 1 : Math.exp(-(u - 3 / 30) / 0.16));
+          edgeT.style.filter = edgeB.style.filter = flare > 0.01 ? "brightness(" + (1 + 1.3 * flare).toFixed(3) + ")" : "none";
+
+          // the slam: out of the lens, accelerating (power2.in) from an apparent 1.45x straight down the lens axis, defocused
+          // while it is close; on the contact frame it stops dead on its mark and flattens (scaleY 1 - squash, scaleX up),
+          // then a damped spring settles it; then a slow push toward the lens through the hold
+          const sp = clamp((t - T.slam) / T.slamDur, 0, 1), k = eSlam(sp);
+          const sc = lerp(CONFIG.slamFrom, 1, k), zS = DIST * (1 - 1 / sc);
+          const settle = eSine(clamp((t - land) / (T.exit - land), 0, 1));
+          group.visible = t >= T.slam && exitK < 1;
+          group.position.set(gx, gy, zS + 0.5 * settle);
+          group.rotation.set(lerp(CONFIG.tilt - 0.16, CONFIG.tilt, k) + 0.025 * sq, lerp(0.08, 0, k) + lerp(0, -0.05, settle), lerp(0.04, 0, k));
+          group.scale.set(1 + 0.03 * sq, (1 - CONFIG.squash * sq) * Math.max(1 - exitK, 0.0001), 1 - 0.3 * sq);
+          camera.position.set(gx + lerp(0.6, -0.5, settle), gy + 0.4, DIST);
+          camera.lookAt(gx, gy, 0);
+          // the lacquer lands hot: extra red light on the face (green and blue stay clamped, so it never washes to white)
+          // holds 3 frames and cools into the lacquer
+          RAKE.hot.value = !hit ? 0 : (u < 3 / 30 ? 1 : Math.exp(-(u - 3 / 30) / 0.2));
+          // red light the word throws onto the glass: peaks on the landing, then glows
+          const gk = !hit ? 0 : 0.42 + 0.58 * Math.exp(-3.5 * u);
+          glow.style.opacity = (gk * (1 - exitK)).toFixed(3);
+          // the rake: a hot light crosses the lacquer left to right after the landing
+          const rp = clamp((t - land - 0.12) / T.rakeDur, 0, 1), rOn = rp > 0 && rp < 1;
+          RAKE.pos.value.set(gx + lerp(-11, 11, eRake(rp)), gy + 2.0, 3.0);
+          RAKE.amt.value = rOn ? 2.0 * Math.pow(Math.sin(Math.PI * rp), 0.6) : 0;
+          // bloom: peaks on the landing frame and holds 3 frames, then decays into the glint
+          renderFrame(CONFIG.bloom.strength * (1 + 1.2 * RAKE.hot.value + (rOn ? 0.5 * Math.sin(Math.PI * rp) : 0)));
+          // depth of field on the way in (the word is soft while it is close to the lens), crisp on the landing
+          const dof = t >= T.slam && t < land ? 16 * Math.pow(1 - sp, 1.3) : 0;
+          const ex = exitK > 0 && exitK < 1 ? 3 * exitK : 0;
+          canvas.style.filter = dof + ex > 0.05 ? "blur(" + (dof + ex).toFixed(2) + "px)" : "none";
+        }
+        window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+
+        Promise.all(["900 40px Inter"].map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          Look.push(tl, ".pushed", 0, T.end, { from: 1.0, to: 1.06 });
+          // the hit that kills is only a small knock (the slam is the payoff)
+          Look.impact(tl, T.hit, { shake: "#shake", amp: 4, dur: 0.22, flash: 0, zoom: 1.008 });
+          // the word hits its mark: the payoff hit (shake + punch on everything, a 4 px RGB split on the word)
+          const LAND = T.slam + T.slamDur;
+          Look.impact(tl, LAND, { shake: "#shake", amp: 11, dur: 0.26, flash: 0, zoom: 1.02 });
+          Look.chroma(tl, "#glWrap", LAND, 0.1, { px: 4 });
+          Look.install(tl, { duration: T.end, grain: 0.06, vignette: 0 });
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+          renderAt(0);
+        });
+        renderAt(0);
+      })();
+    </script>
+  </body>
+</html>

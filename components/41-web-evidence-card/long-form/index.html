@@ -1,0 +1,400 @@
+<!doctype html>
+<!-- 41 Web evidence card, variant A "Wiki page" (16:9, 1920x1080, 30 fps, 6.4 s).
+     A fictional wiki page in a browser window docks in the right two-thirds, scrolls, the camera pushes in,
+     a marker sweeps the key sentence and a rubber stamp slams onto the infobox. Variable bg: plate / none. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      #cam, #persp { position: absolute; inset: 0; }
+      #cam { transform-origin: 1824px 540px; }
+      #persp { perspective: 2300px; perspective-origin: 1234px 540px; }
+
+      /* ---------- the browser window ---------- */
+      #win { position: absolute; left: 644px; top: 192px; width: 1180px; height: 696px; border-radius: 16px;
+        transform-origin: 50% 50%; background: #1d1f24;
+        box-shadow: 0 0 0 1px rgba(0,0,0,.42), 0 2px 3px rgba(0,0,0,.35), 0 14px 28px rgba(0,0,0,.32), 0 44px 96px rgba(0,0,0,.42); }
+      #winclip { position: absolute; inset: 0; border-radius: 16px; overflow: hidden; }
+      .chrome { position: absolute; left: 0; top: 0; right: 0; height: 60px;
+        background: linear-gradient(180deg, #30333b 0%, #25272d 55%, #202227 100%);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.16), inset 0 -1px 0 rgba(0,0,0,.55); }
+      .dots { position: absolute; left: 22px; top: 24px; display: flex; gap: 9px; }
+      .dots i { width: 12px; height: 12px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #6c717b, #464a52 70%);
+        box-shadow: inset 0 -1px 1px rgba(0,0,0,.4), 0 1px 0 rgba(255,255,255,.06); }
+      .navi { position: absolute; left: 96px; top: 18px; display: flex; gap: 14px; }
+      .navi svg { width: 24px; height: 24px; }
+      .addr { position: absolute; left: 214px; right: 118px; top: 11px; height: 38px; border-radius: 19px;
+        background: linear-gradient(180deg, #121418, #17191d); box-shadow: inset 0 1px 2px rgba(0,0,0,.6), 0 1px 0 rgba(255,255,255,.07);
+        display: flex; align-items: center; padding-left: 16px; font: 500 18px/1 "Inter"; color: #8b919b; letter-spacing: -0.005em; white-space: nowrap; }
+      .addr svg { width: 15px; height: 15px; margin-right: 10px; flex: none; }
+      .addr b { font-weight: 500; color: #eceef1; }
+      .tools { position: absolute; right: 22px; top: 18px; display: flex; gap: 16px; }
+      .tools svg { width: 24px; height: 24px; }
+      #load { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; transform-origin: 0 50%;
+        background: linear-gradient(90deg, #ff5a4f, #e3202e); box-shadow: 0 0 8px rgba(255,70,60,.6); }
+
+      .viewport { position: absolute; left: 0; right: 0; top: 60px; bottom: 0; overflow: hidden; background: #f6f3ec; }
+      #page { position: absolute; left: 0; top: 0; width: 1180px; color: #2a2d33;
+        background: radial-gradient(ellipse 90% 60% at 18% 0%, #fdfcf9 0%, rgba(253,252,249,0) 70%), linear-gradient(180deg, #faf8f3 0%, #f3efe7 100%); }
+      .mast { height: 70px; display: flex; align-items: center; padding: 0 48px 0 44px;
+        background: linear-gradient(180deg, #17191e, #111216); box-shadow: inset 0 -1px 0 rgba(255,255,255,.06); }
+      .mark { width: 38px; height: 38px; border-radius: 9px; flex: none;
+        background: linear-gradient(160deg, #ff4b4b 0%, #e01f2d 48%, #b5101f 100%);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.35), inset 0 -2px 3px rgba(0,0,0,.25), 0 2px 4px rgba(0,0,0,.4); display: grid; place-items: center; }
+      .mark svg { width: 26px; height: 26px; }
+      .word { margin-left: 13px; font: 900 25px/1 "Inter"; letter-spacing: 0.06em; color: #fff; }
+      .word span { color: #ff4a4a; }
+      .nav { margin-left: auto; display: flex; gap: 30px; font: 600 17px/1 "Inter"; color: #c4c8cf; }
+      .search { margin-left: 34px; width: 210px; height: 36px; border-radius: 18px; background: #23262c; box-shadow: inset 0 1px 2px rgba(0,0,0,.5);
+        display: flex; align-items: center; padding-left: 14px; font: 500 16px/1 "Inter"; color: #7d838d; }
+      .search svg { width: 16px; height: 16px; margin-right: 9px; }
+
+      .body { padding: 26px 56px 60px; }
+      .crumb { font: 600 17px/1 "Inter"; color: #8a8f98; letter-spacing: 0.01em; }
+      .crumb i { font-style: normal; color: #b9bcc2; margin: 0 10px; }
+      h1 { margin-top: 14px; font: 800 54px/1.05 "Inter"; letter-spacing: -0.03em; color: #111317; }
+      .from { margin-top: 12px; padding-bottom: 16px; border-bottom: 1px solid #e0dbd1; font: 500 17px/1 "Inter"; color: #8a8f98; }
+      .cols { display: flex; gap: 44px; margin-top: 26px; align-items: flex-start; }
+      .main { width: 680px; flex: none; }
+      .main p { font: 400 29px/1.5 "Inter"; letter-spacing: -0.012em; color: #2c2f35; }
+      .main p + h2 { margin-top: 30px; }
+      .main p + p { margin-top: 12px; }
+      h2 { font: 800 33px/1.1 "Inter"; letter-spacing: -0.02em; color: #15171b; padding-bottom: 10px; border-bottom: 1px solid #e0dbd1; margin-bottom: 14px; }
+      .main a { color: #c2162a; text-decoration: none; }
+      sup { font: 700 16px/1 "Inter"; color: #c2162a; vertical-align: 12px; margin-left: 2px; }
+      #key { font-weight: 700; color: #131418; }
+
+      .ibox { width: 344px; flex: none; background: #fff; border-radius: 10px; overflow: hidden;
+        box-shadow: 0 0 0 1px rgba(0,0,0,.08), 0 6px 16px rgba(40,30,20,.10); }
+      .ibox .hd { height: 58px; display: grid; place-items: center; font: 800 23px/1 "Inter"; letter-spacing: -0.01em; color: #fff;
+        background: linear-gradient(180deg, #ef2a35 0%, #d8141f 60%, #c40f1b 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.3); }
+      .ibox .im { margin: 0 0; border: 5px solid #d8141f; border-top: 0; height: 196px; overflow: hidden; }
+      .ibox .im img { width: 100%; height: 100%; object-fit: cover; object-position: 30% 40%; display: block; }
+      .row { display: flex; justify-content: space-between; align-items: center; padding: 0 18px; height: 50px; border-top: 1px solid #ece8e0; }
+      .row:first-of-type { border-top: 0; }
+      .row .k { font: 700 14px/1 "Inter"; letter-spacing: 0.08em; text-transform: uppercase; color: #8e939b; }
+      .row .v { font: 600 19px/1 "Inter"; color: #1b1d22; letter-spacing: -0.01em; }
+      .chip { font: 700 16px/1 "Inter"; color: #8a5a00; background: #fff1cc; border: 1px solid #f0d58a; padding: 7px 11px; border-radius: 14px; }
+
+      /* marker, focus veil and stamp live inside the page */
+      #hl { position: absolute; left: 0; top: 0; overflow: visible; mix-blend-mode: multiply; pointer-events: none; }
+      #veil { position: absolute; left: 0; top: 0; pointer-events: none; }
+      .stamp { position: absolute; left: 0; top: 0; pointer-events: none; transform-origin: 50% 50%; }
+      #stampInk { mix-blend-mode: multiply; }
+      #glass { position: absolute; inset: 0; pointer-events: none; border-radius: 16px; overflow: hidden; }
+      #glass i { position: absolute; top: -20%; left: 0; width: 60%; height: 140%;
+        background: linear-gradient(105deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.07) 42%, rgba(255,255,255,.11) 50%, rgba(255,255,255,.07) 58%, rgba(255,255,255,0) 100%); }
+      #rim { position: absolute; inset: 0; border-radius: 16px; pointer-events: none;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.22), inset 0 0 0 1px rgba(255,255,255,.05); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.4" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="shotA" class="clip shot" src="assets/shots/v36-hills-city-view-h.mp4" muted playsinline data-start="0" data-duration="1.93" data-media-start="0" data-track-index="0"></video>
+        <video id="shotB" class="clip shot" src="assets/shots/v47-gp-chiliad-aerial-h.mp4" muted playsinline data-start="1.93" data-duration="1.42" data-media-start="0.8" data-track-index="0"></video>
+        <video id="shotC" class="clip shot" src="assets/shots/v02-mountain-hikers-h.mp4" muted playsinline data-start="3.35" data-duration="1.33" data-media-start="0" data-track-index="0"></video>
+        <video id="shotD" class="clip shot" src="assets/shots/v07-biplane-sunset-h.mp4" muted playsinline data-start="4.68" data-duration="1.72" data-media-start="0.3" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="6.4" data-track-index="1">
+        <div id="cam"><div id="persp">
+          <div id="win" data-layout-allow-overflow>
+            <div id="winclip">
+              <div class="chrome" data-layout-allow-occlusion>
+                <div class="dots"><i></i><i></i><i></i></div>
+                <div class="navi">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#a7adb6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#5d626b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#a7adb6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4.6h-4.6"/></svg>
+                </div>
+                <div class="addr" id="addr">
+                  <svg viewBox="0 0 16 16"><rect x="3" y="7" width="10" height="7.5" rx="1.6" fill="#9aa1ab"/><path d="M5.2 7V5.2a2.8 2.8 0 0 1 5.6 0V7" fill="none" stroke="#9aa1ab" stroke-width="1.6"/></svg>
+                  <span id="url0"></span><b id="url1"></b>
+                </div>
+                <div class="tools">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#a7adb6" stroke-width="2" stroke-linejoin="round"><path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></svg>
+                  <svg viewBox="0 0 24 24" fill="#a7adb6"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+                </div>
+                <div id="load"></div>
+              </div>
+              <div class="viewport">
+                <div id="page" data-layout-ignore data-layout-allow-overflow>
+                  <div class="mast">
+                    <div class="mark"><svg viewBox="0 0 26 26"><path d="M2.5 21.5L10.2 9.6l3.6 5.2 2.4-3.3 7.3 10z" fill="#fff"/><circle cx="16.8" cy="5.6" r="2.3" fill="#fff"/><path d="M16.8 1.2v1.4M21.2 5.6h-1.4M12.4 5.6h1.4" stroke="#fff" stroke-width="1.3" stroke-linecap="round" opacity=".85"/></svg></div>
+                    <div class="word" id="site"></div>
+                    <div class="nav" id="nav"></div>
+                    <div class="search"><svg viewBox="0 0 16 16" fill="none" stroke="#7d838d" stroke-width="1.8"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5" stroke-linecap="round"/></svg>Search the wiki</div>
+                  </div>
+                  <div class="body">
+                    <div class="crumb" id="crumb"></div>
+                    <h1 id="title"></h1>
+                    <div class="from" id="from"></div>
+                    <div class="cols">
+                      <div class="main">
+                        <p id="intro"></p>
+                        <h2 id="sec"></h2>
+                        <p id="para0"><span id="pre"></span></p>
+                        <p id="para"><span id="key"></span> <span id="post"></span></p>
+                        <h2 id="sec2"></h2>
+                        <p id="para2"></p>
+                      </div>
+                      <div class="ibox" id="ibox">
+                        <div class="hd" id="ibTitle"></div>
+                        <div class="im"><img id="ibImg" alt="" /></div>
+                        <div id="rows"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <svg id="veil"><defs><linearGradient id="vg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#faf8f3"/><stop offset="1" stop-color="#f3efe7"/></linearGradient></defs><path id="veilPath" fill="url(#vg)" fill-rule="evenodd"/></svg>
+                  <svg id="hl"></svg>
+                  <canvas id="stampInk" class="stamp" data-layout-allow-occlusion></canvas>
+                  <canvas id="stampSheen" class="stamp" data-layout-allow-occlusion></canvas>
+                </div>
+              </div>
+            </div>
+            <div id="glass" data-layout-ignore><i></i></div>
+            <div id="rim"></div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        site: { name: "LS LORE", accentFrom: 3, nav: ["Mysteries", "Locations", "Vehicles", "Characters"], urlBase: "lslore.wiki/wiki/", urlPage: "Chiliad_Summit_Light" },
+        crumb: ["Mysteries", "Blaine County", "Mount Chiliad"],
+        title: "Chiliad Summit Light",
+        from: "From LS Lore, the Los Santos mysteries wiki",
+        intro: "The Chiliad Summit Light is an unexplained glow reported above the cable-car station on Mount Chiliad. Hikers, rangers and a Sandy Shores tow driver describe it the same way: three slow pulses, then dark.",
+        section: "Sightings",
+        pre: "Every logged sighting shares two conditions.",
+        key: "It only appears between 3:00 and 3:10 AM,|and only during a thunderstorm.",  // "|" = line break
+        post: "Visits in clear weather have found only the antenna mast.",
+        section2: "Theories",
+        para2: "Explanations range from a faulty aircraft beacon to a hiker's flare. None of them explain the storm-only timing, or why the light goes dark as soon as anyone reaches the summit.",
+        infobox: { title: "Chiliad Summit Light", image: "media/chiliad.jpg",
+          rows: [["Location", "Chiliad summit"], ["Window", "3:00–3:10 AM"], ["Weather", "Thunderstorm"], ["Status", "chip:Unverified"]] },
+        stamp: { word: "CONFIRMED", top: "MYTH FILE No. 17", bottom: "TESTED 3:04 AM · STORM", ink: "#c8102e", w: 420, h: 170, rot: -8, anchorRow: 3 },
+        marker: { color: "#ffe14a", edge: "#ffd21f" },
+        push: { scale: 1.38, drift: 1.393 },
+        timing: { enter: 0.15, scroll: 1.2, push: 1.32, pushDur: 1.15, dim: 2.36, hl: 2.46, hlLine: 0.33, stamp: 3.35, exit: 5.7, end: 6.4 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, $ = (s) => document.querySelector(s), H = Look.hash;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+
+        // ---------- content ----------
+        const S = CONFIG.site;
+        $("#site").innerHTML = S.name.slice(0, S.accentFrom) + "<span>" + S.name.slice(S.accentFrom) + "</span>";
+        $("#nav").innerHTML = S.nav.map((n) => "<span>" + n + "</span>").join("");
+        $("#url0").textContent = S.urlBase; $("#url1").textContent = S.urlPage;
+        $("#crumb").innerHTML = CONFIG.crumb.join("<i>›</i>");
+        $("#title").textContent = CONFIG.title; $("#from").textContent = CONFIG.from;
+        const iw = CONFIG.intro.split(" "), ilast = iw.pop();
+        $("#intro").innerHTML = (iw.join(" ") + " ").replace("Mount Chiliad", "<a>Mount Chiliad</a>").replace("Sandy Shores", "<a>Sandy Shores</a>") + '<span style="white-space:nowrap">' + ilast + "<sup>[1]</sup></span>";
+        $("#sec").textContent = CONFIG.section;
+        $("#pre").textContent = CONFIG.pre; $("#key").innerHTML = CONFIG.key.split("|").join("<br>"); const pw = CONFIG.post.split(" "), plast = pw.pop();
+        $("#post").innerHTML = pw.join(" ") + ' <span style="white-space:nowrap">' + plast + "<sup>[2]</sup></span>";
+        $("#sec2").textContent = CONFIG.section2; $("#para2").textContent = CONFIG.para2;
+        $("#ibTitle").textContent = CONFIG.infobox.title; $("#ibImg").src = CONFIG.infobox.image;
+        $("#rows").innerHTML = CONFIG.infobox.rows.map(([k, v]) => '<div class="row"><span class="k">' + k + '</span>' +
+          (v.indexOf("chip:") === 0 ? '<span class="chip">' + v.slice(5) + "</span>" : '<span class="v">' + v + "</span>") + "</div>").join("");
+
+        const FACES = ["400 100px Inter", "500 100px Inter", "600 100px Inter", "700 100px Inter", "800 100px Inter", "900 100px Inter", "900 100px Archivo"];
+        const img = $("#ibImg");
+        const imgReady = new Promise((r) => { if (img.complete) r(); else { img.onload = r; img.onerror = r; } });
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => imgReady).then(build);
+
+        function build() {
+          const page = $("#page"), pr = page.getBoundingClientRect();
+          const PW = page.offsetWidth, PH = page.offsetHeight;
+          // ---------- measure the key sentence's line boxes (untransformed) ----------
+          const range = document.createRange(); range.selectNodeContents($("#key"));
+          const lines = [];
+          Array.from(range.getClientRects()).forEach((r) => {
+            const L = { x: r.left - pr.left, y: r.top - pr.top, w: r.width, h: r.height };
+            const last = lines[lines.length - 1];
+            if (last && Math.abs(last.y - L.y) < 4) { last.w = L.x + L.w - last.x; } else if (L.w > 2) lines.push(L);
+          });
+          const keyMidY = (lines[0].y + lines[lines.length - 1].y + lines[lines.length - 1].h) / 2;
+
+          // ---------- focus veil: paper wash with evenodd holes around the key lines ----------
+          const veil = $("#veil"); veil.setAttribute("width", PW); veil.setAttribute("height", PH); veil.style.opacity = 0;
+          let d = "M0 0H" + PW + "V" + PH + "H0Z";
+          lines.forEach((l) => { d += "M" + (l.x - 4) + " " + (l.y - 4) + "H" + (l.x + l.w + 6) + "V" + (l.y + l.h + 4) + "H" + (l.x - 12) + "Z"; });
+          [".ibox .im"].forEach((sel) => { const r = document.querySelector(sel).getBoundingClientRect(), x = r.left - pr.left, y = r.top - pr.top;
+            d += "M" + x + " " + y + "H" + (x + r.width) + "V" + (y + r.height) + "H" + x + "Z"; });
+          $("#veilPath").setAttribute("d", d);
+
+          // ---------- marker strokes ----------
+          const NS = "http://www.w3.org/2000/svg", hl = $("#hl"), M = CONFIG.marker;
+          hl.setAttribute("width", PW); hl.setAttribute("height", PH);
+          const defs = document.createElementNS(NS, "defs"); hl.appendChild(defs);
+          defs.innerHTML = '<linearGradient id="mk" x1="0" y1="0" x2="0" y2="1">' +
+            '<stop offset="0" stop-color="' + M.edge + '"/><stop offset=".16" stop-color="' + M.color + '"/>' +
+            '<stop offset=".84" stop-color="' + M.color + '"/><stop offset="1" stop-color="' + M.edge + '"/></linearGradient>';
+          const clips = [];
+          lines.forEach((l, i) => {
+            const top = l.y + l.h * 0.1, bot = l.y + l.h * 0.97, sl = (bot - top) * 0.3;
+            const x0 = l.x - (i === 0 ? 2 : 9), x1 = l.x + l.w + (i === lines.length - 1 ? 4 : 9);
+            let p = "M" + (x0 + sl) + " " + top.toFixed(1);
+            for (let x = x0 + sl + 26, k = 0; x < x1; x += 26, k++) p += "L" + x.toFixed(1) + " " + (top + (H(i * 97 + k) - 0.5) * 2.6).toFixed(1);
+            p += "L" + x1 + " " + (top + 0.6) + "L" + (x1 - sl) + " " + bot;
+            for (let x = x1 - sl - 22, k = 0; x > x0; x -= 22, k++) p += "L" + x.toFixed(1) + " " + (bot + (H(i * 131 + k + 500) - 0.5) * 2.8).toFixed(1);
+            p += "L" + x0 + " " + bot + "Z";
+            const cp = document.createElementNS(NS, "clipPath"); cp.setAttribute("id", "mc" + i);
+            const poly = document.createElementNS(NS, "polygon"); cp.appendChild(poly); defs.appendChild(cp);
+            const g = document.createElementNS(NS, "g"); g.setAttribute("clip-path", "url(#mc" + i + ")");
+            g.innerHTML = '<path d="' + p + '" fill="url(#mk)" opacity=".94"/>' +
+              '<ellipse cx="' + (x0 + sl * 0.9) + '" cy="' + ((top + bot) / 2) + '" rx="' + (sl * 0.9) + '" ry="' + ((bot - top) * 0.46) + '" fill="#ffc81a" opacity=".45"/>' +
+              '<rect x="' + (x0 + sl) + '" y="' + (top + (bot - top) * 0.3) + '" width="' + (x1 - x0 - sl * 2) + '" height="1.6" fill="#fff" opacity=".22"/>' +
+              '<rect x="' + (x0 + sl * 2) + '" y="' + (top + (bot - top) * 0.66) + '" width="' + (x1 - x0 - sl * 3) + '" height="1.2" fill="#fff" opacity=".16"/>';
+            hl.appendChild(g);
+            clips.push({ poly, x0: x0 - 4, x1: x1 + sl + 4, top: top - 6, bot: bot + 6, sl });
+          });
+          const setClip = (c, X) => c.poly.setAttribute("points", [[c.x0, c.top], [X + c.sl, c.top], [X, c.bot], [c.x0, c.bot]].map((q) => q[0].toFixed(1) + "," + q[1].toFixed(1)).join(" "));
+          clips.forEach((c) => setClip(c, c.x0 - c.sl - 2));
+
+          // ---------- stamp: canvas ink with deterministic wear ----------
+          const ST = CONFIG.stamp, K = 2;
+          const ink = $("#stampInk"), sheenC = $("#stampSheen");
+          [ink, sheenC].forEach((c) => { c.width = ST.w * K; c.height = ST.h * K; c.style.width = ST.w + "px"; c.style.height = ST.h + "px"; });
+          drawStamp(ink, ST, K);
+          const row = document.querySelectorAll("#rows .row")[ST.anchorRow].getBoundingClientRect();
+          const sx = row.left - pr.left + row.width * 0.5 - ST.w / 2 - 18, sy = row.top - pr.top + row.height * 0.5 - ST.h / 2 - 22;
+          [ink, sheenC].forEach((c) => { c.style.left = sx + "px"; c.style.top = sy + "px"; });
+          const sctx = sheenC.getContext("2d");
+          function sheenAt(p) {
+            sctx.clearRect(0, 0, sheenC.width, sheenC.height);
+            if (p <= 0 || p >= 1) return;
+            const W = sheenC.width, Hh = sheenC.height, cx = -0.35 * W + p * 1.7 * W;
+            const gr = sctx.createLinearGradient(cx - 0.22 * W, 0, cx + 0.22 * W, Hh * 0.35);
+            gr.addColorStop(0, "rgba(255,255,255,0)"); gr.addColorStop(0.5, "rgba(255,236,236,.85)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+            sctx.globalCompositeOperation = "source-over"; sctx.fillStyle = gr; sctx.fillRect(0, 0, W, Hh);
+            sctx.globalCompositeOperation = "destination-in"; sctx.drawImage(ink, 0, 0);
+            sctx.globalCompositeOperation = "source-over";
+          }
+
+          // ---------- timeline ----------
+          const tl = gsap.timeline({ paused: true });
+          const win = $("#win"), cam = $("#cam"), persp = $("#persp");
+          gsap.set(win, { x: 560, rotationY: -38, rotationX: 4, scale: 0.94, opacity: 0 });
+          // entrance: 3D swing from the right, 2-frame opacity, directional blur, spring settle
+          tl.to(win, { opacity: 1, duration: 0.07, ease: "none" }, T.enter);
+          tl.to(win, { x: 0, duration: 0.78, ease: "back.out(1.15)" }, T.enter);
+          tl.to(win, { rotationY: -5, rotationX: 1.5, duration: 0.9, ease: "back.out(1.7)" }, T.enter);
+          tl.to(win, { scale: 1, duration: 0.6, ease: "power3.out" }, T.enter);
+          Look.mblur(tl, win, T.enter, 0.42, { x: 30, ease: "power2.out" });
+          // page-load bar
+          gsap.set("#load", { scaleX: 0, opacity: 1 });
+          tl.to("#load", { scaleX: 0.72, duration: 0.4, ease: "power2.out" }, T.enter + 0.1);
+          tl.to("#load", { scaleX: 1, duration: 0.18, ease: "power1.in" }, T.enter + 0.55);
+          tl.to("#load", { opacity: 0, duration: 0.12, ease: "none" }, T.enter + 0.75);
+          // glass reflection drifting across the window
+          gsap.set("#glass i", { xPercent: -120 });
+          tl.to("#glass i", { xPercent: 210, duration: 2.6, ease: "sine.inOut" }, T.enter + 0.1);
+          // inertial scroll so the key sentence reaches the middle of the viewport
+          const viewH = 696 - 60, scrollY = Math.max(0, Math.round(keyMidY - viewH * 0.47));
+          tl.to(page, { y: -scrollY, duration: 0.85, ease: "expo.out" }, T.scroll);
+          // camera push: straighten and fill the frame (right edge pinned)
+          tl.to(win, { rotationY: 0, rotationX: 0, duration: T.pushDur, ease: "power2.inOut" }, T.push);
+          tl.to(cam, { scale: CONFIG.push.scale, duration: T.pushDur, ease: "power2.inOut" }, T.push);
+          tl.to(cam, { scale: CONFIG.push.drift, duration: T.exit - (T.push + T.pushDur), ease: "none" }, T.push + T.pushDur);
+          // focus veil
+          tl.to(veil, { opacity: 0.6, duration: 0.3, ease: "power2.out" }, T.dim);
+          // marker sweeps, line by line
+          clips.forEach((c, i) => {
+            const at = T.hl + i * (T.hlLine + 0.03), E = gsap.parseEase("power1.inOut");
+            Look.drive(tl, at, T.hlLine, (p) => setClip(c, c.x0 - c.sl - 2 + (c.x1 - c.x0 + c.sl + 2) * E(p)));
+          });
+          // stamp slam
+          const st = T.stamp, D = 0.16;
+          gsap.set([ink], { opacity: 0, scaleX: 2.3, scaleY: 2.3, rotation: ST.rot - 9, y: -30, filter: "blur(7px)" });
+          gsap.set(sheenC, { opacity: 0, rotation: ST.rot });
+          tl.to(ink, { opacity: 1, duration: 0.04, ease: "none" }, st - D);
+          tl.to(ink, { scaleX: 1.04, scaleY: 0.95, rotation: ST.rot, y: 0, filter: "blur(0px)", duration: D, ease: "power3.in" }, st - D);
+          tl.to(ink, { scaleX: 1, scaleY: 1, duration: 0.34, ease: "elastic.out(1, 0.45)" }, st);
+          tl.set(ink, { filter: "none" }, st + 0.001);
+          tl.set(sheenC, { opacity: 1 }, st);
+          Look.drive(tl, st + 0.1, 0.62, (p) => sheenAt(gsap.parseEase("power2.inOut")(p)));
+          tl.fromTo(sheenC, { scaleX: 1.04, scaleY: 0.95 }, { scaleX: 1, scaleY: 1, duration: 0.34, ease: "elastic.out(1, 0.45)", immediateRender: false }, st);
+          // page thud + footage hit
+          tl.to(persp, { y: 7, scale: 0.993, duration: 0.05, ease: "power2.out" }, st);
+          tl.to(persp, { y: 0, scale: 1, duration: 0.42, ease: "elastic.out(1, 0.5)" }, st + 0.05);
+          if (plate) Look.impact(tl, st, { shake: "#shake", amp: 9, dur: 0.3, flash: 0, zoom: 1.02 });
+          // exit: whip out to the right with directional blur, no fade
+          tl.to(win, { x: 1450, rotationY: -36, duration: 0.33, ease: "power3.in" }, T.exit);
+          Look.mblur(tl, win, T.exit + 0.05, 0.28, { x: 2, to: [34, 0], ease: "power2.in" });
+          tl.set(win, { opacity: 0 }, T.exit + 0.34);
+          if (plate) Look.push(tl, "#push", 0, T.end, { to: 1.04 });
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        }
+
+        function drawStamp(cv, ST, K) {
+          const c = cv.getContext("2d"), W = ST.w, Hh = ST.h;
+          c.setTransform(K, 0, 0, K, 0, 0); c.clearRect(0, 0, W, Hh);
+          c.fillStyle = ST.ink; c.strokeStyle = ST.ink;
+          const rr = (x, y, w, h, r) => { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); };
+          c.lineWidth = 9; rr(5.5, 5.5, W - 11, Hh - 11, 17); c.stroke();
+          c.lineWidth = 3; rr(18, 18, W - 36, Hh - 36, 9); c.stroke();
+          // small caps lines with rules either side (measured with the tracking on)
+          c.textAlign = "center"; c.textBaseline = "middle";
+          c.font = "800 16px Inter"; if ("letterSpacing" in c) c.letterSpacing = "3px";
+          const lab = (txt, y) => {
+            c.fillText(txt, W / 2 + 1.5, y);
+            const w = c.measureText(txt).width, gap = 12, len = Math.max(0, W / 2 - w / 2 - gap - 34);
+            c.fillRect(34, y - 1.2, len, 2.4); c.fillRect(W - 34 - len, y - 1.2, len, 2.4);
+          };
+          lab(ST.top, 39); lab(ST.bottom, Hh - 38);
+          if ("letterSpacing" in c) c.letterSpacing = "0px";
+          // the word: Archivo 900 semi-condensed, fitted, slightly fattened like a rubber die
+          let fs = 86; const setF = () => { c.font = "900 semi-condensed " + fs + "px Archivo"; if ("fontStretch" in c) c.fontStretch = "semi-condensed"; };
+          setF(); if ("letterSpacing" in c) c.letterSpacing = "1px";
+          const maxW = W - 70; const mw = c.measureText(ST.word).width; if (mw > maxW) { fs = Math.floor(fs * maxW / mw); setF(); }
+          c.lineWidth = 1.6; c.lineJoin = "round";
+          c.fillText(ST.word, W / 2 + 1, Hh / 2 + 3); c.strokeText(ST.word, W / 2 + 1, Hh / 2 + 3);
+          if ("letterSpacing" in c) c.letterSpacing = "0px";
+          // splatter specks just outside the border
+          for (let i = 0; i < 9; i++) {
+            const a = H(900 + i) * Math.PI * 2, side = H(950 + i);
+            const px = side < 0.5 ? (H(960 + i) * W) : (H(970 + i) < 0.5 ? 2 : W - 2), py = side < 0.5 ? (H(980 + i) < 0.5 ? 1.5 : Hh - 1.5) : H(990 + i) * Hh;
+            c.beginPath(); c.arc(px + Math.cos(a) * 3, py + Math.sin(a) * 3, 0.6 + H(1000 + i) * 1.4, 0, Math.PI * 2); c.fill();
+          }
+          // wear: blotchy density, worn voids, fine grain (deterministic)
+          const id = c.getImageData(0, 0, cv.width, cv.height), px = id.data, CW = cv.width, CH = cv.height;
+          const vn = (x, y, s, seed) => { const gx = Math.floor(x / s), gy = Math.floor(y / s), fx = x / s - gx, fy = y / s - gy;
+            const h = (i, j) => H(i * 7919 + j * 104729 + seed), sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+            const a = h(gx, gy), b = h(gx + 1, gy), cc = h(gx, gy + 1), dd = h(gx + 1, gy + 1);
+            return a + (b - a) * sx + (cc - a) * sy + (a - b - cc + dd) * sx * sy; };
+          for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) {
+            const o = (y * CW + x) * 4; if (!px[o + 3]) continue;
+            const blot = vn(x, y, 46, 11), mid = vn(x, y, 11, 23), fine = H(x * 3301 + y * 7177 + 5);
+            let k = 0.72 + 0.34 * blot;
+            if (mid < 0.2) k *= mid / 0.2 * 0.7 + 0.3;
+            if (fine > 0.93) k *= 0.25;
+            px[o + 3] = Math.max(0, Math.min(255, px[o + 3] * Math.min(1, k)));
+          }
+          c.putImageData(id, 0, 0);
+        }
+      })();
+    </script>
+  </body>
+</html>

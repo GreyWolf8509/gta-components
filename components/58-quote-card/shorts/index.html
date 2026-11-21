@@ -1,0 +1,256 @@
+<!doctype html>
+<!-- 58 Quote card, variant B: "Quote for Shorts" (9:16, 1080x1920, 30 fps, 6.5 s).
+     The same pull quote set big for a Short: the whole quote lands unlit (deep plum with a faint rim), then each word
+     lights as it is said; the key word ignites hot pink at a bigger size and the light jumps to the real 3D source tile,
+     whose neon halo switches on as the attribution rolls in. Variable: bg "plate" (sample footage) / "none" (transparent). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/quote3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      .grade { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
+      #gMul { mix-blend-mode: multiply; background:
+        linear-gradient(170deg, rgb(120,80,150) 0%, rgb(70,34,108) 34%, rgb(46,18,78) 70%, rgb(60,26,92) 100%); }
+      #gGlow { mix-blend-mode: screen; background:
+        radial-gradient(60% 34% at 78% 22%, rgba(255,64,170,.42), rgba(255,64,170,0) 72%),
+        radial-gradient(70% 30% at 12% 72%, rgba(170,60,255,.20), rgba(170,60,255,0) 70%); }
+      #ov { position: absolute; inset: 0; }
+      #stage { position: absolute; inset: 0; }
+      #q { position: absolute; color: #fff; font-style: italic; font-weight: 900; letter-spacing: -0.02em; white-space: nowrap; }
+      #q .ln { display: block; }
+      .wm { display: inline-block; vertical-align: top; padding: 0.06em 0.16em 0.2em 0.04em; margin: -0.06em -0.16em -0.2em -0.04em;
+        clip-path: inset(-60% -40% 0 -30%); }
+      .wi { display: inline-block; position: relative; will-change: transform; }
+      .wi .base { color: #2E1A3E; -webkit-text-stroke: 2px rgba(255,186,232,.34); paint-order: stroke fill;
+        text-shadow: 0 6px 22px rgba(14,0,24,.55); }
+      .wi .lit, .wi .hot { position: absolute; left: 0; top: 0; pointer-events: none; }
+      .wi .lit { clip-path: inset(-30% 140% -30% -30%); }
+      .wi .hot { color: #FFF6FB; clip-path: inset(-30% 140% -30% 140%); text-shadow: 0 0 12px rgba(255,150,215,.95), 0 0 30px rgba(255,79,163,.75); }
+      #bar { position: absolute; width: 13px; border-radius: 7px; transform-origin: 50% 0%; transform: scaleY(0);
+        background: linear-gradient(180deg, #FF8ACF 0%, #FF4FA3 45%, #D14BF2 100%);
+        box-shadow: inset 2px 0 0 rgba(255,255,255,.55), inset -2px 0 0 rgba(120,0,70,.35), 0 0 14px rgba(255,79,163,.75), 0 0 40px rgba(255,79,163,.38); }
+      #barFlare { position: absolute; inset: -8px -12px; border-radius: 14px; opacity: 0;
+        background: radial-gradient(closest-side, rgba(255,220,240,.95), rgba(255,79,163,.6) 55%, rgba(255,79,163,0)); }
+      #attr { position: absolute; display: flex; align-items: center; gap: 18px; white-space: nowrap; }
+      #attr .rule { width: 66px; height: 4px; border-radius: 2px; transform-origin: 0% 50%; transform: scaleX(0);
+        background: linear-gradient(90deg, #FF4FA3, #FF8ACF); box-shadow: 0 0 10px rgba(255,79,163,.7); }
+      #attr .am { display: inline-block; overflow: hidden; padding: 4px 6px 6px 0; }
+      #attr .ai { display: inline-block; font: 700 31px/1.1 "Inter"; letter-spacing: 0.14em; color: rgba(255,255,255,.9);
+        text-shadow: 0 2px 12px rgba(20,0,30,.65); }
+      #attr .ai b { font-weight: 800; color: #fff; }
+      #attr .ai i { font-style: normal; color: #FF6FBE; padding: 0 0.45em; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.5" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <video id="shot1" class="clip shot" src="assets/shots/v35-penthouse-dusk-v.mp4" muted playsinline data-start="0" data-duration="6.5" data-media-start="1.6" data-track-index="0"></video>
+      </div></div>
+      <div id="gMul" class="grade"></div>
+      <div id="gGlow" class="grade"></div>
+      <div id="ov" class="clip" data-start="0" data-duration="6.5" data-track-index="1">
+        <div id="bar"><div id="barFlare"></div></div>
+        <div id="q" data-layout-allow-overflow></div>
+        <div id="attr"><span class="rule"></span><span class="am"><span class="ai" id="attrText"></span></span></div>
+        <div id="stage" data-layout-allow-occlusion data-layout-allow-overflow></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        // one string per line; wrap the key word(s) in *asterisks*: they ignite pink, set bigger, as the payoff
+        quote: ["Los Santos", "never rewards", "the brave.", "Only the", "*prepared.*"],
+        // a fictional in-world line, credited to a game character (never invent quotes from real people)
+        source: ["LESTER CREST", "HEIST PLANNER"],
+        type: { x: 134, top: 742, maxW: 790, size: 104, keySize: 150, lead: 1.06 },
+        tile: { x: 700, y: 470, size: 400, depth: 44, tiltDeg: -7.5, turnDeg: -12 },
+        colors: {
+          lit: "linear-gradient(180deg, #FFFFFF 0%, #FFFFFF 48%, #EADCF8 100%)",
+          accent: "linear-gradient(180deg, #FFC2E6 0%, #FF66BD 34%, #F23FA6 62%, #C24AF2 100%)",
+          tileFace: ["#FFE46E", "#FFC21C", "#EE9C00"], tileSide: "#C98600", ink: "#060509", glow: "#FF4FA3"
+        },
+        grade: true,
+        // land = the unlit quote rises; light0/step = when each word lights (as it is said); payoff = the key word
+        timing: { in: 0.25, land: 0.42, light0: 1.0, step: 0.18, pause: 0.2, payoff: 2.72, out: 5.6, end: 6.5 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const C = CONFIG, T = C.timing, K = C.colors, PI = Math.PI, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot, .grade").forEach((v) => (v.style.display = "none"));
+        const Ez = (n) => gsap.parseEase(n);
+        const seg = (t, a, b, e) => { const p = t <= a ? 0 : t >= b ? 1 : (t - a) / (b - a); return e ? Ez(e)(p) : p; };
+        const spring = (t, t0, f, z) => { const x = t - t0; if (x <= 0) return 0; const w = 2 * PI * f, wd = w * Math.sqrt(1 - z * z);
+          return 1 - Math.exp(-z * w * x) * (Math.cos(wd * x) + (z * w / wd) * Math.sin(wd * x)); };
+        const wob = (t, t0, amp, f, k) => (t < t0 ? 0 : amp * Math.exp(-k * (t - t0)) * Math.sin(2 * PI * f * (t - t0)));
+        const el = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) n.className = cls; if (txt != null) n.textContent = txt; return n; };
+
+        const q = $("#q");
+        q.style.left = C.type.x + "px"; q.style.top = C.type.top + "px";
+        const words = [], lines = [];
+        C.quote.forEach((line, li) => {
+          const ln = el("span", "ln"); q.appendChild(ln); let acc = false, keyLine = /^\*[^*]+\*$/.test(line.trim());
+          lines.push({ ln, key: keyLine });
+          line.split(" ").forEach((tok, wi) => {
+            let t = tok, a = acc, close = false;
+            if (t.startsWith("*")) { a = acc = true; t = t.slice(1); }
+            if (t.endsWith("*")) { close = true; t = t.slice(0, -1); }
+            if (wi > 0) ln.appendChild(document.createTextNode(" "));
+            const wm = el("span", "wm"), w = el("span", "wi"), base = el("span", "base", t);
+            const lit = el("span", "lit", t), hot = el("span", "hot", t);
+            w.appendChild(base); w.appendChild(lit); w.appendChild(hot);
+            wm.appendChild(w); ln.appendChild(wm);
+            words.push({ wm, w, base, lit, hot, acc: a, line: li, wi });
+            if (close) acc = false;
+          });
+        });
+        $("#attrText").innerHTML = C.source.map((s, i) => (i === 0 ? "<b>" + s + "</b>" : s)).join("<i>·</i>");
+
+        const FACES = ["italic 900 100px Inter", "italic 800 100px Inter", "700 100px Inter", "800 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          // fit: body lines share one size (the widest fits maxW); the key line gets its own, bigger
+          const body = lines.filter((l) => !l.key), keys = lines.filter((l) => l.key);
+          q.style.fontSize = "100px"; q.style.lineHeight = C.type.lead;
+          const wmax = Math.max.apply(null, body.map((l) => l.ln.getBoundingClientRect().width));
+          const bs = Math.min(C.type.size, 100 * C.type.maxW / wmax);
+          q.style.fontSize = bs.toFixed(1) + "px";
+          keys.forEach((l) => { l.ln.style.fontSize = "100px"; const kw = l.ln.getBoundingClientRect().width;
+            l.ln.style.fontSize = Math.min(C.type.keySize, 100 * C.type.maxW / kw).toFixed(1) + "px"; l.ln.style.lineHeight = "1.0"; l.ln.style.marginTop = (bs * 0.04).toFixed(1) + "px"; });
+          words.forEach((w) => { Look.fill(w.lit, w.acc ? K.accent : K.lit); });
+          const qr = q.getBoundingClientRect(), lastLn = q.lastElementChild.getBoundingClientRect();
+          const lastSize = parseFloat(getComputedStyle(q.lastElementChild).fontSize);
+          const bar = $("#bar");
+          bar.style.left = (C.type.x - 44) + "px"; bar.style.top = (C.type.top + bs * 0.2) + "px";
+          bar.style.height = (lastLn.bottom - qr.top - bs * 0.2 - lastSize * 0.14) + "px";
+          const attr = $("#attr"); attr.style.left = (C.type.x + 2) + "px"; attr.style.top = (lastLn.bottom + 30) + "px";
+          words.forEach((w) => { w.L = w.w.offsetLeft; w.Wd = w.w.offsetWidth; });
+
+          const tl = gsap.timeline({ paused: true });
+          const P = T.payoff, X = T.out;
+          gsap.set("#attr .ai", { yPercent: 110 });
+
+          if (plate && C.grade) {
+            const shot = $("#shot1"), gm = $("#gMul"), gg = $("#gGlow");
+            Look.drive(tl, 0, T.end, (p) => {
+              const t = p * T.end, k = seg(t, 0.06, 0.6, "power2.out") * (1 - seg(t, X + 0.2, X + 0.75, "power2.inOut"));
+              shot.style.filter = k > 0.001 ? "blur(" + (4 * k).toFixed(2) + "px) brightness(" + (1 - 0.3 * k).toFixed(3) + ") contrast(" + (1 + 0.14 * k).toFixed(3) + ")" : "";
+              gm.style.opacity = (0.9 * k).toFixed(3); gg.style.opacity = (0.8 * k).toFixed(3);
+            });
+            Look.push(tl, "#push", 0, T.end, { to: 1.05 });
+          }
+
+          tl.fromTo(bar, { scaleY: 0 }, { scaleY: 1, duration: 0.65, ease: "back.out(1.4)", immediateRender: false }, T.in);
+          tl.set(bar, { transformOrigin: "50% 100%" }, X + 0.05);
+          tl.to(bar, { scaleY: 0, duration: 0.3, ease: "power3.in" }, X + 0.05);
+
+          // 1) the unlit quote rises into place, line by line
+          words.forEach((w) => {
+            const t0 = T.land + w.line * 0.07 + w.wi * 0.025;
+            gsap.set(w.w, { yPercent: 112, filter: "blur(7px)" });
+            tl.fromTo(w.w, { yPercent: 112, filter: "blur(7px)" }, { yPercent: 0, filter: "blur(0px)", duration: 0.55, ease: "expo.out", immediateRender: false }, t0);
+            tl.set(w.w, { filter: "none" }, t0 + 0.55);
+            tl.set(w.wm, { clipPath: "none" }, t0 + 0.57);
+          });
+          // 2) each word lights as it is said: a light front with a hot leading band, and a small spring pop
+          let tl0 = T.light0;
+          words.forEach((w, i) => {
+            if (i > 0 && /[.!?]$/.test(words[i - 1].base.textContent)) tl0 += T.pause;
+            w.t = w.acc ? P : tl0;
+            if (!w.acc) tl0 += T.step;
+            const dur = w.acc ? 0.3 : 0.14;
+            Look.drive(tl, w.t, dur, (p) => {
+              const d = -22 + (w.Wd + 92) * Ez(w.acc ? "power2.inOut" : "power1.out")(p);
+              if (p <= 0) { w.lit.style.clipPath = ""; w.hot.style.clipPath = ""; w.base.style.clipPath = ""; return; }
+              w.lit.style.clipPath = "inset(-30% " + Math.max(-60, w.Wd - (d - 22)).toFixed(1) + "px -30% -30%)";
+              w.hot.style.clipPath = "inset(-30% " + Math.max(-60, w.Wd - d).toFixed(1) + "px -30% " + Math.max(-30, d - 26).toFixed(1) + "px)";
+              w.base.style.clipPath = "inset(-30% -30% -30% " + Math.max(-30, d - 22).toFixed(1) + "px)";
+            });
+            const amp = w.acc ? 0.085 : 0.05;
+            Look.drive(tl, w.t, 0.6, (p) => {
+              const x = p * 0.6, s = 1 + amp * Math.exp(-7 * x) * Math.sin(Math.min(PI, x * PI / 0.12)) + wob(x, 0.12, -amp * 0.35, 2.6, 7);
+              w.wm.style.transform = p > 0 && p < 1 ? "scale(" + s.toFixed(4) + ")" : "";
+            });
+            // transient bloom as it lights (white words) / a lasting pink bloom (the key word)
+            Look.drive(tl, w.t, T.end - w.t, (p) => {
+              const t = w.t + p * (T.end - w.t);
+              const pk = seg(t, w.t + 0.04, w.t + 0.1) * (1 - seg(t, w.t + 0.2, w.t + 0.6, "power2.out"));
+              if (p <= 0) { w.lit.style.filter = ""; return; }
+              const col = w.acc ? "255,79,163" : "255,200,236", a = w.acc ? 0.45 + 0.5 * pk : 0.55 * pk, b = w.acc ? 12 + 16 * pk : 14 * pk + 2;
+              w.lit.style.filter = "drop-shadow(0 4px 10px rgba(20,0,30,.55)) drop-shadow(0 0 " + b.toFixed(1) + "px rgba(" + col + "," + a.toFixed(3) + "))";
+            });
+          });
+          tl.fromTo("#barFlare", { opacity: 0 }, { opacity: 0.85, duration: 0.06, ease: "none", immediateRender: false }, P + 0.04);
+          tl.to("#barFlare", { opacity: 0, duration: 0.45, ease: "power2.out" }, P + 0.18);
+          tl.fromTo("#attr .rule", { scaleX: 0 }, { scaleX: 1, duration: 0.4, ease: "expo.out", immediateRender: false }, P + 0.12);
+          tl.fromTo("#attr .ai", { yPercent: 110 }, { yPercent: 0, duration: 0.5, ease: "expo.out", immediateRender: false }, P + 0.2);
+          Look.mblur(tl, "#attr .ai", P + 0.2, 0.3, { y: 8 });
+
+          words.slice().reverse().forEach((w, j) => {
+            const t0 = X + j * 0.018;
+            tl.set(w.wm, { clipPath: "inset(-60% -40% 0 -30%)" }, t0);
+            tl.fromTo(w.w, { yPercent: 0, filter: "blur(0px)" }, { yPercent: 115, filter: "blur(6px)", duration: 0.3, ease: "power3.in", immediateRender: false }, t0);
+          });
+          tl.to("#attr .ai", { yPercent: 110, duration: 0.28, ease: "power3.in" }, X);
+          tl.to("#attr .rule", { scaleX: 0, duration: 0.28, ease: "power3.in" }, X + 0.04);
+
+          // ---------------- 3D source tile ----------------
+          const st = Q3D.stage({ frameW: 1080, frameH: 1920, x: 340, y: 40, w: 740, h: 880, ss: 2, fov: 24, exposure: 1.0 });
+          $("#stage").appendChild(st.canvas);
+          const S = C.tile.size;
+          const tile = Q3D.tile({ S, r: S * 0.2, depth: C.tile.depth, bevel: 10,
+            mark: { r: S * 0.118, depth: 8, bevel: 5, x: 0, y: 4 },
+            colors: { face: K.tileFace, side: K.tileSide, ink: K.ink, glow: K.glow } });
+          const rig = new THREE.Group(); rig.add(tile.group); st.scene.add(rig);
+          const [RX, RY] = st.W(C.tile.x, C.tile.y), RZ = C.tile.tiltDeg * PI / 180, RYF = C.tile.turnDeg * PI / 180;
+          const KB = P + 0.18;
+          function renderAt(t) {
+            const on = t >= T.in + 0.05 && t < X + 0.42;
+            st.canvas.style.visibility = on ? "visible" : "hidden";
+            if (!on) return;
+            const e = spring(t, T.in + 0.05, 1.1, 0.52), pe = seg(t, X, X + 0.42, "power3.in");
+            const idle = seg(t, 1.1, 1.8);
+            const rx = 0.07 + wob(t, KB, 0.08, 1.7, 5.5);
+            const ry = RYF - 1.3 * (1 - e) + 0.05 * Math.sin(2 * PI * (t - 1.2) / 4.4) * idle + wob(t, KB, -0.1, 1.5, 5) + 1.75 * pe;
+            const rz = RZ + 0.32 * (1 - e) - 0.12 * pe;
+            const x = RX + 150 * pe, y = RY - 90 * (1 - e) + 5 * Math.sin(2 * PI * (t - 1.4) / 3.8) * idle;
+            const z = -260 * (1 - e) + wob(t, KB, 54, 1.6, 5.5) - 220 * pe;
+            rig.position.set(x, y, z); rig.rotation.set(rx, ry, rz);
+            rig.scale.setScalar(Math.max(0.05, 0.82 + 0.18 * e));
+            const ign = seg(t, KB, KB + 0.06, "power2.out"), pk = seg(t, KB, KB + 0.05) * (1 - seg(t, KB + 0.15, KB + 0.55, "power2.out"));
+            tile.halo.mat.opacity = Math.min(1, (0.14 + 0.62 * ign + 0.3 * pk) * Math.min(1, e * 1.4) * (1 - pe));
+            tile.halo.mesh.scale.setScalar(1 + 0.05 * pk);
+            tile.shadow.mat.opacity = 0.36 * Math.min(1, e) * (1 - pe);
+            tile.faceMat.emissiveIntensity = 0.9 * (1 + 0.16 * pk);
+            tile.inkMat.emissiveIntensity = 0.1 * pk;
+            const bc = RX + RY * Q3D.U.uBandSlope.value, bp = seg(t, KB + 0.02, KB + 0.42, "power1.inOut");
+            Q3D.U.uBand.value = bc - 420 + 840 * bp; Q3D.U.uBandW.value = 52;
+            Q3D.U.uBandAmp.value = seg(t, KB, KB + 0.05) * (1 - seg(t, KB + 0.34, KB + 0.44)) * 0.85;
+            st.rake.intensity = 1.2 * seg(t, KB - 0.02, KB + 0.08) * (1 - seg(t, KB + 0.3, KB + 0.65, "power2.out"));
+            st.rake.position.set((-1 + 2 * bp) * st.DIST, st.DIST * 0.55, st.DIST * 0.5);
+            st.render();
+          }
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          window.addEventListener("hf-seek", (ev) => { if (ev && ev.detail && typeof ev.detail.time === "number") renderAt(ev.detail.time); });
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          renderAt(0);
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

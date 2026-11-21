@@ -1,0 +1,450 @@
+<!doctype html>
+<!-- 63 Attempt counter, variant A (16:9, 1920x1080, 30 fps): "Death tally".
+     The creators' RIP-headstone death tally, top-right: a real 3D granite headstone planted in a sod block, with an extruded
+     "x N" multiplier on an odometer drum. Each fail rolls the count, the stone thuds back into the sod and kicks up dust;
+     the last fail knocks it askew for good. Variable bg: "plate" / "none". -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #gl { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; z-index: 10; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5.8" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <!-- each incoming shot starts 2 frames early underneath the outgoing one (z-index), so no cut paints a blank frame -->
+        <video id="s0" class="clip shot" style="z-index:4" src="assets/shots/v57-gp-red-car-highway-h.mp4" muted playsinline data-start="0" data-duration="1.45" data-media-start="0.3" data-track-index="0"></video>
+        <video id="s1" class="clip shot" style="z-index:3" src="assets/shots/v30-street-explosion-h.mp4" muted playsinline data-start="1.38" data-duration="1.42" data-media-start="0" data-track-index="0"></video>
+        <video id="s2" class="clip shot" style="z-index:2" src="assets/shots/v34-rocket-heli-h.mp4" muted playsinline data-start="2.73" data-duration="1.22" data-media-start="0" data-track-index="0"></video>
+        <video id="s3" class="clip shot" style="z-index:1" src="assets/shots/v36-hills-city-view-h.mp4" muted playsinline data-start="3.88" data-duration="1.92" data-media-start="0" data-track-index="0"></video>
+      </div></div>
+      <canvas id="gl" data-layout-allow-occlusion width="1920" height="1080"></canvas>
+    </div>
+    <script>
+      const CONFIG = {
+        epitaph: "R.I.P",                // engraved on the headstone
+        start: 2,                        // deaths shown on entrance
+        deaths: [1.45, 2.8],             // each fail ticks the count up by one (seconds; put them on your crash cuts). The last one is the big beat.
+        x: 1612, y: 150,                 // headstone centre on the 1920x1080 canvas (the tally docks top-right)
+        cap: 94,                         // multiplier cap height (px)
+        stone: "#A9AFB8", sod: "#4CC23F", digit: "#FFFFFF", digitSide: "#17181D", ink: "#09090C", dust: "#8C775A",
+        enter: { scale: 1.3, dx: -96, dy: 44, dock: 1.0, dockDur: 0.4 },   // arrives bigger and lower-left, then docks into the corner
+        timing: { in: 0.2, out: 5.22, end: 5.8 }
+      };
+
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const C = CONFIG, T = C.timing, $ = (s) => document.querySelector(s), W = 1920, H = 1080;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x)), seg = (t, a, d) => clamp((t - a) / d, 0, 1), lerp = (a, b, k) => a + (b - a) * k;
+        const E = (n) => gsap.parseEase(n), hash = Look.hash;
+        const wx = (x) => x - W / 2, wy = (y) => H / 2 - y;
+
+        // ---------- renderer: z = 0 maps 1:1 to canvas px ----------
+        const canvas = $("#gl");
+        const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+        renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 0);
+        renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.12;
+        renderer.localClippingEnabled = true;
+        const scene = new THREE.Scene();
+        const FOV = 22, DIST = (H / 2) / Math.tan((FOV / 2) * Math.PI / 180);
+        const camera = new THREE.PerspectiveCamera(FOV, W / H, 10, DIST * 3);
+        camera.position.set(0, 0, DIST); camera.lookAt(0, 0, 0);
+
+        // studio environment: soft overhead box, cool strip left, warm bounce low, dark floor
+        const envScene = new THREE.Scene();
+        envScene.add(new THREE.Mesh(new THREE.SphereGeometry(50, 48, 24), new THREE.ShaderMaterial({
+          side: THREE.BackSide, depthWrite: false,
+          vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 top = vec3(0.82,0.8,0.76), hor = vec3(0.22,0.19,0.17), low = vec3(0.025,0.02,0.02);" +
+            " vec3 c = y > 0.0 ? mix(hor, top, smoothstep(0.1, 0.9, y)) : mix(hor, low, smoothstep(0.0, 0.35, -y)); gl_FragColor = vec4(c, 1.0); }"
+        })));
+        const panel = (w, h, x, y, z, c) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); envScene.add(m); };
+        panel(40, 10, -4, 30, 26, new THREE.Color(4.0, 3.9, 3.7));
+        panel(5, 34, -30, 4, 22, new THREE.Color(2.2, 2.5, 3.0));
+        panel(34, 6, 6, -6, 34, new THREE.Color(1.5, 1.0, 0.7));
+        panel(14, 26, 32, 8, 10, new THREE.Color(2.0, 1.7, 1.4));
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        scene.environment = pmrem.fromScene(envScene, 0.0, 0.1, 200).texture;
+        const key = new THREE.DirectionalLight(0xfff4ea, 1.7); key.position.set(-0.7, 0.85, 0.8); scene.add(key);
+        const rim = new THREE.DirectionalLight(0xffd2a0, 1.2); rim.position.set(1.0, -0.2, -0.2); scene.add(rim);
+        const rake = new THREE.PointLight(0xfff2dc, 0, 0, 0); scene.add(rake);   // a close light that sweeps a highlight across the stone on the payoff
+        scene.add(new THREE.HemisphereLight(0xfff6ee, 0x1a1210, 0.6));
+
+        // ---------- baked surfaces: a domed normal map + colour ramp, in shape-local px (cap UVs of ExtrudeGeometry) ----------
+        function bake(o) {   // o: {bx, by, bw, bh, k, sil(ctx, P), engrave(ctx, P)?, ramp, dome, cav, speckle, cut}
+          const CW = Math.round(o.bw * o.k), CH = Math.round(o.bh * o.k);
+          const mk = () => { const c = document.createElement("canvas"); c.width = CW; c.height = CH; return c; };
+          const P = (x, y) => [(x - o.bx) * o.k, (o.by - y) * o.k];
+          const sil = mk(), sx = sil.getContext("2d"); sx.fillStyle = "#000"; sx.fillRect(0, 0, CW, CH); sx.fillStyle = "#fff"; o.sil(sx, P);
+          const blurOf = (src, r) => { const c = mk(), x = c.getContext("2d"); x.fillStyle = "#000"; x.fillRect(0, 0, CW, CH); if (r > 0) x.filter = "blur(" + r + "px)"; x.drawImage(src, 0, 0); return x.getImageData(0, 0, CW, CH).data; };
+          const wide = blurOf(sil, o.dome * o.k), tight = blurOf(sil, 3 * o.k);
+          let eng = null, engS = null;
+          if (o.engrave) { const ec = mk(), ex = ec.getContext("2d"); ex.fillStyle = "#000"; ex.fillRect(0, 0, CW, CH); ex.fillStyle = "#fff"; o.engrave(ex, P); eng = blurOf(ec, 1.1 * o.k); engS = blurOf(ec, 0); }
+          const h = new Float32Array(CW * CH);
+          for (let i = 0; i < CW * CH; i++) h[i] = (0.75 * 30 * wide[i * 4] + 0.25 * 8 * tight[i * 4] - (eng ? o.cut * eng[i * 4] : 0)) / 255;
+          const nC = mk(), nx = nC.getContext("2d"), nd = nx.createImageData(CW, CH), cC = mk(), cx = cC.getContext("2d"), cd = cx.createImageData(CW, CH);
+          const rampAt = (v) => { const r = o.ramp; for (let j = 1; j < r.length; j++) if (v <= r[j][0]) { const a = r[j - 1], b = r[j], u = (v - a[0]) / (b[0] - a[0]); return a[1].map((q, n) => q + (b[1][n] - q) * u); } return r[r.length - 1][1]; };
+          for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) {
+            const i = y * CW + x, xl = Math.max(0, x - 1), xr = Math.min(CW - 1, x + 1), yu = Math.max(0, y - 1), yd = Math.min(CH - 1, y + 1);
+            const dx = (h[y * CW + xr] - h[y * CW + xl]) * o.k / 2, dy = (h[yd * CW + x] - h[yu * CW + x]) * o.k / 2;
+            let X = -dx, Y = dy, Z = 1; const L = Math.hypot(X, Y, Z); X /= L; Y /= L; Z /= L;
+            nd.data[i * 4] = (X * 0.5 + 0.5) * 255; nd.data[i * 4 + 1] = (Y * 0.5 + 0.5) * 255; nd.data[i * 4 + 2] = (Z * 0.5 + 0.5) * 255; nd.data[i * 4 + 3] = 255;
+            const rc = rampAt(y / CH);
+            let k = 1 - o.cav * (1 - Math.min(1, wide[i * 4] / 255 * 1.6));
+            if (o.speckle) { const c1 = hash(Math.floor(x / 3) * 7919 + Math.floor(y / 3) * 104729 + 3), c2 = hash(Math.floor(x / 9) * 31337 + Math.floor(y / 9) * 7349 + 5), n1 = hash(i * 3 + 11);
+              k *= 1 + o.speckle * (c1 - 0.5) + 0.1 * (c2 - 0.5) + 0.05 * (n1 - 0.5) - (c1 > 0.96 ? 0.32 : 0) + (c1 < 0.03 ? 0.22 : 0); }
+            if (engS) k *= 1 - 0.55 * engS[i * 4] / 255;
+            cd.data[i * 4] = Math.min(255, rc[0] * k); cd.data[i * 4 + 1] = Math.min(255, rc[1] * k); cd.data[i * 4 + 2] = Math.min(255, rc[2] * k); cd.data[i * 4 + 3] = 255;
+          }
+          nx.putImageData(nd, 0, 0); cx.putImageData(cd, 0, 0); if (o.overlay) o.overlay(cx, P, o.k);
+          const nTex = new THREE.CanvasTexture(nC), cTex = new THREE.CanvasTexture(cC); cTex.colorSpace = THREE.SRGBColorSpace;
+          [nTex, cTex].forEach((tx) => { tx.repeat.set(1 / o.bw, 1 / o.bh); tx.offset.set(-o.bx / o.bw, (o.bh - o.by) / o.bh); tx.anisotropy = 4; });
+          return { map: cTex, normalMap: nTex };
+        }
+        const hexRGB = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+        const shade = (rgb, k) => rgb.map((v) => Math.min(255, v * k));
+        const fillPath = (x, P, shape, n) => { x.beginPath(); shape.getPoints(n || 16).forEach((p, i) => { const q = P(p.x, p.y); i ? x.lineTo(q[0], q[1]) : x.moveTo(q[0], q[1]); }); x.closePath(); x.fill(); };
+
+        // ---------- traced Archivo glyphs (wdth 80, wght 900) -> bevelled extrusions ----------
+        const F = window.NUM_GLYPHS, MIN_SEG = 0.4, CURVE_SEG = 8;
+        function glyphShapes(d, s) {
+          const sp = new THREE.ShapePath(); const re = /([MLQCZ])([^MLQCZ]*)/g; let m;
+          while ((m = re.exec(d))) {
+            const n = m[2].trim() ? m[2].trim().split(/[\s,]+/).map(Number) : [];
+            const P = []; for (let i = 0; i < n.length; i += 2) P.push(n[i] * s, -n[i + 1] * s);
+            if (m[1] === "M") sp.moveTo(P[0], P[1]);
+            else if (m[1] === "L") sp.lineTo(P[0], P[1]);
+            else if (m[1] === "Q") sp.quadraticCurveTo(P[0], P[1], P[2], P[3]);
+            else if (m[1] === "C") sp.bezierCurveTo(P[0], P[1], P[2], P[3], P[4], P[5]);
+          }
+          const clean = (pts) => { const out = []; for (const p of pts) if (!out.length || p.distanceTo(out[out.length - 1]) > MIN_SEG) out.push(p);
+            while (out.length > 3 && out[0].distanceTo(out[out.length - 1]) <= MIN_SEG) out.pop(); return out; };
+          return sp.toShapes(false).map((sh) => { const s2 = new THREE.Shape(clean(sh.getPoints(CURVE_SEG)));
+            sh.holes.forEach((h) => s2.holes.push(new THREE.Path(clean(h.getPoints(CURVE_SEG))))); return s2; });
+        }
+        function tracedShadow(shapes, blur, dx, dy, op) {
+          const box = new THREE.Box2(); shapes.forEach((s) => s.getPoints(6).forEach((p) => box.expandByPoint(p)));
+          const pad = blur * 3, sw = box.max.x - box.min.x + 2 * pad, sh = box.max.y - box.min.y + 2 * pad, k = 2;
+          const SC = document.createElement("canvas"); SC.width = Math.ceil(sw * k); SC.height = Math.ceil(sh * k);
+          const x = SC.getContext("2d"); x.filter = "blur(" + blur * k + "px)"; x.fillStyle = "#000";
+          const trace = (pts) => { pts.forEach((p, i) => { const X = (p.x - box.min.x + pad) * k, Y = (box.max.y + pad - p.y) * k; i ? x.lineTo(X, Y) : x.moveTo(X, Y); }); x.closePath(); };
+          shapes.forEach((s) => { x.beginPath(); trace(s.getPoints(6)); s.holes.forEach((h) => trace(h.getPoints(6))); x.fill("evenodd"); });
+          const tex = new THREE.CanvasTexture(SC); tex.colorSpace = THREE.SRGBColorSpace;
+          const m = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: op == null ? 0.5 : op, depthWrite: false, color: 0x07040a }));
+          m.position.set((box.min.x + box.max.x) / 2 + dx, (box.min.y + box.max.y) / 2 + dy, 0); m.renderOrder = -1; return m;
+        }
+        function glyph(ch, s, o) {   // centred on its ink centre (x) and the cap middle (y); faces +z
+          const g = F.g[ch], shapes = glyphShapes(g[1], s), cx = (g[2] + g[3]) / 2 * s, cy = (o.inkY ? (g[4] + g[5]) / 2 : F.cap / 2) * s;
+          const geo = new THREE.ExtrudeGeometry(shapes, { depth: o.depth, bevelEnabled: true, bevelThickness: o.bt, bevelSize: o.bs, bevelOffset: -o.bs, bevelSegments: o.seg || 5, curveSegments: 1 });
+          geo.translate(-cx, -cy, -o.depth / 2);
+          const grp = new THREE.Group(); grp.add(new THREE.Mesh(geo, [o.face, o.side]));
+          if (o.ink) { const ig = new THREE.ExtrudeGeometry(shapes, { depth: 3, bevelEnabled: true, bevelThickness: 1, bevelSize: o.ink, bevelSegments: 2, curveSegments: 1 });
+            ig.translate(-cx, -cy, -o.depth / 2 - o.bt - 5); grp.add(new THREE.Mesh(ig, o.inkMat)); }
+          let shadow = null;
+          if (o.shadow) { shadow = tracedShadow(shapes, o.shadow, 5, -8); shadow.position.x -= cx; shadow.position.y -= cy; shadow.position.z = -o.depth / 2 - 40; if (!o.detach) grp.add(shadow); }
+          return { grp, w: (g[3] - g[2]) * s, shadow };
+        }
+
+
+        // face shading patch: a clipped specular band that sweeps across camera-facing faces on the payoff
+        function bandify(mat, key) {
+          const u = { uBandX: { value: -1e4 }, uBandA: { value: 0 }, uBandW: { value: 16 }, uBandC: { value: new THREE.Color(1, 1, 1) }, uDir: { value: new THREE.Vector2(0.82, 0.57) } };
+          mat.userData.u = u;
+          mat.onBeforeCompile = (sh) => { Object.assign(sh.uniforms, u);
+            sh.fragmentShader = "uniform float uBandX; uniform float uBandA; uniform float uBandW; uniform vec3 uBandC; uniform vec2 uDir;\n" + sh.fragmentShader
+              .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n { float fk = smoothstep(0.55, 0.85, normal.z); float bd = dot(-vViewPosition.xy, uDir);" +
+                " totalEmissiveRadiance += uBandC * uBandA * fk * exp(-pow((bd - uBandX) / uBandW, 2.0)); }"); };
+          mat.customProgramCacheKey = () => "band-" + key;
+          return mat;
+        }
+        // ---------- materials ----------
+        const inkMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(C.ink), roughness: 0.55, metalness: 0 });
+        const winLocal = [new THREE.Plane(new THREE.Vector3(0, -1, 0), 0), new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)], winWorld = [new THREE.Plane(), new THREE.Plane()];
+        const digFace = bandify(new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.digit), roughness: 0.24, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 1.0, emissive: 0xffffff, emissiveIntensity: 0.05, clippingPlanes: winWorld }), "dig");
+        const digSide = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.digitSide), roughness: 0.32, metalness: 0, clearcoat: 0.8, clearcoatRoughness: 0.12, envMapIntensity: 0.9, clippingPlanes: winWorld });
+        const digInk = new THREE.MeshStandardMaterial({ color: new THREE.Color(C.ink), roughness: 0.55, metalness: 0, clippingPlanes: winWorld });
+        const xFace = bandify(new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.digit), roughness: 0.24, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, emissive: 0xffffff, emissiveIntensity: 0.05 }), "x");
+        const xSide = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.digitSide), roughness: 0.32, metalness: 0, clearcoat: 0.8, clearcoatRoughness: 0.12 });
+
+        // ---------- the headstone: rounded-top granite slab, engraved, planted in a tufted sod block ----------
+        const SW = 124, SR = 62, SB = -80, SC0 = 18;   // width, top radius, bottom (hidden in the sod), centre of the top arc
+        function stoneShape() { const s = new THREE.Shape(); s.moveTo(-SW / 2, SB); s.lineTo(SW / 2, SB); s.lineTo(SW / 2, SC0);
+          s.absarc(0, SC0, SR, 0, Math.PI, false); s.lineTo(-SW / 2, SB); return s; }
+        const GW = 176, GB = -100, GT = -58;   // sod width, bottom, top line (tufts rise above it)
+        function sodShape() { const s = new THREE.Shape(), n = 11, r = 9; s.moveTo(-GW / 2 + r, GB); s.lineTo(GW / 2 - r, GB); s.quadraticCurveTo(GW / 2, GB, GW / 2, GB + r);
+          s.lineTo(GW / 2, GT - 2);
+          for (let i = n; i > 0; i--) {   // tufts: rounded blades leaning alternately, varying height (deterministic)
+            const x1 = -GW / 2 + GW * i / n, x0 = -GW / 2 + GW * (i - 1) / n, hgt = 10 + 9 * hash(i * 13 + 5), lean = (i % 2 ? 1 : -1) * 3;
+            s.quadraticCurveTo((x1 + x0) / 2 + lean + 3, GT + hgt * 1.25, (x1 + x0) / 2 + lean, GT + hgt);
+            s.quadraticCurveTo((x1 + x0) / 2 + lean - 4, GT + hgt * 0.6, x0, GT - 1);
+          }
+          s.lineTo(-GW / 2, GB + r); s.quadraticCurveTo(-GW / 2, GB, -GW / 2 + r, GB); return s; }
+        const stoneRGB = hexRGB(C.stone), sodRGB = hexRGB(C.sod);
+        const bakeStone = () => bake({ bx: -SW / 2 - 4, by: SC0 + SR + 4, bw: SW + 8, bh: SC0 + SR - SB + 8, k: 3, dome: 18, cav: 0.22, speckle: 0.16, cut: 26,
+          sil: (x, P) => fillPath(x, P, stoneShape(), 32),
+          engrave: (x, P) => { const q = P(0, 10); x.font = "900 " + Math.round(34 * 3) + "px Archivo"; x.textAlign = "center"; x.textBaseline = "alphabetic";
+            x.fillText(C.epitaph, q[0], q[1] + 17 * 3); const r = P(-34, -26); x.fillRect(r[0], r[1], 68 * 3, 4 * 3); },
+          ramp: [[0, shade(stoneRGB, 1.2)], [0.45, stoneRGB], [1, shade(stoneRGB, 0.66)]] });
+        const stoneMat = bandify(new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.4, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 1.1 }), "stone");
+        const stoneSide = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(...shade(stoneRGB, 0.62).map((v) => v / 255)), roughness: 0.5, metalness: 0, clearcoat: 0.5, clearcoatRoughness: 0.2 });
+        const sodSurf = bake({ bx: -GW / 2 - 4, by: GT + 26, bw: GW + 8, bh: GT + 26 - GB + 8, k: 3, dome: 7, cav: 0.25, speckle: 0.1,
+          sil: (x, P) => fillPath(x, P, sodShape(), 8),
+          overlay: (x, P, k) => {   // blade separations and a lit centre line on each tuft
+            const n = 11; x.lineCap = "round";
+            for (let i = n; i > 0; i--) { const x1 = -GW / 2 + GW * i / n, x0 = -GW / 2 + GW * (i - 1) / n, hgt = 10 + 9 * hash(i * 13 + 5), lean = (i % 2 ? 1 : -1) * 3, tx = (x1 + x0) / 2 + lean;
+              let a = P(x0, GT - 1), b = P(x0 + 1, GT - 13); x.strokeStyle = "rgba(10,60,14,0.45)"; x.lineWidth = 2.4 * k; x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]); x.stroke();
+              a = P(tx, GT + hgt - 2); b = P(tx - lean * 0.5, GT - 8); x.strokeStyle = "rgba(225,255,190,0.4)"; x.lineWidth = 1.6 * k; x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]); x.stroke(); }
+            const g = x.createLinearGradient(0, P(0, GT - 14)[1], 0, P(0, GB)[1]); g.addColorStop(0, "rgba(0,40,0,0)"); g.addColorStop(1, "rgba(0,30,0,0.35)");
+            x.fillStyle = g; x.fillRect(0, P(0, GT - 14)[1], x.canvas.width, x.canvas.height); },
+          ramp: [[0, shade(sodRGB, 1.45)], [0.35, shade(sodRGB, 1.1)], [1, shade(sodRGB, 0.55)]] });
+        const sodMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: sodSurf.map, normalMap: sodSurf.normalMap, roughness: 0.5, metalness: 0, clearcoat: 0.45, clearcoatRoughness: 0.25 });
+        const sodSide = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(...shade(sodRGB, 0.5).map((v) => v / 255)), roughness: 0.6, metalness: 0, clearcoat: 0.3 });
+        const SD = 30, SBT = 8, SBS = 7;
+        const stoneGeo = new THREE.ExtrudeGeometry(stoneShape(), { depth: SD, bevelEnabled: true, bevelThickness: SBT, bevelSize: SBS, bevelOffset: -SBS, bevelSegments: 7, curveSegments: 28 });
+        stoneGeo.translate(0, 0, -SD / 2);
+        const stone = new THREE.Mesh(stoneGeo, [stoneMat, stoneSide]);
+        const sodGeo = new THREE.ExtrudeGeometry(sodShape(), { depth: 52, bevelEnabled: true, bevelThickness: 5, bevelSize: 3.5, bevelOffset: -3.5, bevelSegments: 4, curveSegments: 6 });
+        sodGeo.translate(0, 0, -26 + 4);
+        const sod = new THREE.Mesh(sodGeo, [sodMat, sodSide]);
+        const inkStone = new THREE.Mesh(new THREE.ExtrudeGeometry(stoneShape(), { depth: 3, bevelEnabled: true, bevelThickness: 1, bevelSize: 7, bevelSegments: 2, curveSegments: 28 }), inkMat);
+        inkStone.position.z = -SD / 2 - SBT - 8;
+        const inkSod = new THREE.Mesh(new THREE.ExtrudeGeometry(sodShape(), { depth: 3, bevelEnabled: true, bevelThickness: 1, bevelSize: 6, bevelSegments: 2, curveSegments: 6 }), inkMat);
+        inkSod.position.z = -26 - 12;
+        const shStone = tracedShadow([stoneShape()], 9, 8, -12, 0.5); shStone.position.z = -70;
+        const shSod = tracedShadow([sodShape()], 8, 8, -10, 0.5); shSod.position.z = -70;
+
+        // rigs: stoneRig hops and tilts about the stone's foot (pivot at the sod line); sodRig pops up from its base
+        const stoneRig = new THREE.Group(); const stoneLift = new THREE.Group(); stoneLift.add(shStone); stoneLift.add(stone); stoneLift.add(inkStone); stoneRig.add(stoneLift);
+        stoneLift.position.y = -GT; stoneRig.position.y = GT;   // pivot on the sod line
+        const sodRig = new THREE.Group(); const sodLift = new THREE.Group(); sodLift.add(shSod); sodLift.add(sod); sodLift.add(inkSod); sodRig.add(sodLift);
+        sodLift.position.y = -GB; sodRig.position.y = GB;
+
+        // ---------- the crack: a hairline on the first fail, splits and branches on the last (decal on the stone face, clipped to it) ----------
+        const CK = 4, CW0 = -SW / 2, CH0 = SC0 + SR, CWW = SW, CHH = SC0 + SR - GT + 4;
+        const crackCanvas = document.createElement("canvas"); crackCanvas.width = CWW * CK; crackCanvas.height = CHH * CK;
+        const crackTex = new THREE.CanvasTexture(crackCanvas); crackTex.colorSpace = THREE.SRGBColorSpace;
+        const crack = new THREE.Mesh(new THREE.PlaneGeometry(CWW, CHH), new THREE.MeshBasicMaterial({ map: crackTex, transparent: true, depthWrite: false, toneMapped: false }));
+        crack.position.set(CW0 + CWW / 2, CH0 - CHH / 2, SD / 2 + SBT + 0.6); crack.renderOrder = 2; stoneLift.add(crack);
+        const CR1 = [[56, 50], [48, 41], [53, 30], [46, 18], [51, 6], [45, -8]];
+        const CR2 = [[45, -8], [51, -20], [43, -32], [48, -46], [44, -58]], CRA = [[48, 41], [38, 50], [31, 62], [20, 69], [10, 78]], CRB = [[-54, 46], [-45, 38], [-51, 26], [-46, 16]];
+        let crackKey = "";
+        function drawCrack(p1, p2, hot) {
+          const key = p1.toFixed(3) + "|" + p2.toFixed(3) + "|" + hot.toFixed(2); if (key === crackKey) return; crackKey = key;
+          const x = crackCanvas.getContext("2d"); x.clearRect(0, 0, crackCanvas.width, crackCanvas.height);
+          x.save(); x.beginPath(); stoneShape().getPoints(32).forEach((p, i) => { const X = (p.x - CW0) * CK, Y = (CH0 - p.y) * CK; i ? x.lineTo(X, Y) : x.moveTo(X, Y); }); x.closePath(); x.clip();
+          const P = (q) => [(q[0] - CW0) * CK, (CH0 - q[1]) * CK];
+          const stroke = (pts, prog, w0, w1) => {
+            if (prog <= 0) return; const n = pts.length - 1, upto = prog * n;
+            for (let pass = 0; pass < 3; pass++) for (let i = 0; i < n && i < upto; i++) {
+              const f = Math.min(1, upto - i), a = P(pts[i]), b0 = P(pts[i + 1]), b = [a[0] + (b0[0] - a[0]) * f, a[1] + (b0[1] - a[1]) * f], w = (w0 + (w1 - w0) * ((i + 0.5) / n)) * CK;
+              x.lineCap = "round"; x.lineJoin = "round"; x.beginPath();
+              if (pass === 0) { x.moveTo(a[0] + 0.9 * CK, a[1] + 0.9 * CK); x.lineTo(b[0] + 0.9 * CK, b[1] + 0.9 * CK); x.strokeStyle = "rgba(240,244,250,0.75)"; x.lineWidth = w * 0.6; }
+              else if (pass === 1) { x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]); x.strokeStyle = "rgba(30,32,38,0.95)"; x.lineWidth = w; }
+              else { if (hot <= 0) continue; x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]); x.strokeStyle = "rgba(255,236,196," + (0.95 * hot).toFixed(3) + ")"; x.lineWidth = w * 0.45; }
+              x.stroke();
+            }
+          };
+          stroke(CR1, p1, 3.2, 1.8); stroke(CR2, p2, 2.2, 1.0); stroke(CRA, p2, 2.4, 1.0); stroke(CRB, p2, 2.0, 0.9);
+          x.restore(); crackTex.needsUpdate = true;
+        }
+        drawCrack(0, 0, 0);
+        // stone chips knocked off on the last fail: little granite fragments on ballistic arcs
+        const chipPts = [[[0, 0], [9, 2], [7, 9], [-1, 7]], [[0, 0], [7, -1], [10, 6], [3, 9], [-2, 5]], [[0, 0], [8, 1], [5, 8]]];
+        const chips = chipPts.map((pts) => { const sh = new THREE.Shape(pts.map((q) => new THREE.Vector2(q[0] - 4, q[1] - 4)));
+          const g = new THREE.ExtrudeGeometry(sh, { depth: 5, bevelEnabled: true, bevelThickness: 1.5, bevelSize: 1.2, bevelSegments: 2 }); g.translate(0, 0, -2.5);
+          const m = new THREE.Mesh(g, [stoneSide, stoneSide]); m.visible = false; stoneLift.add(m); return m; });
+        const CHIPV = [[150, 330, 11], [230, 210, -13], [70, 400, 9]];
+        // a warm bloom behind the stone on the payoff (normal blending: survives the transparent render)
+        const haloMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, toneMapped: false, uniforms: { uA: { value: 0 } },
+          vertexShader: "varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "uniform float uA; varying vec2 vU; void main(){ vec2 d = (vU - 0.5) * 2.0; float r2 = dot(d, d); float a = (exp(-r2 * 4.0) * 0.6 + exp(-r2 * 14.0) * 0.4) * uA; gl_FragColor = vec4(1.0, 0.93, 0.8, clamp(a, 0.0, 1.0)); }" });
+        const halo = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), haloMat); halo.position.set(0, 10, -80); halo.renderOrder = -2; stoneLift.add(halo);
+
+        // ---------- dust: soft puffs from the sod line, deterministic, plus a few dark clods on the big one ----------
+        const DC = document.createElement("canvas"); DC.width = DC.height = 64; { const x = DC.getContext("2d");
+          [[32, 34, 26, 0.75], [24, 30, 16, 0.4], [41, 28, 15, 0.4]].forEach(([cx, cy, r, a]) => { const g = x.createRadialGradient(cx, cy, 0, cx, cy, r);
+            g.addColorStop(0, "rgba(255,255,255," + a + ")"); g.addColorStop(0.55, "rgba(255,255,255," + a * 0.45 + ")"); g.addColorStop(1, "rgba(255,255,255,0)"); x.fillStyle = g; x.fillRect(0, 0, 64, 64); }); }
+        const dustTex = new THREE.CanvasTexture(DC); dustTex.colorSpace = THREE.SRGBColorSpace;
+        const dustGeo = new THREE.PlaneGeometry(1, 1), dustRGB = new THREE.Color(C.dust);
+        const PUFFN = (li, nl) => li === nl - 1 ? 12 : li === 0 ? 6 : 8, NP = 6 + 8 * (C.deaths.length - 1) + 12, puffs = [];
+        for (let i = 0; i < NP; i++) { const m = new THREE.Mesh(dustGeo, new THREE.MeshBasicMaterial({ map: dustTex, color: dustRGB.clone().lerp(new THREE.Color("#E2D4B8"), hash(i * 7 + 3) * 0.7), transparent: true, depthWrite: false, opacity: 0 })); m.visible = false; m.renderOrder = 3; puffs.push(m); }
+        const clodGeo = new THREE.DodecahedronGeometry(5, 0), clodMat = new THREE.MeshStandardMaterial({ color: new THREE.Color("#4A3524"), roughness: 0.8 });
+        const clods = [0, 1, 2, 3, 4, 5].map(() => { const m = new THREE.Mesh(clodGeo, clodMat); m.visible = false; return m; });
+
+        // ---------- the multiplier: "x" + a digit on an odometer drum behind a clip window ----------
+        const NS = C.cap / F.cap, DOPT = { depth: 30, bt: 4.5, bs: 3, seg: 5, face: digFace, side: digSide, ink: 6, inkMat: digInk, shadow: 7, detach: true };
+        const XS = 0.62, xG = glyph("×", NS * XS, { inkY: true, depth: 26, bt: 4, bs: 2.5, seg: 4, face: xFace, side: xSide, ink: 6, inkMat, shadow: 7 });
+        const xW = (F.g["×"][3] - F.g["×"][2]) * NS * XS, dW = 488 * NS;
+        const NX0 = SW / 2 + 22, NY = -8;   // left edge of the "x", cap middle of the number
+        xG.grp.position.set(NX0 + xW / 2, NY, 0);
+        const R = 1.95 * C.cap, STEP = Math.PI / 5;
+        const col = new THREE.Group(); col.position.set(NX0 + xW + 14 + dW / 2, NY, 0);
+        const digits = []; for (let d = 0; d < 10; d++) { const g = glyph(String(d), NS, DOPT); col.add(g.grp); col.add(g.shadow); digits.push(g); }
+        function setDrum(val) {
+          digits.forEach((g, d) => {
+            let a = d - val; a = ((a % 10) + 15) % 10 - 5;
+            const phi = a * STEP; g.grp.visible = Math.abs(a) < 0.62;   // drop the far slivers: only the digit leaving and the one arriving
+            g.grp.position.set(0, R * Math.sin(phi), R * (Math.cos(phi) - 1)); g.grp.rotation.x = -phi;
+            g.shadow.visible = Math.abs(a) < 0.5;   // one soft shadow for the digit nearest the window
+            g.shadow.material.opacity = 0.5 * (1 - 0.65 * Math.sin(Math.PI * Math.abs(a)));
+          });
+        }
+        const numRig = new THREE.Group(); numRig.add(xG.grp); numRig.add(col);
+        const numPos = new THREE.Group(); numPos.add(numRig);
+                const NCX = NX0 - 2; numRig.position.x = -NCX; numPos.position.x = NCX;   // scale pivot: the number's left edge
+
+        const tally = new THREE.Group(); [sodRig, stoneRig, numPos].forEach((o) => tally.add(o)); puffs.forEach((p) => tally.add(p)); clods.forEach((c) => tally.add(c));
+        scene.add(tally);
+        const TX = wx(C.x), TYc = wy(C.y);
+
+        // ---------- motion: a pure function of t ----------
+        const eBack = E("back.out(1.7)"), eOut3 = E("power3.out"), eIn = E("back.in(1.7)"), eRoll = E("back.out(1.15)"), eIn2 = E("power2.in"), eOut2 = E("power2.out");
+        const D = C.deaths, LAND0 = T.in + 0.3;
+        // each beat: [time the stone lands, strength]; deaths land 0.17 s (small) / 0.25 s (last) after the fail
+        const hopUp = (k) => k === D.length - 1 ? 0.13 : 0.085, hopDn = (k) => k === D.length - 1 ? 0.12 : 0.085;
+        const lands = [[LAND0, 0.7, 0]].concat(D.map((td, k) => [td + hopUp(k) + hopDn(k), k === D.length - 1 ? 1.5 : 0.85, 0]));
+        const kick = (dt, f, d) => dt <= 0 ? 0 : Math.min(1, dt / 0.066) * Math.exp(-d * dt) * Math.cos(2 * Math.PI * f * dt);
+        const roll = (dt) => dt <= 0 ? 0 : eRoll(seg(dt, 0, 0.2));
+        function renderAt(t) {
+          const ti = t - T.in;
+          // sod pops up from its base while the stone falls from above the frame and plants into it
+          const up = seg(ti, 0.13, 0.2), sodS = ti < 0.13 ? 0 : E("back.out(2.2)")(up);
+          const outA = seg(t, T.out + 0.12, 0.26), eo = eIn(outA);
+          sodRig.visible = ti >= 0.13 && sodS * (1 - eo) > 0.003;
+          sodRig.scale.set(Math.max(0.001, lerp(0.6, 1, sodS) * (1 - eo)), Math.max(0.001, sodS * (1 - eo)), 1);
+          const fall = seg(ti, 0, LAND0 - T.in);
+          let sy = 380 * (1 - eIn2(fall)), srz = 0, ssq = 0, tiltRest = 0;
+          // hops: each fail lifts the stone and thuds it back; each one leaves it more askew (3 deg, then 9 deg on the last)
+          D.forEach((td, k) => {
+            const dt = t - td, last = k === D.length - 1, hU = hopUp(k), hD = hopDn(k), hh = last ? 62 : 26;
+            if (dt > 0 && dt < hU) sy += hh * eOut2(dt / hU);
+            else if (dt >= hU && dt < hU + hD) sy += hh * (1 - eIn2((dt - hU) / hD));
+            if (dt > 0) { const u = seg(dt, 0, hU + hD); srz += (last ? -0.2 : -0.07) * Math.sin(Math.PI * Math.min(1, u * 0.9));
+              tiltRest += (last ? -0.1 : -0.05) * E("back.out(2)")(seg(dt, hU + hD - 0.02, 0.2)); }
+          });
+          lands.forEach(([tl0, s]) => { ssq += s * kick(t - tl0, 3.4, 11); });
+          stoneRig.visible = ti >= 0 && (1 - eo) > 0.003;
+          stoneRig.position.y = GT + sy - 8 * eo;
+          stoneRig.rotation.z = srz + tiltRest + 0.22 * (1 - eOut3(fall));
+          stoneRig.scale.set(Math.max(0.001, (1 + 0.06 * ssq) * (1 - eo)), Math.max(0.001, (1 - 0.12 * ssq) * (1 - eo)), Math.max(0.001, 1 - eo));
+          shSod.material.opacity = 0.45 * clamp(sodS, 0, 1); shStone.material.opacity = 0.45 * clamp(1 - sy / 160, 0.35, 1);
+
+          // the crack: a hairline on the first fail, splits and branches on the last; a 2-frame hot edge as it opens
+          const L1 = lands[1][0], LL = lands[lands.length - 1][0];
+          const p1 = D.length > 1 ? E("power2.out")(seg(t, L1, 0.12)) : 0, p2 = E("power2.out")(seg(t, LL, 0.14));
+          const hotOf = (dt) => dt < 0 ? 0 : dt < 0.067 ? 1 : Math.max(0, 1 - (dt - 0.067) / 0.1);
+          drawCrack(D.length > 1 ? p1 : p2, D.length > 1 ? p2 : 0, Math.max(D.length > 1 ? 0.6 * hotOf(t - L1) : 0, hotOf(t - LL)));
+          const tcp = t - LL;
+          chips.forEach((c, i) => { const u = tcp / 0.6; c.visible = tcp >= 0 && u < 1; if (!c.visible) return; const v = CHIPV[i];
+            c.position.set(50 + v[0] * tcp, 44 + v[1] * tcp - 0.5 * 1500 * tcp * tcp, SD / 2 + SBT + 5);
+            c.rotation.set(v[2] * tcp * 0.7, v[2] * tcp * 0.4, v[2] * tcp); c.scale.setScalar(Math.max(0.001, 1.3 * (1 - eIn2(u)))); });
+          // warm bloom behind the stone: 3-frame peak on the last landing
+          const hd = t - LL, hk = hd < 0 ? 0 : hd < 0.03 ? hd / 0.03 : hd < 0.13 ? 1 : Math.exp(-(hd - 0.13) / 0.14);
+          haloMat.uniforms.uA.value = 0.7 * hk;
+
+          // dust: per landing, puffs burst out low along the sod line both ways, grow, rise about 30 px and thin out
+          puffs.forEach((m) => (m.visible = false));
+          let pi = 0;
+          lands.forEach(([tl0, s], li) => {
+            const n = PUFFN(li, lands.length), dt = t - tl0;
+            for (let j = 0; j < n && pi < NP; j++, pi++) {
+              const life = 0.45 + 0.2 * hash(li * 31 + j * 7), u = dt / life, m = puffs[pi];
+              if (dt < 0 || u >= 1) continue;
+              const side = j % 2 ? 1 : -1, h1 = hash(li * 17 + j * 3 + 1), h2 = hash(li * 5 + j * 11 + 2), h3 = hash(li * 3 + j);
+              const vx = (170 + 220 * h1) * (0.65 + 0.35 * s) * (side > 0 ? 0.7 : 1);
+              m.visible = true;
+              m.position.set(side * (GW / 2 - 14 - 10 * h3 + vx * (1 - Math.exp(-7 * dt)) / 7), GT - 6 + 8 * h2 + 30 * E("power2.out")(Math.min(1, dt / 0.4)) * (0.6 + 0.6 * h2), side < 0 ? 40 + 6 * h1 : -14);
+              const sz = (40 + 30 * h3) * (0.7 + 0.2 * Math.min(1, s)) * (0.7 + 0.6 * Math.sqrt(u));
+              m.scale.set(sz * 1.2, sz, 1); m.rotation.z = h1 * 6.28 + dt * side * 1.5;
+              m.material.opacity = 0.85 * Math.min(1, s + 0.15) * (u < 0.06 ? u / 0.06 : Math.pow(1 - (u - 0.06) / 0.94, 1.3));
+            }
+          });
+          // clods: two on the first fail, four on the last; ballistic, spinning, shrink out
+          clods.forEach((c, i) => {
+            const tl0 = i < 2 ? L1 : LL, tc = t - tl0, u = tc / 0.55; c.visible = tc >= 0 && u < 1; if (!c.visible) return;
+            const side = i % 2 ? 1 : -1, vx = side * (120 + 100 * hash(i + 70)), vy = 230 + 130 * hash(i + 90);
+            c.position.set(side * GW * 0.42 + vx * tc, GT + 4 + vy * tc - 0.5 * 1700 * tc * tc, side < 0 ? 44 : 34);
+            c.rotation.set(tc * 9 * side, tc * 6, tc * 11); c.scale.setScalar(Math.max(0.001, (0.9 + 0.4 * hash(i + 5)) * (1 - eIn2(u))));
+          });
+
+          // number: slams in from 1.6x, pinned at its left edge (never crosses the stone), rolls on each fail, punches on the last
+          const tn = t - (LAND0 + 0.06), un = seg(tn, 0, 0.3), outN = seg(t, T.out, 0.24), en = eIn(outN);
+          let nS = tn < 0 ? 0 : lerp(1.6, 1, eOut3(un)); nS *= 1 - en;
+          nS *= 1 + (t > LL ? 0.24 * kick(t - LL, 1.6, 6) : 0);
+          let nsq = 0; lands.slice(1).forEach(([tl0, s]) => (nsq += 0.6 * s * kick(t - tl0 - 0.02, 3.2, 11)));
+          numPos.visible = tn >= 0 && nS > 0.003;
+          numPos.scale.set(Math.max(0.001, nS * (1 + 0.04 * nsq)), Math.max(0.001, nS * (1 - 0.08 * nsq)), Math.max(0.001, nS));
+          numPos.position.set(NCX - 70 * en, 0, 260 * (1 - eOut3(un)));
+          numRig.rotation.z = 0.12 * (1 - eOut3(un));
+          let v = C.start; D.forEach((td, k) => (v += roll(t - td - (hopUp(k) + hopDn(k) - 0.1))));
+          setDrum(((v % 10) + 10) % 10);
+
+          // dock: arrives bigger and lower-left, settles into the corner before the first fail
+          const dk = E("power3.inOut")(seg(t, C.enter.dock, C.enter.dockDur)), tS = lerp(C.enter.scale, 1, dk);
+          let shx = 0, shy = 0;
+          lands.slice(1).forEach(([tl0, s], k) => { const dt = t - tl0; if (dt < 0 || dt > 0.4) return; const f = Math.floor(dt * 30), env = Math.exp(-8 * dt);
+            shx += (hash(53 * k + f * 3) * 2 - 1) * 5 * s * env; shy += (hash(53 * k + f * 3 + 1) * 2 - 1) * 4 * s * env; });
+          tally.position.set(TX + C.enter.dx * (1 - dk) + shx, TYc - C.enter.dy * (1 - dk) + shy, 0);
+          tally.scale.setScalar(tS);
+          tally.rotation.y = -0.2 + 0.03 * Math.sin(t * 0.8);
+          tally.rotation.x = 0.08;
+
+          // light: the key pulses on each landing; on the last a close light and a clipped specular band sweep across the stone, then the digit
+          key.intensity = 1.7 + lands.reduce((a, [tl0, s]) => a + 0.8 * s * Math.exp(-Math.pow((t - tl0 - 0.02) / 0.1, 2)), 0);
+          const ur = seg(t, LL - 0.02, 0.7);
+          rake.intensity = t > LL - 0.02 ? 1.8 * Math.sin(Math.PI * ur) : 0;
+          rake.position.set(TX + lerp(-200, 330, E("power1.inOut")(ur)), TYc + 120, 260);
+
+          winLocal[0].constant = C.cap / 2 + 9; winLocal[1].constant = C.cap / 2 + 9;
+          scene.updateMatrixWorld(true);
+          winWorld.forEach((p, i) => p.copy(winLocal[i]).applyMatrix4(col.matrixWorld));
+          // band sweeps: view-space position along the 35-degree band axis
+          const dir = stoneMat.userData.u.uDir.value, wp = new THREE.Vector3();
+          const sweep = (mat, obj, ext, t0, d, a) => { obj.getWorldPosition(wp); const U = mat.userData.u, u = (t - t0) / d, b0 = dir.x * wp.x + dir.y * wp.y;
+            if (u <= 0 || u >= 1) { U.uBandA.value = 0; return; } U.uBandX.value = b0 - ext + 2 * ext * E("power2.inOut")(u); U.uBandA.value = a * Math.min(1, 5 * u, 5 * (1 - u)); };
+          sweep(stoneMat, stone, 125 * tS, LL - 0.01, 0.3, 1.35);
+          sweep(digFace, col, 80 * tS, LL + 0.12, 0.26, 1.2);
+          sweep(xFace, xG.grp, 60 * tS, LL + 0.08, 0.24, 1.2);
+          renderer.render(scene, camera);
+        }
+        window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+
+        const FACES = ["900 100px Archivo"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          // the engraving is baked from canvas text: rebake now that Archivo is loaded
+          const s2 = bakeStone();
+          stoneMat.map = s2.map; stoneMat.normalMap = s2.normalMap; stoneMat.clearcoatNormalMap = s2.normalMap; stoneMat.needsUpdate = true;
+          const tl = gsap.timeline({ paused: true });
+          renderAt(0);
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          if (plate) {
+            D.forEach((td, k) => Look.impact(tl, td, { shake: "#shake", amp: k === D.length - 1 ? 12 : 7, dur: k === D.length - 1 ? 0.36 : 0.28, flash: 0, host: "#root", zoom: k === D.length - 1 ? 1.03 : 1.015 }));
+            Look.push(tl, "#push", 0, T.end, { from: 1.0, to: 1.035 });
+          }
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

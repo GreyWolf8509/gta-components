@@ -1,0 +1,329 @@
+<!doctype html>
+<!-- 32 Timer badge, variant A (16:9, 1920x1080, 30 fps): "Countdown ring".
+     A real 3D countdown ring docks top-right: a polished steel bezel, a recessed track with a glossy candy band that
+     drains clockwise from 12 o'clock, a dark glass face and razor DOM digits in masked rolling columns. At 0:10 the ring
+     arms: the band flips cyan to red with a hot flash, a light rakes the bezel, the face glows red and every second
+     after it beats with a heartbeat pulse while red light blooms on the steel. Variable bg: "plate" / "none". -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      #shadow { position: absolute; left: 0; top: 0; width: 300px; height: 300px; margin: -150px 0 0 -150px; border-radius: 50%;
+        background: radial-gradient(closest-side, rgba(4,6,10,.62) 0%, rgba(4,6,10,.40) 52%, rgba(4,6,10,.12) 80%, rgba(4,6,10,0) 100%); }
+      #gl { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; }
+      #dial { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+      #glass { position: absolute; left: -81px; top: -81px; width: 162px; height: 162px; border-radius: 50%; pointer-events: none;
+        background: radial-gradient(ellipse 44% 20% at 42% 13%, rgba(255,255,255,.17) 0%, rgba(255,255,255,.05) 60%, rgba(255,255,255,0) 100%),
+                    radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 64%, rgba(0,0,0,.38) 92%, rgba(0,0,0,.55) 100%);
+        box-shadow: inset 0 8px 14px rgba(0,0,0,.5); }
+      #digits { position: absolute; left: 0; top: 0; display: flex; align-items: center; white-space: nowrap;
+        font: 900 64px/1 "Inter"; font-feature-settings: "tnum" 1, "case" 1; letter-spacing: -0.02em; color: #FFFFFF; }
+      .col { position: relative; display: block; width: 0.67em; height: 1.3em; overflow: hidden; }
+      .col.colon { width: 0.34em; }
+      .wrap { position: absolute; left: 0; top: 0; width: 100%; }
+      .strip { position: absolute; left: 0; top: 0; width: 100%; }
+      .strip span, .wrap > span { display: block; height: 1.3em; line-height: 1.3em; text-align: center; }
+      .strip { top: 0.25em; }
+      .strip span { height: 0.8em; line-height: 0.8em; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.4" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="shot1" class="clip shot" src="assets/shots/v52-gp-police-bridge-h.mp4" muted playsinline
+               data-start="0" data-duration="2.35" data-media-start="0.3" data-track-index="0"></video>
+        <video id="shot2" class="clip shot" src="assets/shots/v27-first-person-drive-h.mp4" muted playsinline
+               data-start="2.35" data-duration="0.9" data-media-start="1.75" data-track-index="0"></video>
+        <video id="shot3" class="clip shot" src="assets/shots/v17-deluxo-sunset-h.mp4" muted playsinline
+               data-start="3.25" data-duration="1.55" data-media-start="0" data-track-index="0"></video>
+        <video id="shot4" class="clip shot" src="assets/shots/v31-red-car-sunset-h.mp4" muted playsinline
+               data-start="4.8" data-duration="1.6" data-media-start="0.05" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="6.4" data-track-index="1">
+        <div id="shadow"></div>
+        <canvas id="gl" width="1920" height="1080"></canvas>
+        <div id="dial"><div id="digits"></div><div id="glass"></div></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        start: 13,              // seconds left when the badge lands (shown as m:ss)
+        total: 30,              // the challenge length: the ring's full sweep
+        warnAt: 10,             // the ring arms red at this many seconds left
+        dock: [1746, 172],      // badge centre on the 1920x1080 canvas (top-right, 54 px from the edges)
+        radius: 120,            // outer bezel radius in px
+        digitWidth: 124,        // the m:ss row fits this width (px at radius 120)
+        big: { at: [1520, 336], scale: 1.6 },   // the entrance read before it docks
+        colors: { calm: "#12BDF2", warn: "#F01A2A", steel: "#D3D8E0" },
+        timing: { in: 0.15, dock: 0.72, firstTick: 1.25, out: 5.8, end: 6.4 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const W = 1920, H = 1080, R = CONFIG.radius;
+        const clamp = (v, a, b) => Math.min(b, Math.max(a, v)), lerp = (a, b, u) => a + (b - a) * u;
+        const seg = (t, a, d) => clamp((t - a) / d, 0, 1), E = (n) => gsap.parseEase(n);
+
+        // ---------- time model: seconds left is continuous; the display steps once a second ----------
+        const t0 = T.firstTick - 1;                                  // the instant the display reads CONFIG.start exactly
+        const left = (t) => CONFIG.start - (t - t0);
+        const shown = (t) => Math.max(0, Math.ceil(left(Math.max(t, t0)) - 1e-6));
+        const ticks = []; for (let k = 0; ; k++) { const tt = T.firstTick + k; if (tt >= T.out) break; ticks.push({ t: tt, v: CONFIG.start - 1 - k }); }
+        const tWarn = (ticks.find((k) => k.v <= CONFIG.warnAt) || { t: 1e9 }).t;
+
+        // ---------- digits: masked rolling columns (m : s s) ----------
+        const dg = $("#digits");
+        const mk = (cls) => { const c = document.createElement("div"); c.className = "col " + cls; const w = document.createElement("div"); w.className = "wrap"; c.appendChild(w); dg.appendChild(c); return w; };
+        const strip = (w) => { const s = document.createElement("div"); s.className = "strip"; for (let i = 0; i <= 10; i++) { const sp = document.createElement("span"); sp.setAttribute("data-layout-allow-occlusion", ""); sp.textContent = String(i % 10); s.appendChild(sp); } w.appendChild(s); return s; };
+        const cols = [mk("m"), mk("colon"), mk("s1"), mk("s2")];
+        const strips = [strip(cols[0]), null, strip(cols[2]), strip(cols[3])];
+        { const sp = document.createElement("span"); sp.setAttribute("data-layout-allow-occlusion", ""); sp.textContent = ":"; cols[1].appendChild(sp); }
+        const digitsOf = (v) => [Math.floor(v / 60), 0, Math.floor((v % 60) / 10), v % 10];
+        // per column: list of [time, from, to] roll events (countdown rolls down: the new digit drops in from above)
+        const events = [[], [], [], []];
+        let prev = digitsOf(CONFIG.start);
+        ticks.forEach((k) => { const d = digitsOf(k.v); [0, 2, 3].forEach((i) => { if (d[i] !== prev[i]) events[i].push([k.t, prev[i] === 0 && d[i] === 9 ? 10 : prev[i], d[i]]); }); prev = d; });
+        const eRoll = E("back.out(1.5)");
+        let FS = 64;
+        function colPos(i, t) {
+          let p = digitsOf(CONFIG.start)[i];
+          for (const [te, a, b] of events[i]) { if (t >= te) { const u = seg(t, te, 0.2); p = u >= 1 ? b : lerp(a, b, eRoll(u)); } }
+          return p;
+        }
+
+        // ---------- Three.js: z = 0 maps 1:1 to page px ----------
+        const canvas = $("#gl");
+        const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+        renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 0);
+        renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15;
+        const scene = new THREE.Scene();
+        const FOV = 24, DIST = (H / 2) / Math.tan((FOV / 2) * Math.PI / 180);
+        const camera = new THREE.PerspectiveCamera(FOV, W / H, 10, DIST * 3);
+        camera.position.set(0, 0, DIST); camera.lookAt(0, 0, 0);
+        const wx = (x) => x - W / 2, wy = (y) => H / 2 - y;
+
+        // studio environment: a big softbox overhead, a strip key front-left, a cool bar right, dark floor
+        const envScene = new THREE.Scene();
+        envScene.add(new THREE.Mesh(new THREE.SphereGeometry(50, 48, 24), new THREE.ShaderMaterial({
+          side: THREE.BackSide, depthWrite: false,
+          vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 top = vec3(0.78,0.82,0.9), hor = vec3(0.10,0.11,0.14), low = vec3(0.012,0.013,0.018);" +
+            " vec3 c = y > 0.0 ? mix(hor, top, smoothstep(0.1, 0.9, y)) : mix(hor, low, smoothstep(0.0, 0.4, -y)); gl_FragColor = vec4(c, 1.0); }"
+        })));
+        const panel = (w, h, x, y, z, c) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); envScene.add(m); };
+        panel(40, 12, -4, 30, 22, new THREE.Color(5.0, 4.95, 4.9));
+        panel(4, 36, -30, 4, 22, new THREE.Color(4.2, 4.2, 4.3));
+        panel(5, 26, 32, -2, 14, new THREE.Color(1.4, 2.4, 3.6));
+        panel(44, 1.6, 0, 24, 28, new THREE.Color(3.0, 3.0, 3.0));
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        scene.environment = pmrem.fromScene(envScene, 0.0, 0.1, 200).texture;
+
+        const key = new THREE.DirectionalLight(0xfff4ec, 1.6); key.position.set(-0.7, 0.9, 1.0); scene.add(key);
+        const rim = new THREE.DirectionalLight(0xbfe6ff, 0.8); rim.position.set(0.9, -0.2, 0.5); scene.add(rim);
+        scene.add(new THREE.HemisphereLight(0xf2f5ff, 0x0c0e14, 0.5));
+
+        // ---------- the badge ----------
+        const ring = (r1, r0, seg = 96) => { const s = new THREE.Shape(); s.absarc(0, 0, r1, 0, Math.PI * 2, false); const h = new THREE.Path(); h.absarc(0, 0, r0, 0, Math.PI * 2, true); s.holes.push(h); return s; };
+        const steel = new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, color: new THREE.Color(CONFIG.colors.steel), metalness: 1, roughness: 0.11, clearcoat: 0.8, clearcoatRoughness: 0.05, envMapIntensity: 1.5 });
+        const k = R / 120;                                         // all radii below are designed at R = 120
+        const pivot = new THREE.Group(), spin = new THREE.Group(), badge = new THREE.Group();
+        pivot.add(spin); spin.add(badge); scene.add(pivot);
+        // bezel: a chunky bevelled steel ring
+        const bprof = [[100.5, 1], [101, 6], [102.6, 10.2], [105.4, 13.2], [109, 14.6], [112.8, 14.2], [116.2, 12], [118.8, 8.2], [120, 3], [120, -4], [118.6, -9.5], [115.5, -12], [112, -12]]
+          .map(([r, z]) => new THREE.Vector2(r * k, z * k));
+        const bezelGeo = new THREE.LatheGeometry(bprof, 128); bezelGeo.rotateX(Math.PI / 2);
+        badge.add(new THREE.Mesh(bezelGeo, steel));
+        // dark backing disc (closes the back and the side walls at any angle)
+        const backGeo = new THREE.CylinderGeometry(112 * k, 112 * k, 16 * k, 72); backGeo.rotateX(Math.PI / 2); backGeo.translate(0, 0, -6 * k);
+        badge.add(new THREE.Mesh(backGeo, new THREE.MeshStandardMaterial({ color: 0x07080b, roughness: 0.6 })));
+        // track floor: the recessed channel the band drains out of
+        const trackMat = new THREE.MeshPhysicalMaterial({ color: 0x0b0d12, roughness: 0.45, metalness: 0.2, clearcoat: 0.4, clearcoatRoughness: 0.3 });
+        const trackGeo = new THREE.ExtrudeGeometry(ring(103 * k, 81 * k), { depth: 3 * k, bevelEnabled: false, curveSegments: 72 });
+        badge.add(new THREE.Mesh(trackGeo, trackMat));
+        // 60 ruler ticks in the channel floor (seen where the band has drained)
+        const tickMat = new THREE.MeshStandardMaterial({ color: 0x5a6170, roughness: 0.5, metalness: 0.4 });
+        for (let i = 0; i < 60; i++) {
+          const major = i % 5 === 0, g = new THREE.BoxGeometry((major ? 3.2 : 1.8) * k, (major ? 12 : 7) * k, 1.5 * k), a = Math.PI / 2 - i / 60 * Math.PI * 2, rr = 92 * k;
+          const m = new THREE.Mesh(g, tickMat); m.position.set(Math.cos(a) * rr, Math.sin(a) * rr, 3.6 * k); m.rotation.z = a - Math.PI / 2; badge.add(m);
+        }
+        // inner steel lip between the track and the face
+        const lipGeo = new THREE.ExtrudeGeometry(ring(83.5 * k, 80.5 * k), { depth: 4 * k, bevelEnabled: true, bevelThickness: 1.6 * k, bevelSize: 1.5 * k, bevelSegments: 3, curveSegments: 72 });
+        badge.add(new THREE.Mesh(lipGeo, steel));
+        // dark glass face with a radial red core it can light up
+        const GC = document.createElement("canvas"); GC.width = GC.height = 256;
+        { const g = GC.getContext("2d"), rg = g.createRadialGradient(128, 128, 0, 128, 128, 128); rg.addColorStop(0, "#fff"); rg.addColorStop(0.45, "#9a9a9a"); rg.addColorStop(1, "#000"); g.fillStyle = rg; g.fillRect(0, 0, 256, 256); }
+        const glowTex = new THREE.CanvasTexture(GC);
+        const faceMat = new THREE.MeshPhysicalMaterial({ color: 0x0c0e13, roughness: 0.16, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 1.0,
+          emissive: new THREE.Color(CONFIG.colors.warn), emissiveMap: glowTex, emissiveIntensity: 0 });
+        const faceGeo = new THREE.CircleGeometry(81 * k, 72); faceGeo.translate(0, 0, 2.2 * k);
+        badge.add(new THREE.Mesh(faceGeo, faceMat));
+        // the band: an annular sector with round caps, rebuilt as it drains
+        const calm = new THREE.Color(CONFIG.colors.calm), warn = new THREE.Color(CONFIG.colors.warn);
+        const bandMat = new THREE.MeshPhysicalMaterial({ toneMapped: false, color: calm.clone(), roughness: 0.3, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.08,
+          emissive: calm.clone(), emissiveIntensity: 0.32, envMapIntensity: 0.5 });
+        const band = new THREE.Mesh(new THREE.BufferGeometry(), bandMat); badge.add(band);
+        const RM = 92 * k, HW = 5.0 * k;
+        let bandKey = -1;
+        function setBand(f) {
+          const q = Math.round(f * 2000);
+          if (q === bandKey) return; bandKey = q;
+          band.geometry.dispose();
+          if (f < 0.004) { band.geometry = new THREE.BufferGeometry(); return; }
+          const phi = (1 - f) * Math.PI * 2, a1 = Math.PI / 2 - phi, a0 = Math.PI / 2 - Math.PI * 2;
+          const r1 = RM + HW, r0 = RM - HW, s = new THREE.Shape();
+          s.moveTo(Math.cos(a1) * r1, Math.sin(a1) * r1);
+          s.absarc(0, 0, r1, a1, a0, true);
+          s.absarc(Math.cos(a0) * RM, Math.sin(a0) * RM, HW, a0, a0 - Math.PI, true);
+          s.absarc(0, 0, r0, a0, a1, false);
+          s.absarc(Math.cos(a1) * RM, Math.sin(a1) * RM, HW, a1 + Math.PI, a1, true);
+          const g = new THREE.ExtrudeGeometry(s, { depth: 4.5 * k, bevelEnabled: true, bevelThickness: 3 * k, bevelSize: 2.4 * k, bevelSegments: 5, curveSegments: Math.max(8, Math.round(96 * f)) });
+          g.translate(0, 0, 4.5 * k);
+          band.geometry = g;
+        }
+        // the lead bead: a hot glossy cap at the draining edge, with an additive glow
+        const beadMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.15, clearcoat: 1, emissive: calm.clone(), emissiveIntensity: 1.2 });
+        const bead = new THREE.Mesh(new THREE.SphereGeometry(7.2 * k, 32, 16), beadMat); bead.scale.z = 0.7; badge.add(bead);
+        const SG = document.createElement("canvas"); SG.width = SG.height = 128;
+        { const g = SG.getContext("2d"), rg = g.createRadialGradient(64, 64, 0, 64, 64, 64); rg.addColorStop(0, "rgba(255,255,255,1)"); rg.addColorStop(0.25, "rgba(255,255,255,.45)"); rg.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = rg; g.fillRect(0, 0, 128, 128); }
+        const spriteTex = new THREE.CanvasTexture(SG);
+        const haloMat = new THREE.MeshBasicMaterial({ map: spriteTex, color: calm.clone(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, toneMapped: false, opacity: 0.6 });
+        const halo = new THREE.Mesh(new THREE.PlaneGeometry(64 * k, 64 * k), haloMat); halo.renderOrder = 5; badge.add(halo);
+        // specular rake: a soft diagonal band clipped to the bezel face and the glass
+        const rakeMat = (amp) => new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
+          uniforms: { uPos: { value: -1e4 }, uAmp: { value: 0 }, uMax: { value: amp } },
+          vertexShader: "varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "uniform float uPos; uniform float uAmp; uniform float uMax; varying vec2 vP; void main(){ float d = dot(vP, normalize(vec2(0.70, -0.71))); float a = uMax * uAmp * exp(-pow((d - uPos) / 26.0, 2.0)); gl_FragColor = vec4(1.0, 0.97, 0.94, a); }" });
+        const rakeB = new THREE.Mesh(new THREE.ShapeGeometry(ring(120 * k, 101 * k), 72), rakeMat(0.55)); rakeB.position.z = 15.0 * k; rakeB.renderOrder = 4; badge.add(rakeB);
+        const rakeF = new THREE.Mesh(new THREE.CircleGeometry(80 * k, 72), rakeMat(0.22)); rakeF.position.z = 2.6 * k; rakeF.renderOrder = 4; badge.add(rakeF);
+        // ring wave: one soft red ring that leaves the bezel on each armed tick (light, additive)
+        const glowMat = (r0, w, inner) => new THREE.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending, toneMapped: false,
+          uniforms: { uAmp: { value: 0 }, uCol: { value: warn.clone() } },
+          vertexShader: "varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "uniform float uAmp; uniform vec3 uCol; varying vec2 vP; void main(){ float d = length(vP) - " + r0.toFixed(1) + "; " + (inner ? "" : "d = max(d, 0.0); ") + "float a = uAmp * exp(-pow(d / " + w.toFixed(1) + ", 2.0)); gl_FragColor = vec4(uCol, a); }" });
+        const bezelGlow = new THREE.Mesh(new THREE.ShapeGeometry(ring(121 * k, 99 * k), 96), glowMat(110 * k, 8 * k, true)); bezelGlow.position.z = 15.2 * k; bezelGlow.renderOrder = 6; badge.add(bezelGlow);
+        const halo2 = new THREE.Mesh(new THREE.PlaneGeometry(380 * k, 380 * k), glowMat(117 * k, 20 * k, false)); halo2.position.z = -14 * k; halo2.renderOrder = 1; badge.add(halo2);
+        const waveMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending, toneMapped: false,
+          uniforms: { uR: { value: 0 }, uW: { value: 10 }, uAmp: { value: 0 }, uCol: { value: warn.clone() } },
+          vertexShader: "varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "uniform float uR; uniform float uW; uniform float uAmp; uniform vec3 uCol; varying vec2 vP; void main(){ float d = length(vP) - uR; float a = uAmp * exp(-pow(d / uW, 2.0)); gl_FragColor = vec4(uCol * 1.4, a); }" });
+        const wave = new THREE.Mesh(new THREE.PlaneGeometry(440 * k, 440 * k), waveMat); wave.position.z = -2; wave.renderOrder = 1; pivot.add(wave);
+
+        // ---------- motion: everything is a pure function of t ----------
+        const eBack = E("back.out(1.7)"), eOut3 = E("power3.out"), eIO3 = E("power3.inOut"), eIn3 = E("power3.in"), eIO2 = E("power2.inOut");
+        const D = CONFIG.dock, B = CONFIG.big;
+        const ui = { cx: 0, cy: 0, s: 1, ry: 0, vis: false };
+        function pulse(t, at, amp, freq) { const tau = t - at; if (tau < 0) return 0; const a = 2 / 30; return amp * (tau < a ? tau / a : Math.exp(-(tau - a) / 0.15) * Math.cos(2 * Math.PI * freq * (tau - a))); }
+        function renderAt(t) {
+          // entrance: spin in big, hold the read, dock to the corner, land
+          const u = seg(t, T.in, 0.42), ub = eBack(u), d = seg(t, T.dock, 0.44), de = eIO3(d);
+          let cx = lerp(B.at[0], D[0], de), cy = lerp(B.at[1], D[1], de);
+          cy -= 34 * Math.sin(Math.PI * d);                                    // a slight arc on the dock move
+          let s = lerp(lerp(0.32, B.scale, ub), 1, de);
+          let ry = lerp(-1.75, 0, ub) - 0.22 * Math.sin(Math.PI * d), rx = lerp(0.45, 0, eOut3(u)) + 0.1 * Math.sin(Math.PI * d), rz = -0.06 * Math.sin(Math.PI * d);
+          s *= 1 + pulse(t, T.dock + 0.44, 0.045, 2.6);                        // landing settle
+          // ticks: calm ticks nod, armed ticks beat
+          ticks.forEach((tk) => { const armed = tk.t >= tWarn; s *= 1 + pulse(t, tk.t, armed ? (tk.t === tWarn ? 0.16 : 0.075) : 0.03, armed ? 2.4 : 3); });
+          // exit: spin away edge-on and collapse into the corner
+          const x = seg(t, T.out, 0.32), xe = eIn3(x);
+          ry += 1.6 * xe; s *= 1 - 0.8 * xe; cx += 50 * xe; cy -= 40 * xe;
+          const vis = t >= T.in && x < 1;
+          pivot.visible = vis;
+          pivot.position.set(wx(cx), wy(cy), 0); pivot.scale.setScalar(s);
+          spin.rotation.set(rx, ry, rz);
+          // band: charge on entry, then drain continuously
+          const f = clamp(left(t) / CONFIG.total, 0, 1) * eOut3(seg(t, T.in + 0.08, 0.7));
+          setBand(f);
+          const phi = (1 - f) * Math.PI * 2, a1 = Math.PI / 2 - phi;
+          bead.position.set(Math.cos(a1) * RM, Math.sin(a1) * RM, 11.5 * k); halo.position.set(Math.cos(a1) * RM, Math.sin(a1) * RM, 14 * k);
+          // the arming: cyan to red in 3 frames with a white-hot flash, then every armed tick re-heats the band
+          const arm = t >= tWarn ? 1 : 0, col = arm ? warn.clone() : calm.clone();
+          let heat = 0; ticks.forEach((tk) => { if (tk.t >= tWarn) { const tau = t - tk.t; if (tau >= 0) heat += (tk.t === tWarn ? 1 : 0.5) * (tau < 3 / 30 ? 1 : Math.exp(-(tau - 3 / 30) / 0.12)); } });
+          bandMat.color.copy(col); bandMat.emissive.copy(col);
+          bandMat.emissiveIntensity = 0.14 + 0.06 * arm + 0.7 * Math.min(1, heat);
+          // red light blooms onto the steel: a 3-frame peak at the arming, a low burn while armed, a lift on every beat
+          const bloom = arm * (0.16 + 0.75 * Math.min(1.2, heat));
+          bezelGlow.material.uniforms.uAmp.value = 0.42 * bloom; halo2.material.uniforms.uAmp.value = 0.5 * bloom;
+          beadMat.emissive.copy(col); beadMat.emissiveIntensity = 1.2 + 2.5 * heat;
+          haloMat.color.copy(col); haloMat.opacity = 0.55 + 0.4 * Math.min(1, heat);
+          faceMat.emissiveIntensity = arm * (0.15 + 0.75 * heat);
+          // light: the key swings across the steel as it arms and peaks for 3 frames
+          const ks = eIO2(seg(t, tWarn - 0.12, 0.6));
+          let ka = 2.25; ticks.forEach((tk) => { ka -= 0.26 * E("power3.out")(seg(t, tk.t, 0.2)); });
+          key.position.set(Math.cos(ka) * 1.1 + 1.2 * ks, Math.sin(ka) * 1.1, 0.9);
+          key.intensity = 1.6 + 2.2 * (t < tWarn ? 0 : (t - tWarn < 0.1 ? 1 : Math.exp(-(t - tWarn - 0.1) / 0.18)));
+          const rk = seg(t, tWarn, 0.38), ro = seg(t, T.dock + 0.3, 0.45);
+          rakeB.material.uniforms.uPos.value = rk > 0 && rk < 1 ? lerp(-170, 170, eIO2(rk)) * k : (ro > 0 && ro < 1 ? lerp(-170, 170, eIO2(ro)) * k : -1e4);
+          rakeB.material.uniforms.uAmp.value = rk > 0 && rk < 1 ? Math.sin(Math.PI * rk) : (ro > 0 && ro < 1 ? 0.6 * Math.sin(Math.PI * ro) : 0);
+          rakeF.material.uniforms.uPos.value = rakeB.material.uniforms.uPos.value; rakeF.material.uniforms.uAmp.value = rakeB.material.uniforms.uAmp.value;
+          // ring wave on armed ticks
+          let wr = 0, wa = 0;
+          ticks.forEach((tk) => { if (tk.t >= tWarn && t >= tk.t && t < tk.t + 0.5) { const p = (t - tk.t) / 0.5; wr = lerp(121, tk.t === tWarn ? 158 : 142, eOut3(p)) * k; wa = (tk.t === tWarn ? 0.7 : 0.3) * Math.pow(1 - p, 1.5) * Math.min(1, p * 8); } });
+          waveMat.uniforms.uR.value = wr; waveMat.uniforms.uAmp.value = 0 * wa; waveMat.uniforms.uW.value = (4 + 6 * seg(wr, 121 * k, 37 * k)) * k;
+          renderer.render(scene, camera);
+          // the canvas carries the motion blur of the spins (no blur on the settled badge)
+          const bl = (u > 0 && u < 0.55 ? 7 * (1 - u / 0.55) : 0) + (d > 0.15 && d < 0.85 ? 2.5 * Math.sin(Math.PI * (d - 0.15) / 0.7) : 0) + 7 * xe;
+          canvas.style.filter = bl > 0.2 ? "blur(" + bl.toFixed(2) + "px)" : "none";
+
+          // ---------- DOM: pinned to the projected badge centre ----------
+          const pc = new THREE.Vector3(0, 0, 3 * k); badge.localToWorld(pc); pc.project(camera);
+          const px = (pc.x + 1) / 2 * W, py = (1 - pc.y) / 2 * H;
+          const sc = s * DIST / (DIST - 3 * k);
+          const ryd = ry * 180 / Math.PI, dvis = vis && Math.abs(ry) < 1.25 && t >= T.in + 0.22;
+          $("#dial").style.transform = "translate(" + px.toFixed(2) + "px," + py.toFixed(2) + "px) perspective(900px) rotateY(" + ryd.toFixed(2) + "deg) rotateX(" + (-rx * 57.3).toFixed(2) + "deg) scale(" + sc.toFixed(4) + ")";
+          $("#dial").style.opacity = dvis ? clamp((1.25 - Math.abs(ry)) / 0.35, 0, 1).toFixed(3) : 0;
+          $("#dial").style.filter = bl > 0.2 ? "blur(" + (bl * 0.8).toFixed(2) + "px)" : "none";
+          // columns: roll in from above on entry, then roll per tick
+          const hEm = 1.3 * FS;
+          [0, 1, 2, 3].forEach((i) => {
+            const din = seg(t, T.in + 0.26 + i * 0.045, 0.3);
+            const de2 = E("back.out(1.6)")(din);
+            cols[i].style.transform = "translateY(" + (-(1 - de2) * 0.4 * hEm).toFixed(2) + "px)";
+            cols[i].parentElement.style.clipPath = "inset(0.26em -20% " + Math.max(0.26, 1.3 * (1 - Math.min(1, de2))).toFixed(3) + "em -20%)";
+            if (strips[i]) { const cp = colPos(i, t), fr = Math.abs(cp - Math.round(cp));
+              strips[i].style.transform = "translateY(" + (-cp * 0.8 * FS).toFixed(2) + "px)";
+              strips[i].style.filter = fr > 0.04 ? "blur(" + (Math.min(1, fr * 4) * 1.6).toFixed(2) + "px)" : "none"; }
+          });
+          const glowA = arm * (0.55 + 0.45 * Math.min(1, heat));
+          dg.style.filter = "drop-shadow(0 0 " + (6 + 10 * glowA).toFixed(1) + "px rgba(255,46,58," + (0.85 * glowA).toFixed(3) + ")) drop-shadow(0 2px 1.5px rgba(0,0,0,.7))";
+          // contact shadow on the footage: wide and soft while big, tight once docked
+          const sh = $("#shadow");
+          sh.style.transform = "translate(" + (cx + 10 * s).toFixed(1) + "px," + (cy + 16 * s).toFixed(1) + "px) scale(" + (s * R / 120 * 0.98).toFixed(4) + ")";
+          sh.style.opacity = vis ? (0.9 * Math.min(1, u * 2) * (1 - xe)).toFixed(3) : 0;
+        }
+        window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+
+        const FACES = ["900 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          // centre the digit row on the dial origin (measured after the font is in)
+          FS = Math.round(64 * Math.min(1, (CONFIG.digitWidth * k) / dg.offsetWidth)); dg.style.fontSize = FS + "px";
+          dg.style.left = (-dg.offsetWidth / 2).toFixed(1) + "px"; dg.style.top = (-dg.offsetHeight / 2 + 1).toFixed(1) + "px";
+          const tl = gsap.timeline({ paused: true });
+          renderAt(0);
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          if (plate) Look.impact(tl, tWarn, { shake: "#shake", amp: 5, dur: 0.28, flash: 0, host: "#root", zoom: 1.012 });
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

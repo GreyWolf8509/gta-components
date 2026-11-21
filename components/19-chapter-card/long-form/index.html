@@ -1,0 +1,210 @@
+<!doctype html>
+<!-- GTA-niche 19 Chapter card, variant A: "Full card" (16:9 long-form, 1920x1080, 30 fps).
+     The section marker between attempts: the gameplay dims, blurs and pushes in, and "ATTEMPT 1:" slams onto it in big
+     white wide heavy caps, centred, as real geometry (Three.js: extruded, bevelled Archivo outlines in white clearcoat
+     enamel with graphite walls). The number is a mechanical counter drum: it winds back a hair, rolls 1 -> 2 and locks,
+     and on the lock it floods into caption-yellow metal behind a hot light front, with a raking key, bloom, a warm
+     bounce on the footage and a hit. It holds, then a hard-edged wipe takes the card off and hands back to gameplay.
+     See ../DECISIONS.md. Variable: bg "plate" / "none" (full-kind component: the footage is the component's bed). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <script src="media/card3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #000; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: "Archivo", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push, #card, #bedWrap, #inWrap { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #shade, #bounce, #seam, #t3d { position: absolute; pointer-events: none; }
+      #shade { inset: 0; opacity: 0; }
+      #bounce { opacity: 0; mix-blend-mode: screen; }
+      #seam { top: -200px; height: 1480px; width: 260px; opacity: 0; mix-blend-mode: screen; }
+      #t3d { left: 0; top: 0; width: 1920px; height: 1080px; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="4.25" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <div id="inWrap">
+          <video id="s2" class="clip shot" src="assets/shots/v21-race-topdown-h.mp4" muted playsinline data-start="3.4" data-duration="0.85" data-media-start="0.0" data-track-index="0"></video>
+        </div>
+        <div id="card">
+          <div id="bedWrap">
+            <video id="s1" class="clip shot" src="assets/shots/v52-gp-police-bridge-h.mp4" muted playsinline data-start="0" data-duration="3.8667" data-media-start="0.6" data-track-index="1"></video>
+          </div>
+          <div id="shade"></div>
+          <div id="bounce"></div>
+          <div id="t3d"></div>
+        </div>
+        <div id="seam"></div>
+      </div></div>
+    </div>
+    <script>
+      const CONFIG = {
+        // "#" is the counter drum. The card shows `from`, rolls to `to` and locks in yellow.
+        text: "ATTEMPT #:",
+        from: 1, to: 2,
+        type: { set: "wide", size: 190, maxInk: 1330, tracking: -0.01, cx: 960, cy: 532, depth: 0.32, bevel: 0.085, tilt: 0.24 },
+        colors: {
+          white: { face: ["#FFFFFF", "#CDD4DE"], side: ["#8A93A2", "#1C2028"] },          // white enamel, brushed steel walls
+          state: { face: ["#FFF6B8", "#FFD23C", "#EFA514", "#FFD54A", "#E0920F"], facePos: [0, 0.4, 0.53, 0.6, 1], lip: "#FFE07A", side: ["#C07A00", "#3A1E00"], hot: "#FFF6D0" },  // caption yellow metal
+          glow: "255,196,60"
+        },
+        bed: { brightness: 0.5, contrast: 1.14, saturate: 0.82, blur: 5, shade: 0.4, push: 1.07 },
+        timing: { dim: 0.14, dimDur: 0.3, in: 0.3, stagger: 0.028, inDur: 0.2, tick: 1.24, rollDur: 0.3, out: 3.42, wipeDur: 0.42, end: 4.25 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const $ = (s) => document.querySelector(s);
+        const C = CONFIG, TY = C.type, TM = C.timing, FR = 1 / 30;
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        Promise.all([document.fonts.load("900 100px Archivo")]).then(() => document.fonts.ready).then(() => {
+          const F = window.CARD_GLYPHS[TY.set];
+          const m1 = Card3D.measure(F, C.text, 1000, TY.tracking);
+          const size = Math.min(TY.size, TY.maxInk / (m1.inkW / 1000));
+          const eBack = gsap.parseEase("back.out(1.7)"), eRoll = gsap.parseEase("back.out(1.6)"), eExpo = gsap.parseEase("expo.out"),
+            eSine = gsap.parseEase("sine.inOut"), eRec = gsap.parseEase("back.out(2.5)"), eP3io = gsap.parseEase("power3.inOut"), eP2i = gsap.parseEase("power2.in"), eP2io = gsap.parseEase("power2.inOut");
+          const nSlots = C.text.replace(/ /g, "").length;
+          // ---------- the drum: a 2-frame wind-back, then a roll with overshoot; the lock is the first frame it reaches the digit ----------
+          const WB = 0.07, span = C.to - C.from;
+          function drumIdx(t) {
+            const a = TM.tick - 2 * FR;
+            if (t < a) return C.from;
+            if (t < TM.tick) return C.from - WB * Math.sin((Math.PI / 2) * (t - a) / (2 * FR));
+            const p = clamp((t - TM.tick) / TM.rollDur, 0, 1);
+            return C.from - WB + (span + WB) * eRoll(p);
+          }
+          let ignite = TM.tick;
+          for (let t = TM.tick; t < TM.tick + TM.rollDur; t += 0.002) { if (drumIdx(t) >= C.to - 0.002) { ignite = t; break; } }
+          const land = (i) => TM.in + i * TM.stagger + TM.inDur;
+          const lastLand = land(nSlots - 1);
+          const H = (n) => Look.hash(n) * 2 - 1;
+          const C3 = Card3D({
+            W: 1920, H: 1080, glyphs: window.CARD_GLYPHS, fov: 20, px: TY.cx, py: TY.cy,
+            lines: [{ id: "t", set: TY.set, text: C.text, size, tracking: TY.tracking, cx: TY.cx, cy: TY.cy, depth: TY.depth, bevel: TY.bevel, tilt: TY.tilt, drumR: 2.15 }],
+            colors: { white: C.colors.white, state: C.colors.state, material: { faceMetal: 0.3, faceRough: 0.3, clearcoat: 0.6, faceEnv: 0.42, sideMetal: 1.0 }, faceEmissive: 0.8, preEmissive: 0.52 },
+            shadow: 0.6, shadowOff: [7, 10], wideShadow: 0.38,
+            shutter: (t) => (t > TM.in - 0.04 && t < lastLand + 0.12 ? 1 / 90 : (t > TM.tick - 0.1 && t < TM.tick + TM.rollDur ? 1 / 60 : 0)),
+            subframes: (t) => (t > TM.tick - 0.1 && t < TM.tick + TM.rollDur ? 20 : 14),
+            pose: (t, tf) => {
+              const P = { lines: {}, glyphs: {}, drums: {}, state: {}, drumMin: { t: [C.from] }, drumMax: { t: [C.to] } };
+              // whole line: a punch on the lock, a slow living turn through the hold
+              const u = t - ignite;
+              let s = 1;
+              if (u >= 0 && u < 0.07) s = 1 + 0.045 * eExpo(u / 0.07);
+              else if (u >= 0.07 && u < 0.34) s = 1 + 0.045 * (1 - eBack((u - 0.07) / 0.27));
+              const hold = clamp((t - lastLand) / (TM.out - lastLand), 0, 1);
+              const rc = u >= 0 && u < 0.2 ? 7 * (1 - eRec(u / 0.2)) : 0;          // the word recoils 7 px on the lock and springs home
+              P.lines.t = { s, y: rc, ry: -0.05 + 0.1 * eSine(hold), rx: 0.015 * Math.sin(hold * Math.PI) };
+              // the slam: each glyph comes from near the lens, turned, and lands with an overshoot and a squash
+              P.glyphs.t = (i) => {
+                const t0 = TM.in + i * TM.stagger; let up = (t - t0) / TM.inDur;
+                if (tf < t0) return { hide: true };            // hidden by frame time; every sub-frame of the first frame is opaque (no see-through frame)
+                up = Math.max(0, up);
+                if (up < 1) {
+                  const k = eBack(up);
+                  return { z: 560 * (1 - k), rx: 0.42 * (1 - k), ry: 0.2 * H(i * 7 + 3) * (1 - k), rz: 0.05 * H(i * 5 + 1) * (1 - k), y: -24 * (1 - k) };
+                }
+                const w = (t - t0 - TM.inDur) / 0.16;
+                if (w < 1) { const sq = 0.065 * Math.cos(w * Math.PI * 1.5) * Math.exp(-3.2 * w); return { sy: 1 - sq, sx: 1 + sq * 0.45 }; }
+                return {};
+              };
+              P.drums.t = [drumIdx(t)];
+              // the state change: a feathered front floods the digit to yellow metal, led by a hot band
+              if (t >= ignite) P.state.t = { p: eExpo(clamp(u / 0.24, 0, 1)), hot: 3.2 * (1 - eP2i(clamp(u / 0.36, 0, 1))) };
+              // key light rakes across the bevels at the lock; one wide specular sweep across the line in the hold
+              // key: rakes across the bevels at the lock, then keeps travelling slowly back through the hold
+              const rk = eP2io(clamp((t - (ignite - 0.05)) / 0.75, 0, 1));
+              const kd = eSine(clamp((t - (ignite + 0.7)) / (TM.out - ignite - 0.7), 0, 1));
+              P.keyAngle = -0.95 + 1.75 * rk - 1.1 * kd;
+              P.key = 2.3 + 3.4 * Math.exp(-Math.pow((u - 0.14) / 0.16, 2));
+              const L0 = C3 ? C3.lines[0] : null;
+              if (L0) {
+                const xl = L0.inkLeft - TY.cx, xr = L0.inkRight - TY.cx;
+                // the lock lights the whole word: one hot specular band runs from the number back across ATTEMPT (0.42 s)
+                const sp = clamp((t - (ignite + 0.03)) / 0.42, 0, 1);
+                // then a broad soft sheen drifts left to right through the hold
+                const sd = clamp((t - (ignite + 0.75)) / (TM.out - ignite - 0.75), 0, 1);
+                if (sp > 0 && sp < 1) { const a = xr + 0.3 * size, b = xl - 0.7 * size; P.specX = a + (b - a) * eP3io(sp); P.specAmp = 0.95 * Math.pow(Math.sin(Math.PI * Math.min(1, sp * 1.25)), 0.6); P.specW = 0.42; }
+                else if (sd > 0 && sd < 1) { const a = xl - 1.2 * size, b = xr + 1.2 * size; P.specX = a + (b - a) * sd; P.specAmp = 0.2 * Math.sin(Math.PI * sd); P.specW = 1.3; }
+              }
+              const env = u < 0 ? 0 : u < 0.1 ? 1 : Math.exp(-(u - 0.1) / 0.3);
+              P.bloom = 0.14 + 0.85 * env;
+              return P;
+            }
+          });
+          $("#t3d").appendChild(C3.canvas);
+          const L0 = C3.lines[0], D0 = L0.drums[0];
+          // where the digit sits on screen (for the warm bounce on the footage)
+          const digX = TY.cx + (D0.x0 + D0.x1) / 2, digY = TY.cy;
+          const bnc = $("#bounce");
+          bnc.style.cssText += ";left:" + (digX - 520) + "px;top:" + (digY - 360) + "px;width:1040px;height:720px;background:radial-gradient(closest-side, rgba(" + C.colors.glow + ",.55) 0%, rgba(" + C.colors.glow + ",.22) 45%, rgba(" + C.colors.glow + ",0) 100%)";
+          $("#shade").style.background = "radial-gradient(ellipse 980px 420px at " + TY.cx + "px " + TY.cy + "px, rgba(0,0,0," + C.bed.shade + ") 0%, rgba(0,0,0," + (C.bed.shade * 0.55).toFixed(2) + ") 55%, rgba(0,0,0,0) 100%)";
+          document.querySelectorAll("#root *").forEach((n) => { n.setAttribute("data-layout-allow-overlap", ""); n.setAttribute("data-layout-allow-occlusion", ""); });
+
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, TM.end, (p) => C3.renderAt(p * TM.end));
+          // ---------- the bed: gameplay dims, blurs and pushes in under the card ----------
+          const B = C.bed, s1 = $("#s1"), e2 = gsap.parseEase("power2.out");
+          if (plate) {
+            Look.drive(tl, 0, TM.end, (p) => {
+              const t = p * TM.end, k = e2(clamp((t - TM.dim) / TM.dimDur, 0, 1));
+              s1.style.filter = k > 0.001 ? "brightness(" + (1 - (1 - B.brightness) * k).toFixed(3) + ") contrast(" + (1 + (B.contrast - 1) * k).toFixed(3) + ") saturate(" + (1 - (1 - B.saturate) * k).toFixed(3) + ") blur(" + (B.blur * k).toFixed(2) + "px)" : "";
+              s1.style.transform = "scale(" + (1 + (B.push - 1) * eSine(clamp(t / TM.out, 0, 1)) * 0.5 + (B.push - 1) * 0.5 * clamp(t / TM.out, 0, 1)).toFixed(4) + ")";
+              $("#shade").style.opacity = k.toFixed(3);
+            });
+            s1.style.transformOrigin = "50% 48%";
+            // the lock lights the footage around the number (local, warm), and the whole frame takes the hit
+            Look.drive(tl, ignite, 1.0, (p) => {
+              const u = p * 1.0; let k = 0;
+              if (p > 0 && p < 1) k = u < 2 * FR ? u / (2 * FR) : u < 5 * FR ? 1 : 0.25 + 0.75 * Math.exp(-(u - 5 * FR) / 0.2);
+              if (p >= 1) k = 0.25;
+              bnc.style.opacity = (0.9 * k).toFixed(3);
+            });
+            Look.expose(tl, ignite, { target: "#bedWrap", peak: 1.22, hold: 3 / 30, dur: 0.35, saturate: 1.12 });
+            Look.impact(tl, ignite, { shake: "#shake", amp: 7, dur: 0.3, zoom: 1.018, flash: 0 });
+            Look.impact(tl, lastLand - 0.03, { shake: "#shake", amp: 4, dur: 0.22, zoom: 1.008, flash: 0 });
+          }
+          // ---------- the exit: a hard-edged slanted wipe takes the card off, left to right; gameplay pushes in behind ----------
+          const card = $("#card"), seam = $("#seam"), s2 = $("#s2"), eW = gsap.parseEase("power3.inOut");
+          const SL = 0.18;          // slant: the edge leans (dx per px of height)
+          Look.drive(tl, TM.out, TM.wipeDur, (p) => {
+            const k = eW(p), X = -260 + (1920 + 520) * k;            // edge x at the frame's vertical centre
+            if (p <= 0) { card.style.webkitMaskImage = card.style.maskImage = ""; card.style.opacity = 1; seam.style.opacity = 0; return; }
+            if (p >= 1) { card.style.opacity = 0; seam.style.opacity = 0; return; }     // opacity, not visibility: clips force their own visibility
+            card.style.opacity = 1;
+            const g = "linear-gradient(" + (90 + Math.atan(SL) * 180 / Math.PI).toFixed(2) + "deg, rgba(0,0,0,0) " + (X - 14).toFixed(1) + "px, #000 " + (X + 14).toFixed(1) + "px)";
+            card.style.webkitMaskImage = card.style.maskImage = g;
+            card.style.webkitMaskSize = card.style.maskSize = "1920px 1080px";
+            seam.style.left = (X - 130) + "px"; seam.style.transform = "skewX(" + (-Math.atan(SL) * 180 / Math.PI).toFixed(2) + "deg)";
+            seam.style.opacity = (0.55 * Math.sin(Math.PI * p)).toFixed(3);
+          });
+          seam.style.background = "linear-gradient(90deg, rgba(255,236,206,0) 0%, rgba(255,236,206,.10) 38%, rgba(255,240,214,.6) 50%, rgba(255,236,206,0) 54%)";
+          if (plate) {
+            gsap.set(s2, { scale: 1.08, x: -70, transformOrigin: "50% 50%" });
+            tl.fromTo(s2, { scale: 1.08, x: -70 }, { scale: 1.0, x: 0, duration: TM.wipeDur + 0.3, ease: "expo.out", immediateRender: false }, TM.out);
+            Look.mblur(tl, "#inWrap", TM.out, TM.wipeDur, { x: 8, y: 0, ease: "power3.in" });
+          }
+          C3.renderAt(0);
+          tl.set({}, {}, TM.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,228 @@
+<!doctype html>
+<!-- 18 Name tag, variant A "Player tags" (16:9, 1920x1080, 30 fps, 4.25 s).
+     Three floating player tags pinned over three players in one gameplay shot. Each tag is real geometry (Three.js):
+     a glossy enamel capsule with a pointer tail and a dark rank puck, extruded and bevelled. It drops in as a round pin,
+     unfolds into a nameplate, and on the payoff a light front runs across all three: white enamel becomes each player's
+     colour with a hot edge, a squash and a bloom. Tags ride the head tracks (OpenCV, media/tracks.js) with a bob, a lean
+     from inertia and a depth scale. Names and ranks are DOM type pinned to the 3D faces.
+     Variable: bg "plate" (sample GTA V gameplay) / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/tracks.js"></script>
+    <script src="media/tags3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      #glows, #gl, #labels { position: absolute; inset: 0; }
+      .lab, .glw { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
+      .lab > div, .glw > div { position: absolute; }
+      .shadow { border-radius: 999px; background: rgba(4, 6, 10, 0.5); filter: blur(9px); }
+      .halo { border-radius: 999px; }
+      .nmwin { overflow: hidden; }
+      .nm { position: absolute; left: 0; top: 0; white-space: nowrap; color: #fff; font-family: "Archivo"; font-weight: 900;
+        font-stretch: 66%; text-transform: uppercase; paint-order: stroke fill; -webkit-text-stroke: 7px #0A0B0F;
+        text-shadow: 0 3px 0 rgba(0, 0, 0, 0.35); }
+      .rank { color: #fff; font-family: "Inter"; font-weight: 800; font-feature-settings: "tnum" 1; text-align: center;
+        letter-spacing: -0.03em; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="4.25" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="shotA" class="clip shot" src="assets/shots/v49-gp-franklin-mural-h.mp4" muted playsinline data-start="0" data-duration="4.25" data-media-start="0" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="4.25" data-track-index="1">
+        <div id="glows"></div>
+        <div id="gl"></div>
+        <div id="labels"></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        // One tag per player. track = a head track in media/tracks.js (made for the sample clip; for your own clip,
+        // re-run media/track_heads.py or key x/y by hand). tip = how far above the tracked head centre the pointer tip
+        // floats, px, at the clip's start and end. scale = tag size at start and end (far players smaller).
+        // bx = where the plate sits over its pointer: 0 = centred, 0.5 = the rank puck sits right over the pointer and the
+        // name flag unfolds to the right (keeps the plate clear of a nearer player's face). A number, or [[t, v], [t, v]] keys.
+        tags: [
+          { name: "Everest", rank: "247", track: "franklin", tip: [-94, -94], scale: [1.0, 1.0],   in: 0.20, bx: 0.5,
+            face: ["#6FE4FF", "#0796D2"], hot: "#F2FDFF", halo: "#33D6FF" },
+          { name: "Kayo",    rank: "88",  track: "plaid",    tip: [-36, -45], scale: [0.84, 0.92], in: 0.31, bx: 0.5,
+            face: ["#FF6470", "#C40C24"], hot: "#FFF0F1", halo: "#FF2E3A" },
+          { name: "Drip",    rank: "131", track: "bmx",      tip: [-38, -47], scale: [0.84, 0.92], in: 0.42, bx: 0.5,
+            face: ["#B494FF", "#5E26E0"], hot: "#F6F0FF", halo: "#9B5CFF" }
+        ],
+        look: {
+          h: 80, tailH: 27, tailW: 40, inset: 9,      // capsule height, pointer, puck inset (px at scale 1)
+          nameSize: 50, nameTrack: 0.01, rankSize: 25, gap: 6, padR: 30,
+          pre: ["#5A6070", "#1B1E25"],                // charcoal enamel before the payoff lights each tag up
+          tilt: -0.42,                                // radians: top leans back, the underside edge shows
+          depth: 16, bevel: 6
+        },
+        timing: {
+          unfold: 0.27,                               // pin -> nameplate, after each tag's `in`
+          ignite: 1.06, igniteDur: 0.44,              // payoff: the light front runs left -> right across the frame
+          frontFrom: 520, frontTo: 1520,
+          out: [3.80, 3.86, 3.92], outDur: 0.30,
+          end: 4.25
+        },
+        fps: 30
+      };
+
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const C = CONFIG, L = C.look, T = C.timing, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x)), lerp = (a, b, k) => a + (b - a) * k;
+        // damped spring from 0 to 1 (seek-safe closed form)
+        const spring = (t, w, z) => { if (t <= 0) return 0; const wd = w * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + (z * w / wd) * Math.sin(wd * t)); };
+        const E = (n) => gsap.parseEase(n);
+        const eIn = E("power3.in"), eFront = E("power2.inOut"), eOut = E("power2.out");
+
+        const FACES = ["900 100px Archivo", "800 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f, "EVERESTKAYODRIP0123456789"))).then(() => document.fonts.ready).then(() => {
+          // ---------- measure names (real face, after load) ----------
+          const probe = document.createElement("span"); probe.className = "nm";
+          probe.style.cssText = "position:absolute;visibility:hidden;font-size:" + L.nameSize + "px;letter-spacing:" + L.nameTrack + "em";
+          document.body.appendChild(probe);
+          const tagsC = C.tags.map((tg) => { probe.textContent = tg.name; const tw = probe.getBoundingClientRect().width; return Object.assign({}, tg, { textW: tw }); });
+          probe.remove();
+
+          const G = Tags3D({ W: 1920, H: 1080, depth: L.depth, bevel: L.bevel,
+            tags: tagsC.map((tg) => ({ h: L.h, tailH: L.tailH, tailW: L.tailW, inset: L.inset, white: L.pre, face: tg.face, hot: tg.hot })) });
+          $("#gl").appendChild(G.canvas);
+
+          // ---------- DOM: halo + contact shadow (behind the canvas), rank + name (in front) ----------
+          const rgb = (h) => { const n = parseInt(h.slice(1), 16); return ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255); };
+          const D = tagsC.map((tg, i) => {
+            const glw = document.createElement("div"); glw.className = "glw";
+            const halo = document.createElement("div"); halo.className = "halo";
+            halo.style.background = "radial-gradient(closest-side, rgba(" + rgb(tg.halo) + ",0.62), rgba(" + rgb(tg.halo) + ",0.22) 55%, rgba(" + rgb(tg.halo) + ",0) 100%)";
+            const sh = document.createElement("div"); sh.className = "shadow";
+            glw.appendChild(sh); glw.appendChild(halo); $("#glows").appendChild(glw);
+            const lab = document.createElement("div"); lab.className = "lab";
+            const rank = document.createElement("div"); rank.className = "rank"; rank.textContent = tg.rank;
+            rank.style.cssText = "width:" + (L.h - 2 * L.inset) + "px;height:" + L.rankSize + "px;line-height:" + L.rankSize + "px;font-size:" + L.rankSize + "px";
+            const win = document.createElement("div"); win.className = "nmwin";
+            const nm = document.createElement("div"); nm.className = "nm"; nm.textContent = tg.name;
+            nm.style.cssText = "font-size:" + L.nameSize + "px;line-height:" + L.h + "px;letter-spacing:" + L.nameTrack + "em;height:" + L.h + "px";
+            win.appendChild(nm); lab.appendChild(rank); lab.appendChild(win); $("#labels").appendChild(lab);
+            const wFull = L.h + L.gap + tg.textW + L.padR;
+            return { glw, halo, sh, lab, rank, win, nm, wFull };
+          });
+          document.querySelectorAll("#ov *").forEach((n) => { n.setAttribute("data-layout-allow-overlap", ""); n.setAttribute("data-layout-allow-occlusion", ""); });
+
+          // ---------- the front: screen x over time; when it crosses each tag ----------
+          const frontAt = (t) => t < T.ignite ? -1e4 : t > T.ignite + T.igniteDur ? 1e4 : lerp(T.frontFrom, T.frontTo, eFront((t - T.ignite) / T.igniteDur));
+          const N = window.TRACKS[tagsC[0].track].length;
+          function head(tr, t) {
+            const P = window.TRACKS[tr], f = clamp(t * C.fps, 0, N - 1), i = Math.floor(f), k = f - i, j = Math.min(N - 1, i + 1);
+            return [lerp(P[i][0], P[j][0], k), lerp(P[i][1], P[j][1], k), f / (N - 1)];
+          }
+          // when the front reaches each tag's tip x (searched once; tags drift slowly)
+          const crossT = tagsC.map((tg) => {
+            for (let s = 0; s <= 200; s++) { const t = T.ignite + T.igniteDur * s / 200; if (frontAt(t) >= head(tg.track, t)[0]) return t; }
+            return T.ignite + T.igniteDur;
+          });
+
+          function stateAt(i, t) {
+            const tg = tagsC[i], d = D[i];
+            const [hx, hy, u] = head(tg.track, t), [hx2] = head(tg.track, t + 1 / C.fps), [hx0] = head(tg.track, t - 1 / C.fps);
+            const vx = (hx2 - hx0) * C.fps / 2;
+            const base = lerp(tg.scale[0], tg.scale[1], u), tipOff = lerp(tg.tip[0], tg.tip[1], u);
+            const tb = t - tg.in, tu = t - tg.in - T.unfold, te = t - T.out[i];
+            // pin drop: scale pop, a short fall onto the head, and a flip from edge-on into the resting tilt
+            let pop = spring(tb, 17, 0.42), drop = tb <= 0 ? -64 : -64 * (1 - spring(tb, 15, 0.62)), flip = tb <= 0 ? 1.35 : 1.35 * (1 - spring(tb, 14, 0.5));
+            let uf = spring(tu, 16, 0.56);
+            // exit: the name rolls down, the plate folds back to the pin, the pin pops up a touch and shrinks into the tip
+            let ex = 0, exS = 1;
+            if (te > 0) {
+              ex = clamp(te / 0.14, 0, 1); uf = uf * (1 - eIn(ex));
+              const tq = te - 0.10;
+              exS = tq <= 0 ? 1 : tq < 0.06 ? 1 + 0.08 * (tq / 0.06) : 1.08 * (1 - eIn(clamp((tq - 0.06) / 0.14, 0, 1)));
+            }
+            const s = base * pop * exS;
+            const w = L.h + 1 + (d.wFull - L.h - 1) * uf;
+            let bxf = 0;
+            if (typeof tg.bx === "number") bxf = tg.bx;
+            else if (tg.bx) { const [[a0, v0], [a1, v1]] = tg.bx; bxf = t <= a0 ? v0 : t >= a1 ? v1 : lerp(v0, v1, E("sine.inOut")((t - a0) / (a1 - a0))); }
+            const bx = bxf * (w - L.h) ;
+            // payoff squash when the front crosses this tag (2-frame attack, damped wobble)
+            const tc = t - crossT[i];
+            const kq = tc < 0 ? 0 : tc < 0.05 ? tc / 0.05 : Math.exp(-(tc - 0.05) * 12) * Math.cos((tc - 0.05) * 24);
+            const ph = i * 1.9;
+            const st = {
+              x: hx, y: hy + tipOff + drop + 4 * Math.sin(2 * Math.PI * t / 1.7 + ph), s, w, bx,
+              sx: 1 + 0.07 * kq, sy: 1 - 0.13 * kq,
+              rx: L.tilt + flip + 0.025 * Math.sin(2 * Math.PI * t / 2.1 + ph),
+              ry: (hx - 960) / 960 * 0.24 + 0.05 * Math.sin(2 * Math.PI * t / 2.9 + ph),
+              rz: clamp(-vx * 0.0005, -0.07, 0.07) + 0.022 * Math.sin(2 * Math.PI * t / 2.3 + ph)
+            };
+            // light: the front in this tag's local x, a hot edge while it runs, a soft rake right after
+            const fx = frontAt(t);
+            st.front = fx < -1e3 ? -1e4 : fx > 1e3 ? 1e4 : (fx - hx) / Math.max(s, 0.05);
+            const fp = (t - T.ignite) / (T.igniteDur + 0.12);
+            st.hot = fp > 0 && fp < 1 ? 1.25 * Math.sin(Math.PI * fp) : 0;
+            const sp = (t - crossT[i] - 0.10) / 0.5;
+            st.specX = sp > 0 && sp < 1 ? bx + lerp(-w / 2 - 70, w / 2 + 70, eFront(sp)) : -1e4;
+            st.specAmp = sp > 0 && sp < 1 ? 0.5 * Math.sin(Math.PI * sp) : 0;
+            const bt = t - crossT[i];
+            st.glowHit = bt < 0 ? 0 : bt < 0.1 ? 1 : Math.exp(-(bt - 0.1) / 0.3);
+            st.lit = bt < 0 ? 0 : 1;
+            st.uf = uf; st.ex = ex;
+            return st;
+          }
+
+          function frame(t) {
+            let anyExit = 0;
+            tagsC.forEach((tg, i) => {
+              const st = stateAt(i, t), d = D[i];
+              G.setTag(i, st);
+              const vis = st.s > 0.002, tf = G.cssTransform(st), w = Math.max(L.h + 1, st.w), bx = st.bx;
+              d.lab.style.visibility = d.glw.style.visibility = vis ? "visible" : "hidden";
+              d.lab.style.transform = d.glw.style.transform = tf;
+              const top = -(L.tailH + L.h);
+              // rank sits on the puck
+              d.rank.style.left = (bx - w / 2 + L.inset) + "px"; d.rank.style.top = (-(L.tailH + L.h / 2) - L.rankSize / 2 + 1) + "px";
+              // the name window opens with the plate; the name rolls up into it
+              const wl = bx - w / 2 + L.h + L.gap - 4, ww = Math.max(0, bx + w / 2 - L.padR * 0.4 - wl);
+              d.win.style.left = wl + "px"; d.win.style.top = top + "px"; d.win.style.width = ww + "px"; d.win.style.height = L.h + "px";
+              const roll = st.ex > 0 ? eIn(st.ex) : 1 - clamp(st.uf * 1.25 - 0.15, 0, 1);
+              d.nm.style.transform = "translate(4px," + (roll * L.h * 0.9).toFixed(2) + "px)";
+              // shadow + halo follow the plate
+              d.sh.style.cssText = "left:" + (bx - w / 2 + 6) + "px;top:" + (top + 14) + "px;width:" + (w - 12) + "px;height:" + (L.h - 4) + "px;opacity:" + (0.8).toFixed(2);
+              const haloA = st.lit ? 0.5 + 0.5 * st.glowHit : 0;
+              d.halo.style.cssText = "left:" + (bx - w / 2 - 46) + "px;top:" + (top - 34) + "px;width:" + (w + 92) + "px;height:" + (L.h + 68) + "px;opacity:" + haloA.toFixed(3);
+              if (st.ex > 0.6) anyExit = Math.max(anyExit, (st.ex - 0.6) / 0.4);
+            });
+            G.render();
+          }
+
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, T.end, (p) => frame(p * T.end));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") frame(e.detail.time); });
+          frame(0);
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

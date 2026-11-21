@@ -1,0 +1,372 @@
+<!doctype html>
+<!-- 63 Attempt counter, variant B (9:16, 1080x1920, 30 fps): "Attempt badge".
+     The Shorts "ATTEMPT #N" counter as a real 3D badge: a red lacquer tag over huge extruded numerals on odometer drums.
+     Each fail cut rolls the number up with a slam; the attempt that lands flips the tag to SUCCESS and turns the number gold.
+     Variable bg: "plate" / "none". -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #gl { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; pointer-events: none; z-index: 10; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5.85" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <!-- each incoming shot starts 2 frames early underneath the outgoing one (z-index), so no cut paints a blank frame -->
+        <video id="s0" class="clip shot" style="z-index:4" src="assets/shots/v26-bridge-explosion-v.mp4" muted playsinline data-start="0" data-duration="1.5" data-media-start="0.2" data-track-index="0"></video>
+        <video id="s1" class="clip shot" style="z-index:3" src="assets/shots/v30-street-explosion-v.mp4" muted playsinline data-start="1.43" data-duration="1.42" data-media-start="0" data-track-index="0"></video>
+        <video id="s2" class="clip shot" style="z-index:2" src="assets/shots/v57-gp-red-car-highway-v.mp4" muted playsinline data-start="2.78" data-duration="1.22" data-media-start="0.3" data-track-index="0"></video>
+        <video id="s3" class="clip shot" style="z-index:1" src="assets/shots/v36-hills-city-view-v.mp4" muted playsinline data-start="3.93" data-duration="1.92" data-media-start="0" data-track-index="0"></video>
+      </div></div>
+      <canvas id="gl" data-layout-allow-occlusion width="1080" height="1920"></canvas>
+    </div>
+    <script>
+      const CONFIG = {
+        label: "ATTEMPT",              // tag word while the attempts fail
+        successLabel: "SUCCESS!",      // the other side of the tag, shown on the attempt that lands
+        start: 48,                     // attempt number on entrance
+        fails: [1.5, 2.85],            // each failed attempt rolls the number up by one with a slam (seconds; put them on your cuts)
+        success: 4.0,                  // the attempt that lands: the tag flips over, the number turns gold
+        x: 522, tagY: 322, numY: 612,  // centres on the 1080x1920 canvas
+        cap: 330, tagCap: 74,          // numeral cap height, tag letter cap height (px)
+        tag: "#F2203A", tagSide: "#A60C20", win: "#1FC25A", winSide: "#0A7A37",
+        digit: "#FFFFFF", digitSide: "#2E2723", gold: "#FFC94A", goldSide: "#A8650C", ink: "#09090C",
+        dock: { at: 1.0, dur: 0.42, scale: 0.78, top: 244 },   // after the entrance the badge settles smaller (top edge pinned) so it clears the gameplay; the success brings it back to full size
+        timing: { in: 0.15, out: 5.3, end: 5.85 }
+      };
+
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const C = CONFIG, T = C.timing, $ = (s) => document.querySelector(s), W = 1080, H = 1920;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x)), seg = (t, a, d) => clamp((t - a) / d, 0, 1), lerp = (a, b, k) => a + (b - a) * k;
+        const E = (n) => gsap.parseEase(n);
+        const wx = (x) => x - W / 2, wy = (y) => H / 2 - y;
+
+        // ---------- renderer: z = 0 maps 1:1 to canvas px ----------
+        const canvas = $("#gl");
+        const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+        renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 0);
+        renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.12;
+        renderer.localClippingEnabled = true;
+        const scene = new THREE.Scene();
+        const FOV = 22, DIST = (H / 2) / Math.tan((FOV / 2) * Math.PI / 180);
+        const camera = new THREE.PerspectiveCamera(FOV, W / H, 10, DIST * 3);
+        camera.position.set(0, 0, DIST); camera.lookAt(0, 0, 0);
+
+        // studio environment: soft overhead box, cool strip left, warm bounce low, dark floor
+        const envScene = new THREE.Scene();
+        envScene.add(new THREE.Mesh(new THREE.SphereGeometry(50, 48, 24), new THREE.ShaderMaterial({
+          side: THREE.BackSide, depthWrite: false,
+          vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 top = vec3(0.82,0.8,0.76), hor = vec3(0.22,0.19,0.17), low = vec3(0.025,0.02,0.02);" +
+            " vec3 c = y > 0.0 ? mix(hor, top, smoothstep(0.1, 0.9, y)) : mix(hor, low, smoothstep(0.0, 0.35, -y)); gl_FragColor = vec4(c, 1.0); }"
+        })));
+        const panel = (w, h, x, y, z, c) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); envScene.add(m); };
+        panel(40, 10, -4, 30, 26, new THREE.Color(4.0, 3.9, 3.7));
+        panel(5, 34, -30, 4, 22, new THREE.Color(2.2, 2.5, 3.0));
+        panel(34, 6, 6, -6, 34, new THREE.Color(1.5, 1.0, 0.7));
+        panel(14, 26, 32, 8, 10, new THREE.Color(2.0, 1.7, 1.4));
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        scene.environment = pmrem.fromScene(envScene, 0.0, 0.1, 200).texture;
+        const key = new THREE.DirectionalLight(0xfff4ea, 1.7); key.position.set(-0.7, 0.85, 0.8); scene.add(key);
+        const rim = new THREE.DirectionalLight(0xffd2a0, 1.2); rim.position.set(1.0, -0.2, -0.2); scene.add(rim);
+        const rake = new THREE.DirectionalLight(0xfff0d0, 0); rake.position.set(-1.4, 0.5, 0.6); scene.add(rake);
+        scene.add(new THREE.HemisphereLight(0xfff6ee, 0x2a1e18, 0.7));
+        const fill = new THREE.DirectionalLight(0xffe6d0, 0.7); fill.position.set(0.2, -0.85, 0.55); scene.add(fill);   // lifts the undersides of the extrusions off black
+
+        // ---------- baked surfaces: a pillowy normal map + colour ramp, in shape-local px (cap UVs of ExtrudeGeometry) ----------
+        function bake(o) {   // o: {bx, by, bw, bh, k, sil(ctx, P), ramp:[[v,[r,g,b]]...], dome, cav, flip}
+          const CW = Math.round(o.bw * o.k), CH = Math.round(o.bh * o.k);
+          const mk = () => { const c = document.createElement("canvas"); c.width = CW; c.height = CH; return c; };
+          const P = (x, y) => [(x - o.bx) * o.k, (o.by - y) * o.k];
+          const sil = mk(), sx = sil.getContext("2d"); sx.fillStyle = "#000"; sx.fillRect(0, 0, CW, CH); sx.fillStyle = "#fff"; o.sil(sx, P);
+          const blurOf = (r) => { const c = mk(), x = c.getContext("2d"); x.fillStyle = "#000"; x.fillRect(0, 0, CW, CH); x.filter = "blur(" + r + "px)"; x.drawImage(sil, 0, 0); return x.getImageData(0, 0, CW, CH).data; };
+          const wide = blurOf(o.dome * o.k), tight = blurOf(3 * o.k);
+          const h = new Float32Array(CW * CH);
+          for (let i = 0; i < CW * CH; i++) h[i] = (0.75 * 30 * wide[i * 4] + 0.25 * 8 * tight[i * 4]) / 255;
+          const nC = mk(), nx = nC.getContext("2d"), nd = nx.createImageData(CW, CH), cC = mk(), cx = cC.getContext("2d"), cd = cx.createImageData(CW, CH);
+          const rampAt = (v) => { const r = o.ramp; for (let j = 1; j < r.length; j++) if (v <= r[j][0]) { const a = r[j - 1], b = r[j], u = (v - a[0]) / (b[0] - a[0]); return a[1].map((q, n) => q + (b[1][n] - q) * u); } return r[r.length - 1][1]; };
+          for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) {
+            const i = y * CW + x, xl = Math.max(0, x - 1), xr = Math.min(CW - 1, x + 1), yu = Math.max(0, y - 1), yd = Math.min(CH - 1, y + 1);
+            const dx = (h[y * CW + xr] - h[y * CW + xl]) * o.k / 2, dy = (h[yd * CW + x] - h[yu * CW + x]) * o.k / 2;
+            let X = -dx, Y = dy, Z = 1; const L = Math.hypot(X, Y, Z); X /= L; Y /= L; Z /= L;
+            nd.data[i * 4] = (X * 0.5 + 0.5) * 255; nd.data[i * 4 + 1] = (Y * 0.5 + 0.5) * 255; nd.data[i * 4 + 2] = (Z * 0.5 + 0.5) * 255; nd.data[i * 4 + 3] = 255;
+            const rc = rampAt(o.flip ? 1 - y / CH : y / CH), cav = 1 - o.cav * (1 - Math.min(1, wide[i * 4] / 255 * 1.6));
+            cd.data[i * 4] = rc[0] * cav; cd.data[i * 4 + 1] = rc[1] * cav; cd.data[i * 4 + 2] = rc[2] * cav; cd.data[i * 4 + 3] = 255;
+          }
+          nx.putImageData(nd, 0, 0); cx.putImageData(cd, 0, 0);
+          const nTex = new THREE.CanvasTexture(nC), cTex = new THREE.CanvasTexture(cC); cTex.colorSpace = THREE.SRGBColorSpace;
+          [nTex, cTex].forEach((tx) => { tx.repeat.set(1 / o.bw, 1 / o.bh); tx.offset.set(-o.bx / o.bw, (o.bh - o.by) / o.bh); tx.anisotropy = 4; });
+          return { map: cTex, normalMap: nTex };
+        }
+        const hexRGB = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+        const shade = (rgb, k) => rgb.map((v) => Math.min(255, v * k));
+
+        // ---------- traced Archivo glyphs (wdth 80, wght 900) -> bevelled extrusions ----------
+        const F = window.NUM_GLYPHS, MIN_SEG = 0.6, CURVE_SEG = 8;
+        function glyphShapes(d, s) {
+          const sp = new THREE.ShapePath(); const re = /([MLQCZ])([^MLQCZ]*)/g; let m;
+          while ((m = re.exec(d))) {
+            const n = m[2].trim() ? m[2].trim().split(/[\s,]+/).map(Number) : [];
+            const P = []; for (let i = 0; i < n.length; i += 2) P.push(n[i] * s, -n[i + 1] * s);
+            if (m[1] === "M") sp.moveTo(P[0], P[1]);
+            else if (m[1] === "L") sp.lineTo(P[0], P[1]);
+            else if (m[1] === "Q") sp.quadraticCurveTo(P[0], P[1], P[2], P[3]);
+            else if (m[1] === "C") sp.bezierCurveTo(P[0], P[1], P[2], P[3], P[4], P[5]);
+          }
+          const clean = (pts) => { const out = []; for (const p of pts) if (!out.length || p.distanceTo(out[out.length - 1]) > MIN_SEG) out.push(p);
+            while (out.length > 3 && out[0].distanceTo(out[out.length - 1]) <= MIN_SEG) out.pop(); return out; };
+          return sp.toShapes(false).map((sh) => { const s2 = new THREE.Shape(clean(sh.getPoints(CURVE_SEG)));
+            sh.holes.forEach((h) => s2.holes.push(new THREE.Path(clean(h.getPoints(CURVE_SEG))))); return s2; });
+        }
+        // soft drop shadow traced from outlines (no box): returns a plane mesh centred on the shapes' bbox centre
+        function tracedShadow(shapes, blur, dx, dy) {
+          const box = new THREE.Box2(); shapes.forEach((s) => s.getPoints(4).forEach((p) => box.expandByPoint(p)));
+          const pad = blur * 3, sw = box.max.x - box.min.x + 2 * pad, sh = box.max.y - box.min.y + 2 * pad, k = 1;
+          const SC = document.createElement("canvas"); SC.width = Math.ceil(sw * k); SC.height = Math.ceil(sh * k);
+          const x = SC.getContext("2d"); x.filter = "blur(" + blur * k + "px)"; x.fillStyle = "#000"; x.beginPath();
+          const trace = (pts) => { pts.forEach((p, i) => { const X = (p.x - box.min.x + pad) * k, Y = (box.max.y + pad - p.y) * k; i ? x.lineTo(X, Y) : x.moveTo(X, Y); }); x.closePath(); };
+          shapes.forEach((s) => { trace(s.getPoints(4)); s.holes.forEach((h) => trace(h.getPoints(4))); }); x.fill("evenodd");
+          const tex = new THREE.CanvasTexture(SC); tex.colorSpace = THREE.SRGBColorSpace;
+          const m = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.5, depthWrite: false, color: 0x07040a }));
+          m.position.set((box.min.x + box.max.x) / 2 + dx, (box.min.y + box.max.y) / 2 + dy, 0); m.renderOrder = -1; return m;
+        }
+        // one glyph, centred on its ink centre (x) and the cap middle (y); faces toward +z
+        function glyph(ch, s, o) {
+          const g = F.g[ch], shapes = glyphShapes(g[1], s), cx = (g[2] + g[3]) / 2 * s, cy = F.cap / 2 * s;
+          const geo = new THREE.ExtrudeGeometry(shapes, { depth: o.depth, bevelEnabled: true, bevelThickness: o.bt, bevelSize: o.bs, bevelOffset: -o.bs, bevelSegments: o.seg || 5, curveSegments: 1 });
+          geo.translate(-cx, -cy, -o.depth / 2);
+          const grp = new THREE.Group(); grp.add(new THREE.Mesh(geo, [o.face, o.side]));
+          if (o.ink) { const ig = new THREE.ExtrudeGeometry(shapes, { depth: 4, bevelEnabled: true, bevelThickness: 1, bevelSize: o.ink, bevelSegments: 2, curveSegments: 1 });
+            ig.translate(-cx, -cy, -o.depth / 2 - o.bt - 7); grp.add(new THREE.Mesh(ig, o.inkMat)); }
+          let shadow = null;
+          if (o.shadow) { shadow = tracedShadow(shapes, o.shadow, 10, -16); shadow.position.x -= cx; shadow.position.y -= cy; shadow.position.z = -o.depth / 2 - 70; if (!o.detach) grp.add(shadow); }
+          return { grp, w: (g[3] - g[2]) * s, adv: g[0] * s, shadow };
+        }
+        // a word of glyphs, centred; returns group + width
+        function word(str, s, track, o) {
+          const grp = new THREE.Group(); let pen = 0; const items = [];
+          for (const ch of str) { const g = F.g[ch]; if (!g) continue; const gl = glyph(ch, s, o); gl.grp.position.x = pen + (g[2] + g[3]) / 2 * s; grp.add(gl.grp); items.push(gl); pen += g[0] * s + track; }
+          const last = str[str.length - 1], lw = pen - track - F.g[last][0] * s + F.g[last][3] * s, x0 = F.g[str[0]][2] * s;
+          grp.children.forEach((c) => (c.position.x -= (x0 + lw) / 2));
+          return { grp, w: lw - x0 };
+        }
+        function rrect(w, h, r) { const s = new THREE.Shape(), x = -w / 2, y = -h / 2;
+          s.moveTo(x + r, y); s.lineTo(x + w - r, y); s.quadraticCurveTo(x + w, y, x + w, y + r); s.lineTo(x + w, y + h - r); s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+          s.lineTo(x + r, y + h); s.quadraticCurveTo(x, y + h, x, y + h - r); s.lineTo(x, y + r); s.quadraticCurveTo(x, y, x + r, y); return s; }
+
+
+        // face shading patch: a vertical tint across the window (lit top, cooler foot) + a clipped specular band that sweeps on beats
+        function bandify(mat, key) {
+          const u = { uBandX: { value: -1e4 }, uBandA: { value: 0 }, uBandW: { value: 46 }, uBandC: { value: new THREE.Color(1, 1, 1) }, uGy0: { value: 0 }, uGy1: { value: 1 },
+            uGt: { value: new THREE.Color(1, 1, 1) }, uDir: { value: new THREE.Vector2(0.82, 0.57) } };
+          mat.userData.u = u;
+          mat.onBeforeCompile = (sh) => { Object.assign(sh.uniforms, u);
+            sh.fragmentShader = "uniform float uBandX; uniform float uBandA; uniform float uBandW; uniform float uGy0; uniform float uGy1; uniform vec3 uBandC; uniform vec3 uGt; uniform vec2 uDir;\n" + sh.fragmentShader
+              .replace("#include <color_fragment>", "#include <color_fragment>\n diffuseColor.rgb *= mix(uGt, vec3(1.0), smoothstep(uGy0, uGy1, -vViewPosition.y));")
+              .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n { float fk = smoothstep(0.55, 0.85, normal.z); float bd = dot(-vViewPosition.xy, uDir);" +
+                " totalEmissiveRadiance += uBandC * uBandA * fk * exp(-pow((bd - uBandX) / uBandW, 2.0)); }"); };
+          mat.customProgramCacheKey = () => "band-" + key;
+          return mat;
+        }
+        // ---------- materials ----------
+        const inkMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(C.ink), roughness: 0.55, metalness: 0 });
+        const letterFace = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.22, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.06, emissive: 0xffffff, emissiveIntensity: 0.06 });
+        const letterSide = new THREE.MeshPhysicalMaterial({ color: new THREE.Color("#D9DCE3"), roughness: 0.3, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.1 });
+        // the number: one face/side material per column so the gold wipe can run column by column
+        const winLocal = [new THREE.Plane(new THREE.Vector3(0, -1, 0), 0), new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)], winWorld = [new THREE.Plane(), new THREE.Plane()];
+        const WHITE = new THREE.Color(C.digit), GOLD = new THREE.Color(C.gold), DSIDE = new THREE.Color(C.digitSide), GSIDE = new THREE.Color(C.goldSide);
+        const mkFace = (i) => bandify(new THREE.MeshPhysicalMaterial({ color: WHITE.clone(), roughness: 0.2, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 1.0, emissive: 0xffffff, emissiveIntensity: 0.07, clippingPlanes: winWorld }), "f" + i);
+        const mkSide = () => new THREE.MeshPhysicalMaterial({ color: DSIDE.clone(), roughness: 0.32, metalness: 0, clearcoat: 0.8, clearcoatRoughness: 0.12, envMapIntensity: 0.9, clippingPlanes: winWorld });
+        const colMats = [0, 1, 2].map((i) => ({ face: mkFace(i), side: mkSide() }));
+        const digInk = new THREE.MeshStandardMaterial({ color: new THREE.Color(C.ink), roughness: 0.55, metalness: 0, clippingPlanes: winWorld });
+
+        // ---------- the tag: two lacquer layers (red front, green back) with a black rim between, raised letters on each ----------
+        const TW = 610, TH = 138, TR = 40, TD = 12, TBT = 6, TBS = 6;
+        const tagShape = () => rrect(TW, TH, TR);
+        function lacquer(hex, flip) {
+          const b = hexRGB(hex), surf = bake({ bx: -TW / 2 - 4, by: TH / 2 + 4, bw: TW + 8, bh: TH + 8, k: 1.5, dome: 16, cav: 0.18, flip,
+            sil: (x, P) => { x.beginPath(); tagShape().getPoints(16).forEach((p, i) => { const q = P(p.x, p.y); i ? x.lineTo(q[0], q[1]) : x.moveTo(q[0], q[1]); }); x.closePath(); x.fill(); },
+            ramp: [[0, shade(b, 1.28)], [0.42, b], [1, shade(b, 0.72)]] });
+          return new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: surf.map, normalMap: surf.normalMap, clearcoatNormalMap: surf.normalMap, roughness: 0.32, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.06, envMapIntensity: 1.0 });
+        }
+        const sideMat = (hex) => new THREE.MeshPhysicalMaterial({ color: new THREE.Color(hex), roughness: 0.34, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.1 });
+        const tagGeo = () => new THREE.ExtrudeGeometry(tagShape(), { depth: TD, bevelEnabled: true, bevelThickness: TBT, bevelSize: TBS, bevelOffset: -TBS, bevelSegments: 6, curveSegments: 14 });
+        const ZF = 5 + TBT;   // front layer spans z 5 .. 5 + TD + 2*TBT
+        const front = new THREE.Mesh(tagGeo(), [lacquer(C.tag), sideMat(C.tagSide)]); front.geometry.translate(0, 0, ZF);
+        const back = new THREE.Mesh(tagGeo(), [lacquer(C.win, true), sideMat(C.winSide)]); back.geometry.translate(0, 0, -ZF - TD);
+        const rimGeo = new THREE.ExtrudeGeometry(tagShape(), { depth: 6, bevelEnabled: true, bevelThickness: 2, bevelSize: 7, bevelSegments: 3, curveSegments: 14 }); rimGeo.translate(0, 0, -3);
+        const rimMesh = new THREE.Mesh(rimGeo, inkMat);
+        const FACEZ = ZF + TD + TBT;   // the front lacquer surface
+        const LT = C.tagCap / F.cap, LOPT = { depth: 8, bt: 2.5, bs: 2, seg: 3, face: letterFace, side: letterSide };
+        const wFront = word(C.label, LT, 6, LOPT), wBack = word(C.successLabel, LT, 6, LOPT);
+        wFront.grp.position.z = FACEZ + 6.5;
+        const backWrap = new THREE.Group(); wBack.grp.position.z = FACEZ + 6.5; backWrap.add(wBack.grp); backWrap.rotation.x = Math.PI;
+        const tagSpin = new THREE.Group(); [rimMesh, front, back, wFront.grp, backWrap].forEach((o) => tagSpin.add(o));
+        const tagShadow = tracedShadow([tagShape()], 14, 10, -18); tagShadow.position.z = -80;
+        const tagRig = new THREE.Group(); tagRig.add(tagShadow); tagRig.add(tagSpin);
+
+        // ---------- the number: "#" + odometer drums (one per digit column) behind a clip window ----------
+        const NS = C.cap / F.cap, DD = 90, DOPT = (m) => ({ depth: DD, bt: 9, bs: 6, seg: 5, face: m.face, side: m.side, ink: 0, inkMat: digInk, shadow: 12, detach: true });
+        const HS = 0.74, hashG = glyph("#", NS * HS, DOPT(colMats[0]));
+        const COLW = 236, GAP = 34;   // digit column pitch, gap after "#"
+        const hashW = (F.g["#"][3] - F.g["#"][2]) * NS * HS;
+        const totalW = hashW + GAP + 2 * COLW;
+        hashG.grp.position.x = -totalW / 2 + hashW / 2;
+        const R = 1.95 * C.cap, STEP = Math.PI / 5;   // drum radius, 36 degrees per digit (pitch 1.25x the window)
+        const cols = [0, 1].map((ci) => {
+          const col = new THREE.Group(); col.position.x = -totalW / 2 + hashW + GAP + COLW * (ci + 0.5);
+          const drum = new THREE.Group(); drum.position.z = 0; col.add(drum);
+          const digits = []; for (let d = 0; d < 10; d++) { const g = glyph(String(d), NS, DOPT(colMats[ci + 1])); drum.add(g.grp); col.add(g.shadow); digits.push(g); }
+          return { col, drum, digits };
+        });
+        function setDrum(c, val) {
+          c.digits.forEach((g, d) => {
+            let a = d - val; a = ((a % 10) + 15) % 10 - 5;   // wrap to [-5, 5)
+            const phi = a * STEP; g.grp.visible = Math.abs(a) < 0.62;   // drop the far slivers: only the digit leaving and the one arriving
+            g.grp.position.set(0, R * Math.sin(phi), R * (Math.cos(phi) - 1)); g.grp.rotation.x = -phi;
+            g.shadow.visible = Math.abs(a) < 0.5;   // one soft shadow per column, for the digit nearest the window
+            g.shadow.material.opacity = 0.5 * (1 - 0.65 * Math.sin(Math.PI * Math.abs(a)));
+          });
+        }
+        // gold glow behind the number (normal blending: survives the transparent render)
+        const haloMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, toneMapped: false, uniforms: { uA: { value: 0 } },
+          vertexShader: "varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "uniform float uA; varying vec2 vU; void main(){ vec2 d = (vU - 0.5) * vec2(2.0, 2.0); float r2 = dot(d, d); float a = (exp(-r2 * 3.2) * 0.62 + exp(-r2 * 12.0) * 0.4) * uA; gl_FragColor = vec4(1.0, 0.72, 0.22, clamp(a, 0.0, 1.0)); }" });
+        const halo = new THREE.Mesh(new THREE.PlaneGeometry(totalW * 1.35, C.cap * 1.7), haloMat); halo.position.z = -160; halo.renderOrder = -2;
+        const numRig = new THREE.Group(); numRig.add(halo); numRig.add(hashG.grp); cols.forEach((c) => numRig.add(c.col)); 
+        const numPos = new THREE.Group(); numPos.add(numRig);
+
+        // badge: tag over number, tilted a touch so the extrusions show (down-right)
+        const badge = new THREE.Group(); badge.add(tagRig); badge.add(numPos); scene.add(badge);
+        const BX = wx(C.x), TY = wy(C.tagY) - wy(C.numY), NY = 0;
+        badge.position.set(BX, wy(C.numY), 0);
+        tagRig.position.set(0, TY, 40);
+
+        // ---------- motion: a pure function of t ----------
+        const eBack = E("back.out(1.6)"), eDrop = E("back.out(1.1)"), eOut3 = E("power3.out"), eIn = E("back.in(1.7)"), eRoll = E("back.out(1.5)"), eFlip = E("back.out(1.25)");
+        const SPIN = 1, FAILS = C.fails, TS = C.success;
+        const roll = (dt) => dt <= 0 ? 0 : eRoll(seg(dt, 0, 0.2));
+        function valueAt(t) {
+          let v = C.start - SPIN * (1 - eRoll(seg(t, T.in + 0.1, 0.34)));
+          FAILS.forEach((td) => (v += roll(t - td)));
+          return v;
+        }
+        // a damped spring kick: 0 before t0, rises in 2 frames, rings out
+        const kick = (dt, f, d) => dt <= 0 ? 0 : Math.min(1, dt / 0.066) * Math.exp(-d * dt) * Math.cos(2 * Math.PI * f * dt);
+        function renderAt(t) {
+          // entrance: the tag drops in tilted and lands on a spring; the number arrives 1.6x and settles while the drums spin up
+          const ti = t - T.in, ut = seg(ti, 0, 0.46), un = seg(ti - 0.04, 0, 0.42);
+          const outT = seg(t, T.out, 0.26), outN = seg(t, T.out + 0.05, 0.27);
+          // slams: entrance lock (0.7), each fail, the carry is 1.3x
+          const slams = [[T.in + 0.5, 0.7]].concat(FAILS.map((td, k) => [td + 0.1, k === FAILS.length - 1 ? 1.3 : 1.0]));
+          let sq = 0, tagKick = 0, tagRot = 0, lightHit = 0;
+          slams.forEach(([ts, s], k) => {
+            const dt = t - ts; sq += s * kick(dt, 3.2, 10);
+            const dl = dt - 0.035; tagKick += s * (dl > 0 ? Math.exp(-7 * dl) * Math.sin(2 * Math.PI * 2.6 * dl) : 0);
+            tagRot += s * (dl > 0 ? Math.exp(-5.5 * dl) * Math.sin(2 * Math.PI * 1.9 * dl) : 0) * (k % 2 ? -1 : 1);
+            lightHit += s * (dt > -0.03 ? Math.exp(-Math.pow((dt - 0.02) / 0.1, 2)) : 0);
+          });
+          // success: tag flips to its green side on its real thickness, number punches, gold wipes column by column, light rakes
+          const ds = t - TS, uf = seg(ds, 0, 0.46), flip = Math.PI * eFlip(uf);
+          const sPunch = ds > 0 ? 0.15 * kick(ds - 0.05, 1.5, 5.5) : 0;
+
+          // tag
+          let tS = ti < 0 ? 0 : lerp(0.55, 1, eBack(ut)); tS *= 1 - eIn(outT); tS *= 1 + 0.1 * Math.sin(Math.PI * uf);
+          tagRig.visible = ti >= 0 && tS > 0.003;
+          tagRig.scale.setScalar(Math.max(0.0001, tS));
+          tagRig.position.y = TY + 520 * (1 - eDrop(ut)) + 18 * tagKick + 30 * eIn(outT);
+          tagRig.position.z = 40 + 110 * Math.sin(Math.PI * uf);
+          tagSpin.rotation.x = 0.85 * (1 - eOut3(ut)) + flip + 1.2 * eIn(outT);
+          tagSpin.rotation.z = 0.045 * tagRot - 0.18 * (1 - eOut3(ut)) + 0.2 * eIn(outT);
+          tagShadow.material.opacity = 0.42 * clamp(tS, 0, 1) * (0.35 + 0.65 * Math.abs(Math.cos(flip)));
+
+          // number
+          let nS = ti < 0.04 ? 0 : lerp(1.3, 1, eOut3(un)); nS *= 1 - eIn(outN); nS *= 1 + sPunch;
+          numPos.visible = ti >= 0.04 && nS > 0.003;
+          numPos.scale.set(Math.max(0.0001, nS * (1 + 0.04 * sq)), Math.max(0.0001, nS * (1 - 0.085 * sq)), Math.max(0.0001, nS));
+          numPos.position.y = NY - 16 * sq - 40 * (1 - eOut3(un)) + 0;
+          numRig.rotation.z = 0.1 * (1 - eOut3(un)) - 0.12 * eIn(outN);
+          const v = valueAt(t), ones = ((v % 10) + 10) % 10, tens = Math.floor(v / 10) + Math.max(0, ones - 9);
+          setDrum(cols[1], ones); setDrum(cols[0], tens);
+
+          // gold wipe: "#", tens, ones, 0.06 s apart
+          colMats.forEach((m, i) => {
+            const g = E("power2.inOut")(seg(ds, 0.05 + 0.06 * i, 0.2));
+            m.face.color.copy(WHITE).lerp(GOLD, g); m.face.metalness = g; m.face.roughness = lerp(0.24, 0.13, g); m.face.emissive.copy(WHITE).lerp(GOLD, g); m.face.emissiveIntensity = lerp(0.05, 0.16, g);
+            m.face.envMapIntensity = lerp(1.0, 1.35, g);
+            m.side.color.copy(DSIDE).lerp(GSIDE, g); m.side.metalness = 0.85 * g; m.side.roughness = lerp(0.32, 0.24, g);
+          });
+          // glow: 3-frame peak after the wipe, then a low lasting glow
+          const hk = ds < 0.12 ? 0 : ds < 0.15 ? (ds - 0.12) / 0.03 : ds < 0.25 ? 1 : Math.max(0.3, Math.exp(-(ds - 0.25) / 0.25));
+          haloMat.uniforms.uA.value = (ds > 0 ? hk : 0) * (1 - outN);
+          halo.scale.setScalar(1 + 0.12 * E("power2.out")(seg(ds, 0.12, 0.4)));
+          // dock: settle smaller with the top edge pinned; punch on each tick; back to full size on the success
+          const dk = E("power3.inOut")(seg(t, C.dock.at, C.dock.dur)) * (1 - E("back.out(1.3)")(seg(ds, 0, 0.42)));
+          let tickP = 0; FAILS.forEach((td) => (tickP += 0.15 * kick(t - td - 0.02, 2.0, 8)));
+          const S = lerp(1, C.dock.scale, dk) * (1 + tickP), HALF = TY + TH / 2 + 8;
+          badge.scale.setScalar(S);
+          badge.position.set(BX, wy(C.dock.top) - HALF * S, 0);
+          // face shading: tint across the number; a specular band sweeps across the faces on each tick and after the gold wipe
+          const nyW = badge.position.y + numPos.position.y * S, gy0 = nyW - C.cap / 2 * S, gy1 = nyW + C.cap / 2 * S;
+          const dir = new THREE.Vector2(0.82, 0.57), bd0 = dir.x * BX + dir.y * nyW, ext = (0.82 * totalW / 2 + 0.57 * C.cap / 2) * S * 1.3;
+          const sweeps = FAILS.map((td) => [td + 0.1, 0.32, 1.1, 0xffffff]).concat([[TS + 0.34, 0.4, 1.5, 0xfff1c2]]);
+          let bX = -1e4, bA = 0, bC = 0xffffff;
+          sweeps.forEach(([t0, d, a, c]) => { const u = (t - t0) / d; if (u <= 0 || u >= 1) return; bX = bd0 - ext + 2 * ext * E("power2.inOut")(u); bA = a * Math.min(1, 5 * u, 5 * (1 - u)); bC = c; });
+          colMats.forEach((m, i) => { const U = m.face.userData.u, g = E("power2.inOut")(seg(ds, 0.05 + 0.06 * i, 0.2));
+            U.uBandX.value = bX; U.uBandA.value = bA; U.uBandC.value.setHex(bC); U.uGy0.value = gy0; U.uGy1.value = gy1;
+            U.uGt.value.setRGB(lerp(0.8, 0.78, g), lerp(0.84, 0.62, g), lerp(0.9, 0.42, g)); });
+          // badge tilt + a slow idle drift so the bevels keep catching light
+          badge.rotation.x = -0.12 + 0.025 * Math.sin(t * 0.9);
+          badge.rotation.y = -0.17 + 0.03 * Math.sin(t * 0.7 + 1.0) + 0.08 * E("power2.out")(seg(ds, 0, 0.5)) * (1 - seg(ds, 0.5, 1.0));
+          // light: key pulses on each slam; the rake sweeps across the gold on the success
+          key.intensity = 1.7 + 1.2 * lightHit;
+          const ur = seg(ds, 0.08, 0.75);
+          rake.intensity = ds > 0.08 ? 3.2 * Math.sin(Math.PI * ur) + 0.4 * ur : 0;
+          rake.position.set(lerp(-1.6, 1.6, E("power1.inOut")(ur)), 0.55, 0.7);
+
+          // clip window: digits roll through a band just around the numerals (never cross the tag)
+          winLocal[0].constant = C.cap / 2 + 12; winLocal[1].constant = C.cap / 2 + 12;
+          scene.updateMatrixWorld(true);
+          winWorld.forEach((p, i) => p.copy(winLocal[i]).applyMatrix4(numRig.matrixWorld));
+          renderer.render(scene, camera);
+        }
+        window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+
+        const FACES = ["900 100px Archivo"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const tl = gsap.timeline({ paused: true });
+          renderAt(0);
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          if (plate) {
+            FAILS.forEach((td, k) => Look.impact(tl, td + 0.08, { shake: "#shake", amp: k === FAILS.length - 1 ? 12 : 9, dur: 0.3, flash: 0, host: "#root", zoom: k === FAILS.length - 1 ? 1.03 : 1.02 }));
+            Look.impact(tl, TS + 0.05, { shake: "#shake", amp: 6, dur: 0.34, flash: 0, host: "#root", zoom: 1.03 });
+            Look.push(tl, "#push", 0, T.end, { from: 1.0, to: 1.04 });
+          }
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

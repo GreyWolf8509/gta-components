@@ -1,0 +1,279 @@
+<!doctype html>
+<!-- 34 Stat card, variant B "Character stats" (9:16, 1080x1920, 30 fps, 5.53 s).
+     A character stat card for a Short: portrait, name, and the creators' neon arc gauges (pill label on top, magenta
+     semicircle, white needle, value under the hub). The card is a thick edge-lit acrylic slab (Three.js rim + neon seam,
+     frosted DOM glass face pinned under it); each gauge is real geometry: a neon tube in a glass sleeve with a halo, ticks,
+     a bevelled needle with a contact shadow and a chrome hub with an enamel dome. Payoff: DRIVING revs up, then slams into
+     MAX: the needle hits the stop and bounces, the tube flares white-hot and turns gold, the value rolls to MAX.
+     Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/stat3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      .stage { position: absolute; inset: 0; perspective-origin: 540px 960px; pointer-events: none; }
+      .p3 { position: absolute; left: 0; top: 0; transform-origin: 0 0; backface-visibility: hidden; }
+      #gl { position: absolute; inset: 0; }
+
+      #face { border-radius: 24px; overflow: hidden;
+        background:
+          radial-gradient(120% 80% at 0% 0%, rgba(150, 70, 225, 0.50), rgba(150, 70, 225, 0) 62%),
+          radial-gradient(90% 70% at 100% 100%, rgba(255, 60, 190, 0.16), rgba(255, 60, 190, 0) 70%),
+          linear-gradient(165deg, rgba(62, 20, 104, 0.82) 0%, rgba(38, 10, 66, 0.88) 55%, rgba(22, 5, 40, 0.92) 100%);
+        -webkit-backdrop-filter: blur(18px) saturate(1.35) brightness(0.66); backdrop-filter: blur(18px) saturate(1.35) brightness(0.66);
+        box-shadow: inset 0 0 0 1px rgba(255, 150, 232, 0.22), inset 0 24px 36px -22px rgba(255, 196, 246, 0.40),
+          inset 0 -30px 44px -24px rgba(8, 0, 18, 0.65), inset 0 0 24px rgba(255, 80, 210, 0.30), 0 40px 80px rgba(6, 0, 14, 0.6), 0 0 64px rgba(255, 60, 200, 0.32); }
+      #faceSheen { position: absolute; top: -60px; bottom: -60px; width: 260px; left: 0;
+        background: linear-gradient(90deg, rgba(255, 230, 250, 0), rgba(255, 230, 250, 0.13) 50%, rgba(255, 230, 250, 0)); transform: skewX(-18deg); }
+      .cell { position: absolute; border-radius: 26px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.015) 60%, rgba(0, 0, 0, 0.12));
+        box-shadow: inset 0 0 0 1.5px rgba(255, 120, 225, 0.30), inset 0 2px 0 rgba(255, 210, 250, 0.16), inset 0 -10px 24px rgba(10, 0, 22, 0.35); }
+      .cellGold { position: absolute; border-radius: 26px; box-shadow: inset 0 0 0 2.5px rgba(255, 205, 80, 0.95), inset 0 0 30px rgba(255, 180, 40, 0.35), 0 0 34px rgba(255, 180, 40, 0.45); }
+      .glow { border-radius: 50%; }
+
+      #content > * { position: absolute; }
+      .pill { height: 40px; padding: 0 20px; border-radius: 20px; display: flex; align-items: center; white-space: nowrap;
+        font: 900 19px/1 "Inter"; letter-spacing: 0.13em; color: #fff;
+        background: linear-gradient(180deg, #FF9BEA 0%, #FF3FC4 48%, #D0129C 100%);
+        box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.55), inset 0 -3px 5px rgba(110, 0, 70, 0.45), 0 0 0 1.5px rgba(255, 210, 246, 0.55),
+          0 6px 16px rgba(60, 0, 50, 0.55), 0 0 26px rgba(255, 60, 200, 0.6);
+        text-shadow: 0 1px 2px rgba(110, 0, 70, 0.55); }
+      .lpill { height: 38px; padding: 0 18px; border-radius: 19px; display: flex; align-items: center; justify-content: center; white-space: nowrap;
+        font: 900 19px/1 "Inter"; letter-spacing: 0.11em; color: #2A0C4A;
+        background: linear-gradient(180deg, #FFFFFF 0%, #F3E8FF 60%, #D9C4F2 100%);
+        box-shadow: inset 0 -2px 3px rgba(80, 30, 120, 0.25), 0 4px 12px rgba(20, 0, 40, 0.5), 0 0 18px rgba(255, 255, 255, 0.25); }
+      .win { overflow: hidden; }
+      .nm { font-family: "Archivo"; font-weight: 900; font-stretch: 75%; font-size: 92px; line-height: 104px; letter-spacing: -0.005em; color: #fff;
+        white-space: nowrap; text-shadow: 0 4px 14px rgba(20, 0, 40, 0.55); }
+      .nm span { display: inline-block; }
+      .sub { font: 800 21px/28px "Inter"; letter-spacing: 0.15em; color: #EBC2FF; white-space: nowrap; }
+      .sub b { color: #FF7BE3; font-weight: 900; }
+      .sub .gold { color: #FFD23C; }
+      .divider { height: 2px; border-radius: 1px;
+        background: linear-gradient(90deg, rgba(255, 110, 220, 0), rgba(255, 110, 220, 0.6) 12%, rgba(190, 120, 255, 0.45) 80%, rgba(190, 120, 255, 0)); }
+      .val { width: 220px; text-align: center; font: 900 46px/50px "Inter"; font-feature-settings: "tnum" 1; letter-spacing: -0.01em; color: #fff;
+        white-space: nowrap; text-shadow: 0 3px 10px rgba(20, 0, 40, 0.6); }
+      .val small { font-size: 26px; font-weight: 800; margin-left: 2px; color: #F2C9FF; }
+      .val.gold { color: #FFD23C; text-shadow: 0 0 18px rgba(255, 190, 50, 0.7), 0 3px 10px rgba(40, 10, 0, 0.6); letter-spacing: 0.02em; }
+      .portrait { width: 196px; height: 196px; border-radius: 38px; padding: 6px;
+        background: linear-gradient(150deg, #FFE7B0 0%, #FF6FD8 32%, #B13BFF 68%, #4E17A6 100%);
+        box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.7), inset 0 -3px 6px rgba(40, 0, 60, 0.5), 0 14px 30px rgba(8, 0, 18, 0.65), 0 0 34px rgba(255, 70, 205, 0.5); }
+      .portrait .in { position: relative; width: 100%; height: 100%; border-radius: 32px; overflow: hidden;
+        background: radial-gradient(circle at 46% 42%, #FF86DC 0%, #D532A8 30%, #5A1690 68%, #210740 100%);
+        box-shadow: inset 0 0 0 2px rgba(30, 0, 50, 0.55); }
+      .portrait img { position: absolute; width: 124%; left: -14%; top: 1%; }
+      .portrait .gl { position: absolute; inset: 0; border-radius: 32px;
+        background: linear-gradient(160deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.05) 34%, rgba(255, 255, 255, 0) 35%);
+        box-shadow: inset 0 -16px 24px rgba(20, 0, 40, 0.45); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5.53" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <video id="shotA" class="clip shot" src="assets/shots/v49-gp-franklin-mural-v.mp4" muted playsinline data-start="0" data-duration="2.2" data-media-start="0" data-track-index="0"></video>
+        <video id="shotB" class="clip shot" src="assets/shots/v17-deluxo-sunset-v.mp4" muted playsinline data-start="2.2" data-duration="1.6" data-media-start="0" data-track-index="0"></video>
+        <video id="shotC" class="clip shot" src="assets/shots/v44-bridge-skyline-v.mp4" muted playsinline data-start="3.8" data-duration="1.73" data-media-start="0" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="5.53" data-track-index="1">
+        <div class="stage" id="back">
+          <div class="p3" id="face"><div class="glow" id="gaugeGlow" style="position:absolute"></div><div id="faceSheen"></div></div>
+        </div>
+        <div id="gl"></div>
+        <div class="stage" id="frontStage">
+          <div class="p3" id="content"></div>
+        </div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        pill: "CHARACTER STATS",
+        name: "FRANKLIN",
+        portrait: "media/franklin.png",                       // a keyed still (transparent background) of the character
+        sub: ["PROTAGONIST <b>·</b> LOS SANTOS", "DRIVING <b>·</b> <span class=\"gold\">MAXED OUT</span>"],
+        gauges: [                                            // value 0-100; the hero gauge revs to `rev`, then locks at MAX
+          { label: "STAMINA", value: 64 },
+          { label: "DRIVING", value: 78, rev: 93, hero: true }
+        ],
+        maxText: "MAX",
+        card: { x: 100, y: 962, w: 812, h: 488, r: 32, bevel: 8, depth: 18, tiltX: 0.06, tiltY: -0.08 },
+        timing: { in: 0.05, rev: 1.5, lock: 2.2, out: 4.96, end: 5.53 }
+      };
+
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const C = CONFIG, T = C.timing, K = C.card, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x)), lerp = (a, b, k) => a + (b - a) * k, cl01 = (x) => clamp(x, 0, 1);
+        const spring = (t, w, z) => { if (t <= 0) return 0; const wd = w * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + (z * w / wd) * Math.sin(wd * t)); };
+        const E = (n) => gsap.parseEase(n);
+        const eExpo = E("expo.out"), eP3o = E("power3.out"), eP3i = E("power3.in"), eIO = E("power2.inOut"), eSine = E("sine.inOut");
+        const seg = (t, a, d) => cl01((t - a) / d);
+        const pulse = (t, at, hold, dec) => t < at ? 0 : t < at + 1 / 30 ? (t - at) * 30 : t < at + 1 / 30 + hold ? 1 : Math.exp(-(t - at - 1 / 30 - hold) / dec);
+
+        const FACES = ["900 92px Archivo", "900 46px Inter", "800 21px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f, "FRANKLIN0123456789%MAXSTAMINDRVG·"))).then(() => document.fonts.ready).then(() => {
+          const S3 = Stat3D({ W: 1080, H: 1920, fov: 30 });
+          $("#gl").appendChild(S3.canvas);
+          document.querySelectorAll(".stage").forEach((s) => (s.style.perspective = S3.dist().toFixed(3) + "px"));
+          const card = S3.card({ w: K.w, h: K.h, r: K.r, bevel: K.bevel, depth: K.depth, tube: 2.8 });
+          const FW = card.faceW, FH = card.faceH;
+          const [cx0, cy0] = S3.world(K.x + K.w / 2, K.y + K.h / 2);
+          const fx = (x) => x - FW / 2, fy = (y) => FH / 2 - y;
+
+          // ---------- DOM ----------
+          const face = $("#face"); face.style.width = FW + "px"; face.style.height = FH + "px";
+          const cont = $("#content"); cont.style.width = FW + "px"; cont.style.height = FH + "px";
+          const el = (cls, html, css, parent) => { const d = document.createElement("div"); d.className = cls; if (html != null) d.innerHTML = html; if (css) d.style.cssText = css; (parent || cont).appendChild(d); return d; };
+          const CY = 184, CH = 278, CW = 364;
+          const cells = C.gauges.map((g, i) => {
+            const x = 22 + i * (CW + 24);
+            const cell = el("cell", null, "left:" + x + "px;top:" + CY + "px;width:" + CW + "px;height:" + CH + "px", face);
+            const gold = el("cellGold", null, "left:" + x + "px;top:" + CY + "px;width:" + CW + "px;height:" + CH + "px", face);
+            return { x, cell, gold };
+          });
+          const portrait = el("portrait", '<div class="in"><img src="' + C.portrait + '" alt=""><div class="gl"></div></div>', "left:22px;top:-74px");
+          const pill = el("pill", C.pill, "left:240px;top:-28px");
+          const nmWin = el("win", null, "left:236px;top:22px;height:104px;width:540px");
+          const nm = document.createElement("div"); nm.className = "nm"; nmWin.appendChild(nm);
+          const nmChars = C.name.split("").map((ch) => { const s = document.createElement("span"); s.textContent = ch === " " ? " " : ch; nm.appendChild(s); return s; });
+          const subWin = el("win", null, "left:240px;top:126px;height:28px;width:540px");
+          const subA = document.createElement("div"); subA.className = "sub"; subA.innerHTML = C.sub[0]; subWin.appendChild(subA);
+          const subB = document.createElement("div"); subB.className = "sub"; subB.innerHTML = C.sub[1]; subB.style.cssText = "position:absolute;left:0;top:28px"; subWin.appendChild(subB);
+          const divider = el("divider", null, "left:22px;top:170px;width:" + (FW - 44) + "px");
+          const AY = 192;                                   // arc centre below the cell top
+          const G = C.gauges.map((g, i) => {
+            const c = cells[i], cx = c.x + CW / 2, cy = CY + AY;
+            const lp = el("lpill", g.label, "left:" + (cx - 90) + "px;top:" + (CY + 16) + "px;width:180px");
+            const vWin = el("win", null, "left:" + (cx - 110) + "px;top:" + (CY + 220) + "px;height:52px;width:220px");
+            const vA = document.createElement("div"); vA.className = "val"; vWin.appendChild(vA);
+            const vB = document.createElement("div"); vB.className = "val gold"; vB.textContent = C.maxText; vB.style.cssText = "position:absolute;left:0;top:52px"; vWin.appendChild(vB);
+            const gauge = S3.gauge({ r: 104, tube: 10, needle: 86 });
+            card.group.add(gauge.group); gauge.group.position.set(fx(cx), fy(cy), 0);
+            return { g, c, cx, cy, lp, vA, vB, gauge };
+          });
+          document.querySelectorAll("#ov *").forEach((n) => { n.setAttribute("data-layout-allow-overlap", ""); n.setAttribute("data-layout-allow-occlusion", ""); n.setAttribute("data-layout-allow-overflow", ""); });
+          const gaugeGlow = $("#gaugeGlow"), sheen = $("#faceSheen"), glEl = $("#gl"), frontStage = $("#frontStage");
+          gaugeGlow.style.cssText += ";width:420px;height:420px;background:radial-gradient(closest-side, rgba(255,226,120,.85), rgba(255,160,50,.40) 42%, rgba(255,120,40,0) 100%)";
+
+          const TI = T.in, TR = T.rev, TL = T.lock, TO = T.out;
+          function frame(t) {
+            // ---- card: swings up from flat, punches on the lock, floats, folds back down on exit ----
+            const te = t - TI, kIn = spring(te, 11.5, 0.6), vis = te >= 0;
+            let s = lerp(0.8, 1, kIn), rx = lerp(-1.15, K.tiltX, kIn), ry = lerp(0.25, K.tiltY, kIn), dy = lerp(-150, 0, kIn), dz = 0;
+            const tp = t - TL, punch = tp < 0 ? 0 : tp < 0.06 ? tp / 0.06 : Math.exp(-(tp - 0.06) * 7) * Math.cos((tp - 0.06) * 26);
+            s *= 1 + 0.03 * punch; dz += 30 * Math.max(0, punch);
+            const life = cl01(te / 1.2);
+            rx += 0.014 * Math.sin(2 * Math.PI * t / 2.7 + 1) * life; ry += 0.02 * Math.sin(2 * Math.PI * t / 3.3) * life; dy += 4 * Math.sin(2 * Math.PI * t / 2.6) * life;
+            const xo = eP3i(seg(t, TO, 0.3));
+            if (xo > 0) { s *= lerp(1, 0.04, xo); rx -= 1.0 * xo; }
+            const ax = 0, ay = -K.h / 2;                         // anchor: bottom centre
+            const g = card.group;
+            g.scale.setScalar(Math.max(0.001, s)); g.rotation.set(rx, ry, 0);
+            g.position.set(cx0 + ax * (1 - s), cy0 + dy + ay * (1 - s), dz);
+            const show = vis && xo < 1, op = show ? cl01(te / 0.06) : 0;
+            const blur = vis ? Math.max(8 * (1 - cl01(te / 0.26)), 9 * xo) : 0;
+            glEl.style.opacity = frontStage.style.opacity = face.style.opacity = op;
+            glEl.style.filter = frontStage.style.filter = blur > 0.05 ? "blur(" + blur.toFixed(2) + "px)" : "none";
+            glEl.style.visibility = frontStage.style.visibility = face.style.visibility = show ? "visible" : "hidden";
+            card.mat.emissiveIntensity = 0.55 + 0.9 * pulse(t, TL, 2 / 30, 0.3);
+            const seam = pulse(t, TL, 3 / 30, 0.4); card.neonT.uniforms.uGain.value = 1 + 0.7 * seam; card.neonH.uniforms.uGain.value = 1 + 1.4 * seam;
+
+            face.style.transform = S3.css(g, FW, FH, 0, 0, 0);
+            cont.style.transform = S3.css(g, FW, FH, 0, 0, 0.5);
+            const sp = seg(t, TL + 0.06, 0.62);
+            sheen.style.transform = "translateX(" + lerp(-300, FW + 60, eIO(sp)).toFixed(1) + "px) skewX(-18deg)"; sheen.style.opacity = sp > 0 && sp < 1 ? 1 : 0;
+
+            // ---- portrait, pill, name, sub ----
+            const kpo = spring(t - (TI + 0.14), 13, 0.5);
+            portrait.style.transform = "scale(" + Math.max(0, lerp(0.3, 1, kpo)).toFixed(3) + ") rotate(" + ((1 - kpo) * -12).toFixed(2) + "deg)";
+            portrait.style.transformOrigin = "50% 60%"; portrait.style.opacity = t >= TI + 0.14 ? 1 : 0;
+            portrait.style.clipPath = "circle(" + (8 + 70 * eExpo(seg(t, TI + 0.14, 0.4))).toFixed(1) + "% at 50% 50%)";
+            const pf = pulse(t, TL + 0.04, 3 / 30, 0.4);
+            portrait.style.filter = pf > 0.01 ? "drop-shadow(0 0 " + (20 * pf).toFixed(1) + "px rgba(255,200,80," + (0.9 * pf).toFixed(2) + "))" : "none";
+            const kp = spring(t - (TI + 0.2), 15, 0.5);
+            pill.style.transform = "translateY(" + ((1 - kp) * -26).toFixed(2) + "px) scale(" + lerp(1.6, 1, kp).toFixed(3) + ")";
+            pill.style.opacity = t >= TI + 0.2 ? 1 : 0; pill.style.transformOrigin = "30% 50%";
+            nmChars.forEach((c, i) => { const p = eExpo(seg(t, TI + 0.22 + i * 0.03, 0.5)); c.style.transform = "translateY(" + ((1 - p) * 108).toFixed(1) + "%)"; });
+            const ps = eExpo(seg(t, TI + 0.36, 0.45)), roll = eIO(seg(t, TL + 0.1, 0.24));
+            subA.style.transform = "translateY(" + ((1 - ps) * 30 - roll * 28).toFixed(2) + "px)";
+            subB.style.transform = "translateY(" + (-roll * 28).toFixed(2) + "px)";
+            divider.style.transform = "scaleX(" + eP3o(seg(t, TI + 0.3, 0.5)).toFixed(3) + ")"; divider.style.transformOrigin = "0 50%";
+
+            // ---- gauges ----
+            G.forEach((q, i) => {
+              const tin = TI + 0.28 + i * 0.08;
+              const kc = spring(t - tin, 13, 0.55);
+              const cs = "scale(" + Math.max(0, lerp(0.6, 1, kc)).toFixed(3) + ")";
+              q.c.cell.style.transform = cs; q.c.cell.style.opacity = t >= tin ? cl01((t - tin) / 0.06) : 0; q.c.cell.style.transformOrigin = "50% 70%";
+              const kl = spring(t - (tin + 0.08), 16, 0.5);
+              q.lp.style.transform = "translateY(" + ((1 - kl) * -20).toFixed(2) + "px) scale(" + lerp(1.5, 1, kl).toFixed(3) + ")"; q.lp.style.opacity = t >= tin + 0.08 ? 1 : 0;
+              q.gauge.group.scale.setScalar(Math.max(0.001, lerp(0.6, 1, kc)));
+              q.gauge.group.visible = t >= tin;
+              // needle: sweep from 0 to the value with an overshoot, then (hero) rev with a shudder, then slam into MAX
+              const v0 = q.g.value / 100, tn = t - (tin + 0.16);
+              let v = v0 * spring(tn, 9.5, 0.5), fill = v0 * eP3o(seg(t, tin + 0.12, 0.6));
+              let gold = 0, gain = 1, flash = 0;
+              if (q.g.hero) {
+                const pr = eSine(seg(t, TR, TL - TR - 0.04)), vr = lerp(v0, q.g.rev / 100, pr);
+                const shud = (t >= TR && t < TL) ? (0.012 + 0.02 * pr) * (Math.sin(t * 71) * 0.6 + Math.sin(t * 113 + 1.3) * 0.4) : 0;
+                if (t >= TR) { v = vr + shud; fill = vr; gain = 1 + 0.25 * pr * (0.6 + 0.4 * Math.sin(t * 38)); }
+                if (t >= TL - 0.04) {
+                  const ks = spring(t - (TL - 0.04), 20, 0.32);             // slam, overshoot into the stop, bounce
+                  v = lerp(q.g.rev / 100, 1, ks); v = Math.min(v, 1.045);
+                  fill = lerp(q.g.rev / 100, 1, cl01(ks));
+                  const hp = pulse(t, TL, 3 / 30, 0.45);
+                  gold = cl01((t - TL) / 0.18); gain = 1 + 1.3 * hp; flash = hp;
+                }
+              }
+              const rv = seg(t, tin + 0.04, 0.4);
+              q.gauge.set({ v, fill: Math.max(0, fill), gold, gain: gain * (0.35 + 0.65 * rv), flash });
+              // value text
+              const shown = q.g.hero && t >= TR ? Math.round(lerp(q.g.value, q.g.rev, eSine(seg(t, TR, TL - TR - 0.04)))) : Math.round(q.g.value * eP3o(seg(t, tin + 0.12, 0.6)));
+              q.vA.innerHTML = shown + "<small>%</small>";
+              const pv = eExpo(seg(t, tin + 0.1, 0.45)), vroll = q.g.hero ? E("back.out(1.6)")(seg(t, TL + 0.02, 0.3)) : 0;
+              q.vA.style.transform = "translateY(" + ((1 - pv) * 52 - vroll * 52).toFixed(2) + "px)";
+              q.vB.style.transform = "translateY(" + (-vroll * 52).toFixed(2) + "px) scale(" + (1 + 0.2 * pulse(t, TL + 0.12, 2 / 30, 0.25)).toFixed(3) + ")";
+              q.c.gold.style.opacity = q.g.hero ? (cl01((t - TL) / 0.1) * (0.75 + 0.25 * pulse(t, TL, 3 / 30, 0.4))).toFixed(3) : 0;
+              if (q.g.hero) {
+                const gk = pulse(t, TL + 0.02, 3 / 30, 0.42);
+                gaugeGlow.style.left = (q.cx - 210) + "px"; gaugeGlow.style.top = (q.cy - 230) + "px";
+                gaugeGlow.style.transform = "scale(" + (0.7 + 0.5 * gk).toFixed(3) + ")";
+                gaugeGlow.style.opacity = (0.9 * gk).toFixed(3); gaugeGlow.style.visibility = show && gk > 0.01 ? "visible" : "hidden";
+              }
+            });
+            S3.render();
+          }
+
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, T.end, (p) => frame(p * T.end));
+          if (plate) {
+            Look.push(tl, "#push", 0, T.end, { from: 1.0, to: 1.05 });
+            Look.impact(tl, T.lock, { shake: "#shake", amp: 8, dur: 0.3, flash: 0, zoom: 1.015 });
+          }
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") frame(e.detail.time); });
+          frame(0);
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

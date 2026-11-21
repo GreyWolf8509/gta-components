@@ -1,0 +1,340 @@
+<!doctype html>
+<!-- 41 Web evidence card, variant B "Article card" (9:16, 1080x1920, 30 fps, 6.0 s).
+     A fictional news article in a phone-browser card rises into the Short, scrolls, a marker sweeps the key sentence
+     and a rubber stamp slams onto the photo. Variable bg: plate / none. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      #cam, #persp { position: absolute; inset: 0; }
+      #cam { transform-origin: 504px 845px; }
+      #persp { perspective: 2600px; perspective-origin: 504px 845px; }
+
+      /* ---------- the phone-browser card ---------- */
+      #win { position: absolute; left: 96px; top: 262px; width: 816px; height: 1166px; border-radius: 30px;
+        transform-origin: 50% 50%; background: #1d1f24;
+        box-shadow: 0 0 0 1px rgba(0,0,0,.42), 0 2px 3px rgba(0,0,0,.35), 0 16px 32px rgba(0,0,0,.32), 0 50px 110px rgba(0,0,0,.45); }
+      #winclip { position: absolute; inset: 0; border-radius: 30px; overflow: hidden; }
+      .chrome { position: absolute; left: 0; top: 0; right: 0; height: 88px;
+        background: linear-gradient(180deg, #30333b 0%, #25272d 55%, #202227 100%);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.16), inset 0 -1px 0 rgba(0,0,0,.55); }
+      .addr { position: absolute; left: 24px; right: 24px; top: 17px; height: 54px; border-radius: 27px;
+        background: linear-gradient(180deg, #121418, #17191d); box-shadow: inset 0 1px 2px rgba(0,0,0,.6), 0 1px 0 rgba(255,255,255,.07);
+        display: flex; align-items: center; justify-content: center; font: 600 25px/1 "Inter"; color: #eceef1; letter-spacing: -0.01em; white-space: nowrap; }
+      .addr .lock { width: 19px; height: 19px; margin-right: 11px; }
+      .addr .aa { position: absolute; left: 22px; top: 15px; font: 700 21px/1 "Inter"; color: #8b919b; }
+      .addr .rl { position: absolute; right: 18px; top: 14px; width: 26px; height: 26px; }
+      #load { position: absolute; left: 0; bottom: 0; height: 4px; width: 100%; transform-origin: 0 50%;
+        background: linear-gradient(90deg, #ff5a4f, #e3202e); box-shadow: 0 0 8px rgba(255,70,60,.6); }
+
+      .viewport { position: absolute; left: 0; right: 0; top: 88px; bottom: 0; overflow: hidden; background: #f6f3ec; }
+      #page { position: absolute; left: 0; top: 0; width: 816px; color: #2a2d33; padding: 0 46px 70px;
+        background: radial-gradient(ellipse 90% 40% at 18% 0%, #fdfcf9 0%, rgba(253,252,249,0) 70%), linear-gradient(180deg, #faf8f3 0%, #f3efe7 100%); }
+      .mast { padding-top: 30px; display: flex; align-items: center; justify-content: center; gap: 16px; }
+      .mark { width: 50px; height: 50px; border-radius: 50%; flex: none; display: grid; place-items: center;
+        background: radial-gradient(circle at 38% 30%, #ff5a54 0%, #e01f2d 50%, #a90d1c 100%);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.35), inset 0 -2px 3px rgba(0,0,0,.25), 0 2px 4px rgba(0,0,0,.25);
+        font: 900 30px/1 "Archivo"; font-stretch: 100%; color: #fff; }
+      .word { font: 900 37px/1 "Archivo"; font-stretch: 112%; letter-spacing: 0.005em; color: #111317; white-space: nowrap; }
+      .rules { margin-top: 18px; height: 6px; border-top: 3px solid #15171b; border-bottom: 1px solid #15171b; }
+      .dateline { display: flex; justify-content: space-between; margin-top: 10px; font: 700 17px/1 "Inter"; letter-spacing: 0.16em; color: #7f848d; }
+      .tag { margin-top: 30px; display: flex; align-items: center; gap: 12px; font: 800 21px/1 "Inter"; letter-spacing: 0.16em; color: #c8102e; }
+      .tag i { width: 7px; height: 24px; background: #c8102e; border-radius: 2px; }
+      h1 { margin-top: 16px; font: 800 76px/0.98 "Archivo"; font-stretch: 80%; letter-spacing: -0.012em; color: #111317; text-wrap: balance; }
+      .by { margin-top: 22px; display: flex; align-items: center; gap: 14px; font: 600 22px/1 "Inter"; color: #8a8f98; }
+      .by .av { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(160deg, #3a3e47, #1d1f24); display: grid; place-items: center;
+        font: 800 15px/1 "Inter"; color: #fff; letter-spacing: .04em; }
+      .by b { color: #1d1f24; font-weight: 700; }
+      .photo { margin-top: 24px; height: 204px; border-radius: 12px; overflow: hidden; box-shadow: 0 0 0 1px rgba(0,0,0,.08); }
+      .photo img { width: 100%; height: 100%; object-fit: cover; object-position: 70% 48%; display: block; }
+      .cap { margin-top: 12px; font: 500 20px/1.3 "Inter"; color: #8a8f98; }
+      .bodyp + .bodyp { margin-top: 18px; }
+      .bodyp { margin-top: 26px; font: 400 38px/1.42 "Inter"; letter-spacing: -0.014em; color: #2c2f35; }
+      #key { font-weight: 700; color: #131418; }
+      .share { margin-top: 40px; padding-top: 22px; border-top: 1px solid #e0dbd1; display: flex; align-items: center; gap: 16px; }
+      .share i { width: 54px; height: 54px; border-radius: 50%; background: #ece8df; box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 1px 2px rgba(0,0,0,.08); display: grid; place-items: center; }
+      .share i svg { width: 24px; height: 24px; }
+      .share span { margin-left: auto; font: 600 22px/1 "Inter"; color: #8a8f98; }
+      .press { position: absolute; left: 0; top: 0; border-radius: 22px; background: rgba(70,0,12,.35); filter: blur(22px); mix-blend-mode: multiply; pointer-events: none; opacity: 0; }
+      .glow { position: absolute; border-radius: 10px; background: #ffd84a; filter: blur(16px); pointer-events: none; opacity: 0; }
+
+      #hl { position: absolute; left: 0; top: 0; overflow: visible; mix-blend-mode: multiply; pointer-events: none; }
+      #veil { position: absolute; left: 0; top: 0; pointer-events: none; }
+      .stamp { position: absolute; left: 0; top: 0; pointer-events: none; transform-origin: 50% 50%; }
+      #glass { position: absolute; inset: 0; pointer-events: none; border-radius: 30px; overflow: hidden; }
+      #glass i { position: absolute; top: -10%; left: 0; width: 80%; height: 120%;
+        background: linear-gradient(105deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.07) 42%, rgba(255,255,255,.11) 50%, rgba(255,255,255,.07) 58%, rgba(255,255,255,0) 100%); }
+      #rim { position: absolute; inset: 0; border-radius: 30px; pointer-events: none;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.22), inset 0 0 0 1px rgba(255,255,255,.05); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.2" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <video id="shotA" class="clip shot" src="assets/shots/v36-hills-city-view-v.mp4" muted playsinline data-start="0" data-duration="1.93" data-media-start="0" data-track-index="0"></video>
+        <video id="shotB" class="clip shot" src="assets/shots/v44-bridge-skyline-v.mp4" muted playsinline data-start="1.93" data-duration="1.52" data-media-start="0.1" data-track-index="0"></video>
+        <video id="shotC" class="clip shot" src="assets/shots/v11-yacht-v.mp4" muted playsinline data-start="3.45" data-duration="2.1" data-media-start="0" data-track-index="0"></video>
+        <video id="shotD" class="clip shot" src="assets/shots/v42-lighthouse-v.mp4" muted playsinline data-start="5.55" data-duration="0.65" data-media-start="0.3" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="6.2" data-track-index="1">
+        <div id="cam"><div id="persp">
+          <div id="win" data-layout-allow-overflow>
+            <div id="winclip">
+              <div class="chrome" data-layout-allow-occlusion>
+                <div class="addr">
+                  <span class="aa">aA</span>
+                  <svg class="lock" viewBox="0 0 16 16"><rect x="3" y="7" width="10" height="7.5" rx="1.6" fill="#9aa1ab"/><path d="M5.2 7V5.2a2.8 2.8 0 0 1 5.6 0V7" fill="none" stroke="#9aa1ab" stroke-width="1.6"/></svg>
+                  <span id="url"></span>
+                  <svg class="rl" viewBox="0 0 24 24" fill="none" stroke="#a7adb6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4.6h-4.6"/></svg>
+                </div>
+                <div id="load"></div>
+              </div>
+              <div class="viewport">
+                <div id="page" data-layout-ignore data-layout-allow-overflow>
+                  <div class="mast"><div class="mark" id="markL"></div><div class="word" id="paper"></div></div>
+                  <div class="rules"></div>
+                  <div class="dateline"><span id="dl0"></span><span id="dl1"></span></div>
+                  <div class="tag"><i></i><span id="tag"></span></div>
+                  <h1 id="head"></h1>
+                  <div class="by"><span class="av" id="av"></span><span><b id="by0"></b> <span id="by1"></span></span></div>
+                  <div class="photo" id="photo"><img id="ph" alt="" /></div>
+                  <div class="cap" id="cap"></div>
+                  <p class="bodyp"><span id="pre"></span> <span id="key"></span></p>
+                  <div class="share">
+                    <i><svg viewBox="0 0 24 24" fill="none" stroke="#6f747d" stroke-width="2.2" stroke-linecap="round"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></svg></i>
+                    <i><svg viewBox="0 0 24 24" fill="none" stroke="#6f747d" stroke-width="2.2" stroke-linejoin="round"><path d="M6.5 3.5h11v17l-5.5-4-5.5 4z"/></svg></i>
+                    <i><svg viewBox="0 0 24 24" fill="none" stroke="#6f747d" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3.5M7.5 8L12 3.5 16.5 8"/><path d="M5 12.5v7h14v-7"/></svg></i>
+                    <span id="cmt"></span>
+                  </div>
+                  <svg id="veil"><defs><linearGradient id="vg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#faf8f3"/><stop offset="1" stop-color="#f3efe7"/></linearGradient></defs><path id="veilPath" fill="url(#vg)" fill-rule="evenodd"/></svg>
+                  <div id="glows"></div>
+                  <svg id="hl"></svg>
+                  <div id="press" class="press"></div>
+                  <canvas id="stampInk" class="stamp" data-layout-allow-occlusion></canvas>
+                </div>
+              </div>
+            </div>
+            <div id="glass" data-layout-ignore><i></i></div>
+            <div id="rim"></div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        paper: { name: "THE BLAINE BULLETIN", mark: "B", url: "blainebulletin.news", dateline: ["PALETO BAY", "LATE EDITION"] },
+        tag: "RUMOUR MILL",
+        headline: "Paleto Bay crews swear a ghost trawler docks at dawn",
+        byline: ["Bulletin night desk", "· 3 min read"], initials: "ND",
+        photo: "media/lighthouse.jpg", caption: "The point at first light, the morning after the third sighting.",
+        pre: "Three fishing crews logged it in the same week.",
+        key: "It ties up at 5:40 AM, only in fog, and is gone by 6:00.",
+        comments: "312 comments",
+        stamp: { word: "DEBUNKED", top: "MYTH FILE No. 22", bottom: "TESTED 5:40 AM · FOG", ink: "#c8102e", w: 624, h: 230, label: 25, rot: -7, blend: "multiply", at: [6, 0] },  // at = [x, y]: x offset from the card centre, y gap under the key sentence
+        marker: { color: "#ffe14a", edge: "#ffd21f" },
+        push: { scale: 1.03, drift: 1.04 },
+        timing: { enter: 0.12, scroll: 1.15, push: 1.25, pushDur: 1.0, dim: 2.1, hl: 2.2, hlLine: 0.33, stamp: 3.45, exit: 5.55, end: 6.2 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, $ = (s) => document.querySelector(s), H = Look.hash;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+
+        // ---------- content ----------
+        const P = CONFIG.paper;
+        $("#paper").textContent = P.name; $("#markL").textContent = P.mark; $("#url").textContent = P.url;
+        $("#dl0").textContent = P.dateline[0]; $("#dl1").textContent = P.dateline[1];
+        $("#tag").textContent = CONFIG.tag; $("#head").textContent = CONFIG.headline;
+        $("#av").textContent = CONFIG.initials; $("#by0").textContent = CONFIG.byline[0]; $("#by1").textContent = CONFIG.byline[1];
+        $("#ph").src = CONFIG.photo; $("#cap").textContent = CONFIG.caption;
+        $("#pre").textContent = CONFIG.pre; $("#key").textContent = CONFIG.key; $("#cmt").textContent = CONFIG.comments;
+
+        const FACES = ["400 100px Inter", "500 100px Inter", "600 100px Inter", "700 100px Inter", "800 100px Inter", "900 100px Archivo", "800 100px Archivo"];
+        const img = $("#ph");
+        const imgReady = new Promise((r) => { if (img.complete) r(); else { img.onload = r; img.onerror = r; } });
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => imgReady).then(build);
+
+        function build() {
+          const page = $("#page"), pr = page.getBoundingClientRect();
+          const PW = page.offsetWidth, PH = page.offsetHeight;
+          // ---------- the key sentence's line boxes (untransformed) ----------
+          const range = document.createRange(); range.selectNodeContents($("#key").firstChild);
+          const lines = [];
+          Array.from(range.getClientRects()).forEach((r) => {
+            const L = { x: r.left - pr.left, y: r.top - pr.top, w: r.width, h: r.height };
+            const last = lines[lines.length - 1];
+            if (last && Math.abs(last.y - L.y) < 4) { last.w = L.x + L.w - last.x; } else if (L.w > 2) lines.push(L);
+          });
+          const scrollY = Math.max(0, Math.round(document.querySelector(".tag").getBoundingClientRect().top - pr.top - 22));
+          const keyMidY = (lines[0].y + lines[lines.length - 1].y + lines[lines.length - 1].h) / 2;
+
+          // ---------- focus veil ----------
+          const veil = $("#veil"); veil.setAttribute("width", PW); veil.setAttribute("height", PH); veil.style.opacity = 0;
+          let d = "M0 0H" + PW + "V" + PH + "H0Z";
+          lines.forEach((l) => { d += "M" + (l.x - 4) + " " + (l.y - 5) + "H" + (l.x + l.w + 6) + "V" + (l.y + l.h + 5) + "H" + (l.x - 4) + "Z"; });
+          ["#ph", "#head"].forEach((sel) => { const r = document.querySelector(sel).getBoundingClientRect(), x = r.left - pr.left, y = r.top - pr.top;
+            d += "M" + x + " " + y + "H" + (x + r.width) + "V" + (y + r.height) + "H" + x + "Z"; });
+          $("#veilPath").setAttribute("d", d);
+
+          // ---------- marker strokes ----------
+          const NS = "http://www.w3.org/2000/svg", hl = $("#hl"), M = CONFIG.marker;
+          hl.setAttribute("width", PW); hl.setAttribute("height", PH);
+          const defs = document.createElementNS(NS, "defs"); hl.appendChild(defs);
+          defs.innerHTML = '<linearGradient id="mk" x1="0" y1="0" x2="0" y2="1">' +
+            '<stop offset="0" stop-color="' + M.edge + '"/><stop offset=".16" stop-color="' + M.color + '"/>' +
+            '<stop offset=".84" stop-color="' + M.color + '"/><stop offset="1" stop-color="' + M.edge + '"/></linearGradient>';
+          const clips = [];
+          lines.forEach((l, i) => {
+            const top = l.y + l.h * 0.1, bot = l.y + l.h * 0.97, sl = (bot - top) * 0.3;
+            const x0 = l.x - (i === 0 ? 2 : 10), x1 = l.x + l.w + (i === lines.length - 1 ? 5 : 10);
+            let p = "M" + (x0 + sl) + " " + top.toFixed(1);
+            for (let x = x0 + sl + 28, k = 0; x < x1; x += 28, k++) p += "L" + x.toFixed(1) + " " + (top + (H(i * 97 + k) - 0.5) * 3).toFixed(1);
+            p += "L" + x1 + " " + (top + 0.6) + "L" + (x1 - sl) + " " + bot;
+            for (let x = x1 - sl - 24, k = 0; x > x0; x -= 24, k++) p += "L" + x.toFixed(1) + " " + (bot + (H(i * 131 + k + 500) - 0.5) * 3.2).toFixed(1);
+            p += "L" + x0 + " " + bot + "Z";
+            const cp = document.createElementNS(NS, "clipPath"); cp.setAttribute("id", "mc" + i);
+            const poly = document.createElementNS(NS, "polygon"); cp.appendChild(poly); defs.appendChild(cp);
+            const g = document.createElementNS(NS, "g"); g.setAttribute("clip-path", "url(#mc" + i + ")");
+            g.innerHTML = '<path d="' + p + '" fill="url(#mk)" opacity=".94"/>' +
+              '<ellipse cx="' + (x0 + sl * 0.9) + '" cy="' + ((top + bot) / 2) + '" rx="' + (sl * 0.9) + '" ry="' + ((bot - top) * 0.46) + '" fill="#ffc81a" opacity=".45"/>' +
+              '<rect x="' + (x0 + sl) + '" y="' + (top + (bot - top) * 0.3) + '" width="' + (x1 - x0 - sl * 2) + '" height="1.8" fill="#fff" opacity=".22"/>' +
+              '<rect x="' + (x0 + sl * 2) + '" y="' + (top + (bot - top) * 0.66) + '" width="' + (x1 - x0 - sl * 3) + '" height="1.4" fill="#fff" opacity=".16"/>';
+            hl.appendChild(g);
+            clips.push({ poly, x0: x0 - 4, x1: x1 + sl + 4, top: top - 6, bot: bot + 6, sl });
+          });
+          const setClip = (c, X) => c.poly.setAttribute("points", [[c.x0, c.top], [X + c.sl, c.top], [X, c.bot], [c.x0, c.bot]].map((q) => q[0].toFixed(1) + "," + q[1].toFixed(1)).join(" "));
+          clips.forEach((c) => setClip(c, c.x0 - c.sl - 2));
+
+          // ---------- stamp ----------
+          const ST = CONFIG.stamp, K = 2;
+          const ink = $("#stampInk");
+          ink.width = ST.w * K; ink.height = ST.h * K; ink.style.width = ST.w + "px"; ink.style.height = ST.h + "px";
+          ink.style.mixBlendMode = ST.blend;
+          drawStamp(ink, ST, K);
+          const LL = lines[lines.length - 1], keyTop = lines[0].y, keyBot = LL.y + LL.h;
+          const sx = PW / 2 - ST.w / 2 + ST.at[0], sy = keyBot + ST.at[1];
+          ink.style.left = sx + "px"; ink.style.top = sy + "px";
+          const press = $("#press");
+          Object.assign(press.style, { left: sx + 8 + "px", top: sy + 8 + "px", width: ST.w - 16 + "px", height: ST.h - 16 + "px" });
+          // warm local bloom around the highlighted lines (fires on the slam)
+          const glows = lines.map((l) => { const g = document.createElement("div"); g.className = "glow";
+            Object.assign(g.style, { left: l.x - 14 + "px", top: l.y - 6 + "px", width: l.w + 28 + "px", height: l.h + 12 + "px" }); $("#glows").appendChild(g); return g; });
+
+          // ---------- timeline ----------
+          const tl = gsap.timeline({ paused: true });
+          const win = $("#win"), cam = $("#cam"), persp = $("#persp");
+          gsap.set(win, { y: 640, rotationX: 34, rotationY: -6, scale: 0.93, opacity: 0 });
+          // entrance: 3D rise from below, 2-frame opacity, directional blur, spring settle
+          tl.to(win, { opacity: 1, duration: 0.07, ease: "none" }, T.enter);
+          tl.to(win, { y: 0, duration: 0.8, ease: "back.out(1.1)" }, T.enter);
+          tl.to(win, { rotationX: 3, rotationY: -3, duration: 0.95, ease: "back.out(1.7)" }, T.enter);
+          tl.to(win, { scale: 1, duration: 0.6, ease: "power3.out" }, T.enter);
+          Look.mblur(tl, win, T.enter, 0.42, { y: 30, ease: "power2.out" });
+          gsap.set("#load", { scaleX: 0, opacity: 1 });
+          tl.to("#load", { scaleX: 0.7, duration: 0.4, ease: "power2.out" }, T.enter + 0.1);
+          tl.to("#load", { scaleX: 1, duration: 0.18, ease: "power1.in" }, T.enter + 0.55);
+          tl.to("#load", { opacity: 0, duration: 0.12, ease: "none" }, T.enter + 0.75);
+          gsap.set("#glass i", { xPercent: -130 });
+          tl.to("#glass i", { xPercent: 160, duration: 2.6, ease: "sine.inOut" }, T.enter + 0.1);
+          // inertial scroll: the key sentence comes up into the lower-middle of the card
+          tl.to(page, { y: -scrollY, duration: 0.85, ease: "expo.out" }, T.scroll);
+          // camera push: straighten and lean in
+          tl.to(win, { rotationX: 0, rotationY: 0, duration: T.pushDur, ease: "power2.inOut" }, T.push);
+          tl.to(cam, { scale: CONFIG.push.scale, duration: T.pushDur, ease: "power2.inOut" }, T.push);
+          tl.to(cam, { scale: CONFIG.push.drift, duration: T.exit - (T.push + T.pushDur), ease: "none" }, T.push + T.pushDur);
+          tl.to(veil, { opacity: 0.6, duration: 0.3, ease: "power2.out" }, T.dim);
+          clips.forEach((c, i) => {
+            const at = T.hl + i * (T.hlLine + 0.03), E = gsap.parseEase("power1.inOut");
+            Look.drive(tl, at, T.hlLine, (p) => setClip(c, c.x0 - c.sl - 2 + (c.x1 - c.x0 + c.sl + 2) * E(p)));
+          });
+          // stamp slam: a press beat. The block's contact shadow arrives, the ink lands and spreads, the shadow lifts,
+          // a warm bloom fires on the highlighted claim and the card thuds.
+          const st = T.stamp, D = 0.16;
+          gsap.set(ink, { opacity: 0, scale: 2.3, rotation: ST.rot - 9, y: -30, filter: "blur(7px)" });
+          gsap.set(press, { opacity: 0, scale: 1.14, rotation: ST.rot, y: 0 });
+          tl.to(press, { opacity: 1, scale: 1.02, duration: 0.1, ease: "power2.in" }, st - 0.1);
+          tl.to(press, { opacity: 0, scale: 1.06, y: 14, duration: 0.14, ease: "power2.out" }, st + 0.02);
+          tl.to(ink, { opacity: 1, duration: 0.04, ease: "none" }, st - D);
+          tl.to(ink, { scale: 0.965, rotation: ST.rot, y: 0, filter: "blur(0px)", duration: D, ease: "power3.in" }, st - D);
+          tl.to(ink, { scale: 1, duration: 0.12, ease: "power3.out" }, st);
+          tl.set(ink, { filter: "none" }, st + 0.001);
+          glows.forEach((g) => {
+            tl.to(g, { opacity: 0.3, duration: 1 / 30, ease: "none" }, st);
+            tl.to(g, { opacity: 0, duration: 0.34, ease: "power2.out" }, st + 4 / 30);
+          });
+          tl.to(persp, { y: 9, scale: 0.992, duration: 0.05, ease: "power2.out" }, st);
+          tl.to(persp, { y: 0, scale: 1, duration: 0.42, ease: "elastic.out(1, 0.5)" }, st + 0.05);
+          if (plate) Look.impact(tl, st, { shake: "#shake", amp: 12, dur: 0.3, flash: 0, zoom: 1.02 });
+          // exit: drop away with a backward tip and directional blur, no fade
+          tl.to(win, { y: 1500, rotationX: -22, duration: 0.33, ease: "power3.in" }, T.exit);
+          Look.mblur(tl, win, T.exit + 0.05, 0.28, { y: 2, to: [0, 34], ease: "power2.in" });
+          tl.set(win, { opacity: 0 }, T.exit + 0.34);
+          if (plate) Look.push(tl, "#push", 0, T.end, { to: 1.04 });
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        }
+
+        function drawStamp(cv, ST, K) {
+          const c = cv.getContext("2d"), W = ST.w, Hh = ST.h;
+          c.setTransform(K, 0, 0, K, 0, 0); c.clearRect(0, 0, W, Hh);
+          c.fillStyle = ST.ink; c.strokeStyle = ST.ink;
+          const rr = (x, y, w, h, r) => { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); };
+          const u = Hh / 178;
+          c.lineWidth = 10 * u; rr(6 * u, 6 * u, W - 12 * u, Hh - 12 * u, 18 * u); c.stroke();
+          c.lineWidth = 3.4 * u; rr(20 * u, 20 * u, W - 40 * u, Hh - 40 * u, 10 * u); c.stroke();
+          c.textAlign = "center"; c.textBaseline = "middle";
+          c.font = "800 " + (ST.label || 17) + "px Inter"; if ("letterSpacing" in c) c.letterSpacing = (0.1 * (ST.label || 17)).toFixed(1) + "px";
+          const lab = (txt, y) => {
+            c.fillText(txt, W / 2 + 1.5, y);
+            const w = c.measureText(txt).width, gap = 14 * u, len = Math.max(0, W / 2 - w / 2 - gap - 36 * u);
+            c.fillRect(36 * u, y - 1.4 * u, len, 2.8 * u); c.fillRect(W - 36 * u - len, y - 1.4 * u, len, 2.8 * u);
+          };
+          lab(ST.top, 45 * u); lab(ST.bottom, Hh - 44 * u);
+          if ("letterSpacing" in c) c.letterSpacing = "0px";
+          let fs = 96 * u; const setF = () => { c.font = "900 semi-condensed " + fs + "px Archivo"; if ("fontStretch" in c) c.fontStretch = "semi-condensed"; };
+          setF(); if ("letterSpacing" in c) c.letterSpacing = "1px";
+          const maxW = W - 78 * u; const mw = c.measureText(ST.word).width; if (mw > maxW) { fs = Math.floor(fs * maxW / mw); setF(); }
+          c.lineWidth = 1.8 * u; c.lineJoin = "round";
+          c.fillText(ST.word, W / 2 + 1, Hh / 2 + 3); c.strokeText(ST.word, W / 2 + 1, Hh / 2 + 3);
+          if ("letterSpacing" in c) c.letterSpacing = "0px";
+          for (let i = 0; i < 9; i++) {
+            const a = H(900 + i) * Math.PI * 2, side = H(950 + i);
+            const px = side < 0.5 ? (H(960 + i) * W) : (H(970 + i) < 0.5 ? 2 : W - 2), py = side < 0.5 ? (H(980 + i) < 0.5 ? 1.5 : Hh - 1.5) : H(990 + i) * Hh;
+            c.beginPath(); c.arc(px + Math.cos(a) * 3, py + Math.sin(a) * 3, 0.6 + H(1000 + i) * 1.4, 0, Math.PI * 2); c.fill();
+          }
+          const id = c.getImageData(0, 0, cv.width, cv.height), px = id.data, CW = cv.width, CH = cv.height;
+          const vn = (x, y, s, seed) => { const gx = Math.floor(x / s), gy = Math.floor(y / s), fx = x / s - gx, fy = y / s - gy;
+            const h = (i, j) => H(i * 7919 + j * 104729 + seed), sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+            const a = h(gx, gy), b = h(gx + 1, gy), cc = h(gx, gy + 1), dd = h(gx + 1, gy + 1);
+            return a + (b - a) * sx + (cc - a) * sy + (a - b - cc + dd) * sx * sy; };
+          for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) {
+            const o = (y * CW + x) * 4; if (!px[o + 3]) continue;
+            const blot = vn(x, y, 46, 11), mid = vn(x, y, 11, 23), fine = H(x * 3301 + y * 7177 + 5);
+            let k = 0.84 + 0.3 * blot;
+            if (mid < 0.2) k *= mid / 0.2 * 0.7 + 0.3;
+            if (fine > 0.95) k *= 0.3;
+            px[o + 3] = Math.max(0, Math.min(255, px[o + 3] * Math.min(1, k)));
+          }
+          c.putImageData(id, 0, 0);
+        }
+      })();
+    </script>
+  </body>
+</html>

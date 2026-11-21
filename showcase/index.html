@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GTA Video Components</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* The site's components anatomy, as on the review page Chris approved: app bar, then one column per component
+   (number + name, the long-form tile over the Shorts tile, a label under each). Every tile is the graphic alone on the
+   dark stage. No headline, no stats, no category heads. The Shorts-only set follows as a second board.
+   Built to be screen-recorded: opaque bar, rings as box-shadows, tiles play within a screen of the viewport. */
+:root {
+  --page: #0e0e0f; --ink: #f2f3f4; --ink-2: #a5a8ad; --ink-3: #7c7f85;
+  --line: #222326; --line-strong: #34363b; --stage: #0c0d0f; --ring: rgba(255, 255, 255, .07);
+  --ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --bar: 57px; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { background: var(--page); }
+body { margin: 0; background: transparent; /* html paints the page colour; a body background would sit over the #bg layer */ color: var(--ink); font: 15px/1.5 var(--ui); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+.bar { position: sticky; top: 0; z-index: 9; background: var(--page); border-bottom: 1px solid var(--line); }
+.bar-in { height: 56px; display: flex; align-items: center; gap: 16px; padding-inline: 20px 24px; }
+.who { display: flex; align-items: center; gap: 10px; font-size: 15.5px; font-weight: 500; text-decoration: none; }
+.who img { width: 26px; height: 26px; border-radius: 50%; display: block; }
+.sep { width: 1px; height: 16px; background: var(--line-strong); }
+.section { font-size: 15.5px; color: var(--ink-2); white-space: nowrap; }
+.nav { margin-left: auto; display: flex; align-items: center; gap: 20px; font-size: 15.5px; }
+.nav a { color: var(--ink); text-decoration: none; white-space: nowrap; opacity: .86; } .nav a:hover { opacity: 1; }
+
+.page { container-type: inline-size; max-width: 1920px; margin: 0 auto; padding: 24px 20px 48px; }
+.board { --gap: 12px; --w: calc((100cqi - 4 * var(--gap)) / 5);   /* five across, edge to edge */
+  display: grid; grid-template-columns: repeat(5, var(--w)); column-gap: var(--gap); row-gap: 36px; justify-content: center; }
+.board + .board { margin-top: 56px; padding-top: 40px; border-top: 1px solid var(--line); }
+.comp { display: flex; flex-direction: column; min-width: 0; }
+.title { display: flex; align-items: baseline; gap: 8px; min-width: 0; height: 28px; margin-bottom: 10px; }
+.num { font: 400 12.5px/1 var(--mono); color: var(--ink-3); font-variant-numeric: tabular-nums; flex: none; }
+h2 { margin: 0; font-size: 16px; line-height: 28px; font-weight: 600; letter-spacing: -0.012em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cell { display: flex; flex-direction: column; gap: 8px; min-width: 0; } .cell + .cell { margin-top: 16px; }
+.tile { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 10px; background: var(--stage); cursor: zoom-in;
+  box-shadow: 0 0 0 1px var(--ring); transition: box-shadow .15s; }
+.cell:hover .tile { box-shadow: 0 0 0 1px var(--line-strong); }
+.tile img, .tile video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.tile video { opacity: 0; } .tile video.in { opacity: 1; }
+.tile.phone img, .tile.phone video { object-fit: contain; }   /* a 9:16 Shorts render stands on the 16:9 stage */
+.label { font-size: 14px; line-height: 22px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color .15s; }
+.cell:hover .label { color: var(--ink); }
+/* ---- background options (?bg=a..e): one fixed layer under everything; the bar stays opaque ---- */
+#bg { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--page); }
+#bg::before, #bg::after { content: ""; position: absolute; inset: 0; }
+/* a: the pause map. Deep navy, faint county contours, one soft key light top-left, a grain that doesn't move. */
+.bg-a { --page: #0b0e1b; --line: #1b2036; --line-strong: #2b3252; --stage: #0c0d0f; }
+.bg-a #bg { background: radial-gradient(1100px 640px at 12% -8%, #1d2446 0%, rgba(29,36,70,0) 62%), linear-gradient(170deg, #121733 0%, #0b0e1b 48%, #080a14 100%); }
+.bg-a #bg::before { background: url("media/bg/contours.svg") center / 1400px auto repeat; opacity: .9; mask-image: linear-gradient(180deg, #000 0%, rgba(0,0,0,.35) 45%, rgba(0,0,0,.55) 100%); -webkit-mask-image: linear-gradient(180deg, #000 0%, rgba(0,0,0,.35) 45%, rgba(0,0,0,.55) 100%); }
+.bg-a #bg::after { opacity: .045; mix-blend-mode: screen; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .9 0'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>"); }
+/* b: Vice City dusk. Black, with the trailer's sky as a low band of light along the top edge only. */
+.bg-b { --page: #0a0a0c; }
+.bg-b #bg { background: linear-gradient(180deg, rgba(242,85,142,.16) 0%, rgba(255,140,80,.10) 14%, rgba(255,200,120,.04) 30%, rgba(10,10,12,0) 52%), #0a0a0c; }
+.bg-b #bg::before { background: radial-gradient(900px 420px at 50% -10%, rgba(255,120,150,.14) 0%, rgba(255,120,150,0) 70%); }
+/* c: the minimap. Black with a faint street grid, turned a few degrees like the in-game map, fading under the tiles. */
+.bg-c { --page: #0a0a0c; }
+.bg-c #bg::before { inset: -20%; transform: rotate(-7deg);
+  background-image: linear-gradient(rgba(255,255,255,.055) 2px, transparent 2px), linear-gradient(90deg, rgba(255,255,255,.055) 2px, transparent 2px), linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+  background-size: 360px 360px, 360px 360px, 90px 90px, 90px 90px; }
+.bg-c #bg::after { background: radial-gradient(ellipse 60% 55% at 50% 50%, rgba(10,10,12,.92) 0%, rgba(10,10,12,.55) 60%, rgba(10,10,12,0) 100%); }
+/* d: neon off-screen. Black, with a pink sign glowing in from the top-left corner and a cyan one from the bottom-right. */
+.bg-d { --page: #0a0a0c; }
+.bg-d #bg { background: radial-gradient(1000px 700px at -6% -10%, rgba(242,85,142,.22) 0%, rgba(242,85,142,0) 60%), radial-gradient(1100px 700px at 106% 110%, rgba(60,220,230,.14) 0%, rgba(60,220,230,0) 60%), #0a0a0c; }
+/* e: the city under the board. Our own official aerial frame, blurred to a wash, far under black. */
+.bg-e { --page: #0a0a0c; }
+.bg-e #bg::before { background: url("media/bg/skyline.jpg") center / cover no-repeat; filter: blur(30px) saturate(.75); opacity: .14; transform: scale(1.08); }
+.bg-e #bg::after { background: linear-gradient(180deg, rgba(10,10,12,.2) 0%, rgba(10,10,12,.75) 70%, #0a0a0c 100%); }
+
+/* ---- round 2: D pushed up, each with one more GTA cue ---- */
+/* f: Ocean Drive. D's glows at full, plus one neon tube under the bar (pink to cyan) and palm silhouettes in the corners. */
+.bg-f { --page: #08080b; }
+.bg-f #bg { background: radial-gradient(1100px 760px at -6% -8%, rgba(242,85,142,.50) 0%, rgba(242,85,142,.12) 40%, rgba(242,85,142,0) 62%), radial-gradient(1200px 760px at 106% 108%, rgba(50,220,235,.34) 0%, rgba(50,220,235,.08) 40%, rgba(50,220,235,0) 62%), #08080b; }
+.bg-f #bg::before { top: var(--bar); height: 2px; bottom: auto; background: linear-gradient(90deg, #f2558e 0%, #ff7bb0 35%, #7ee8f5 70%, #32dceb 100%); opacity: .85; box-shadow: 0 0 18px 2px rgba(242,85,142,.55), 0 0 60px 10px rgba(120,200,240,.25); }
+.bg-f #bg::after { background: url("media/bg/palm.svg") right -140px bottom -120px / 620px auto no-repeat, url("media/bg/palm.svg") left -220px bottom -160px / 560px auto no-repeat; opacity: .55; filter: invert(1); mix-blend-mode: multiply; }
+/* g: the trailer sky. The GTA 6 sunset gradient (pink, orange, purple) as the sky above the board, palms at the bottom. */
+.bg-g { --page: #0a0810; }
+.bg-g #bg { background: linear-gradient(180deg, rgba(242,85,142,.42) 0%, rgba(255,138,61,.26) 16%, rgba(132,60,160,.18) 34%, rgba(40,20,60,.08) 52%, rgba(10,8,16,0) 70%), #0a0810; }
+.bg-g #bg::before { background: radial-gradient(1400px 500px at 50% -16%, rgba(255,180,120,.30) 0%, rgba(255,180,120,0) 70%); }
+.bg-g #bg::after { background: url("media/bg/palm.svg") right -120px bottom -100px / 640px auto no-repeat, url("media/bg/palm.svg") left -200px bottom -150px / 560px auto no-repeat; opacity: .6; }
+/* h: the neon street grid. D's glows, with the minimap grid lit by them: pink lines near the pink sign, cyan near the cyan one. */
+.bg-h { --page: #08080b; }
+.bg-h #bg { background: radial-gradient(1100px 760px at -6% -8%, rgba(242,85,142,.42) 0%, rgba(242,85,142,0) 60%), radial-gradient(1200px 760px at 106% 108%, rgba(50,220,235,.30) 0%, rgba(50,220,235,0) 60%), #08080b; }
+.bg-h #bg::before { inset: -20%; transform: rotate(-7deg);
+  background-image: linear-gradient(rgba(255,255,255,.11) 2px, transparent 2px), linear-gradient(90deg, rgba(255,255,255,.11) 2px, transparent 2px), linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+  background-size: 360px 360px, 360px 360px, 90px 90px, 90px 90px;
+  mask-image: radial-gradient(900px 700px at 0% 0%, #000 0%, rgba(0,0,0,.5) 45%, transparent 75%), radial-gradient(900px 700px at 100% 100%, #000 0%, rgba(0,0,0,.5) 45%, transparent 75%);
+  -webkit-mask-image: radial-gradient(900px 700px at 0% 0%, #000 0%, rgba(0,0,0,.5) 45%, transparent 75%), radial-gradient(900px 700px at 100% 100%, #000 0%, rgba(0,0,0,.5) 45%, transparent 75%); }
+/* i: Vice night. Our own Ocean Drive night frame blurred into a neon wash under black, with the glows on top. */
+.bg-i { --page: #08080b; }
+/* the wash is pre-blurred (media/bg/night-blur.jpg): the same look as the blur filter, without re-blurring during a recording */
+.bg-i #bg::before { background: url("media/bg/night-blur.jpg") center / cover no-repeat; opacity: .26; transform: scale(1.1); }
+.bg-i #bg::after { background: radial-gradient(1000px 700px at -6% -8%, rgba(242,85,142,.16) 0%, rgba(242,85,142,0) 60%), radial-gradient(1100px 700px at 106% 108%, rgba(50,220,235,.12) 0%, rgba(50,220,235,0) 60%), linear-gradient(180deg, rgba(8,8,11,.4) 0%, rgba(8,8,11,.72) 60%, rgba(8,8,11,.9) 100%); }
+
+@media (max-width: 899px) { .page { padding: 24px 16px; } .board { display: flex; flex-direction: column; gap: 28px; }
+  .comp { display: grid; grid-template-columns: 1fr 1fr; column-gap: 10px; } .comp .title { grid-column: 1 / -1; } .cell + .cell { margin-top: 0; } }
+
+/* push-in: the tile grows into a centred card (FLIP); its full version plays */
+#dim { position: fixed; inset: 0; background: rgba(6,7,8,.9); opacity: 0; pointer-events: none; z-index: 20; transition: opacity .4s; }
+#dim.on { opacity: 1; pointer-events: auto; }
+#zoom { position: fixed; z-index: 21; left: 0; top: 0; overflow: hidden; border-radius: 10px; background: var(--stage); display: none;
+  box-shadow: 0 0 0 1px var(--ring), 0 40px 90px rgba(0,0,0,.6); transform-origin: 0 0; will-change: transform; }
+#zoom video { width: 100%; height: 100%; object-fit: contain; display: block; background: var(--stage); }
+#zoom-t { position: fixed; z-index: 22; left: 50%; transform: translateX(-50%); display: none; text-align: center; font-size: 14px; color: #d7d9dc; white-space: nowrap; }
+</style>
+
+<div id="bg" aria-hidden="true"></div><div id="grain" aria-hidden="true"></div>
+<script>{ const m = location.search.match(/bg=([a-i])/); document.documentElement.classList.add("bg-" + (m ? m[1] : "i")); }</script>
+<header class="bar"><div class="bar-in">
+  <a class="who" href="https://everestchris.com/" target="_blank" rel="noopener"><img src="media/avatar.jpg" alt="" onerror="this.remove()">Chris</a>
+  <span class="sep" aria-hidden="true"></span>
+  <span class="section">Video components</span>
+  <nav class="nav"><a href="https://everestchris.com/guides" target="_blank" rel="noopener">Free guides</a><a href="https://everestchris.com/skills" target="_blank" rel="noopener">Skills</a></nav>
+</div></header>
+
+<main class="page"><div class="board" id="long"></div><div class="board" id="shorts"></div></main>
+<div id="dim"></div>
+<div id="zoom"><video muted loop playsinline></video></div>
+<div id="zoom-t"></div>
+
+<script>
+const pad = (n) => String(n).padStart(2, "0");
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const vids = [];
+
+function cell(kind, src, full, poster, label, title) {
+  const c = document.createElement("div"); c.className = "cell";
+  const t = document.createElement("div"); t.className = "tile" + (kind === "phone" ? " phone" : ""); t.tabIndex = 0;
+  const img = document.createElement("img"); img.src = poster; img.alt = ""; img.decoding = "async";
+  const v = document.createElement("video"); v.muted = true; v.loop = true; v.playsInline = true; v.preload = "auto";
+  v.setAttribute("muted", ""); v.setAttribute("playsinline", ""); v.disablePictureInPicture = true; v.dataset.src = src;
+  v.addEventListener("loadeddata", () => v.classList.add("in"));
+  t.append(img, v); t.dataset.full = full; t.dataset.title = title;
+  t.addEventListener("click", () => pushIn(t));
+  vids.push(v);
+  const l = document.createElement("div"); l.className = "label"; l.textContent = label;
+  c.append(t, l); return c;
+}
+function comp(id, n, name) {
+  const a = document.createElement("article"); a.className = "comp"; a.id = id;
+  const h = document.createElement("div"); h.className = "title";
+  const num = document.createElement("span"); num.className = "num"; num.textContent = pad(n);
+  const h2 = document.createElement("h2"); h2.textContent = name; h.append(num, h2); a.appendChild(h); return a;
+}
+function build(d) {
+  const L = document.getElementById("long");
+  d.long.forEach((c, i) => {
+    const a = comp(c.slug, i + 1, c.name);
+    const ca = cell("l", `media/${c.slug}-a-tile.mp4`, `media/${c.slug}-a.mp4`, `media/${c.slug}-a-tile.jpg`, c.a, `${pad(i + 1)} ${c.name} · ${c.a}`);
+    const cb = cell("l", `media/${c.slug}-b-tile.mp4`, `media/${c.slug}-b.mp4`, `media/${c.slug}-b-tile.jpg`, c.b, `${pad(i + 1)} ${c.name} · ${c.b}`);
+    ca.querySelector("video").dataset.hero = c.ha || ""; cb.querySelector("video").dataset.hero = c.hb || "";
+    a.append(ca, cb);
+    L.appendChild(a);
+  });
+  const S = document.getElementById("shorts");
+  d.shorts.forEach((c, i) => {
+    const a = comp("s-" + c.slug, i + 1, c.name);
+    [0, 1].forEach((v) => a.appendChild(cell("phone", `media/shorts/${c.slug}-v${v}.mp4`, `media/shorts/${c.slug}-v${v}.mp4`, `media/shorts/${c.slug}-v${v}.jpg`, c.v[v] || "Shorts", `${pad(i + 1)} ${c.name} · ${c.v[v] || ""}`)));
+    S.appendChild(a);
+  });
+  playback();
+  if (location.hash === "#tour") setTimeout(tour, 1200);
+}
+function playback() {
+  const ready = new Map(), want = [...vids]; let active = 0;
+  const pump = () => { while (active < 6 && want.length) { const v = want.shift(); if (ready.has(v)) continue; active++;
+    fetch(v.dataset.src).then((r) => (r.ok ? r.blob() : null)).then((b) => { if (b) ready.set(v, URL.createObjectURL(b)); }).catch(() => {}).finally(() => { active--; pump(); }); } };
+  const start = (v) => { if (!v.getAttribute("src")) { v.src = ready.get(v) || v.dataset.src; const i = want.indexOf(v); if (i >= 0) want.splice(i, 1); } const p = v.play(); if (p) p.catch(() => {}); };
+  const ahead = new IntersectionObserver((es) => { for (const e of es) if (e.isIntersecting && !ready.has(e.target)) { const i = want.indexOf(e.target); if (i > 0) { want.splice(i, 1); want.unshift(e.target); } } }, { rootMargin: "200% 0px" });
+  const io = new IntersectionObserver((es) => { for (const e of es) e.isIntersecting ? start(e.target) : e.target.pause(); }, { rootMargin: "50% 0px" });
+  vids.forEach((v) => { ahead.observe(v); io.observe(v); });
+  setTimeout(pump, 400);
+}
+const dim = document.getElementById("dim"), zoom = document.getElementById("zoom"), zv = zoom.querySelector("video"), zt = document.getElementById("zoom-t");
+let open = null;
+function pushIn(t, hold) {
+  if (open) return;
+  const r = t.getBoundingClientRect(), W = innerWidth, H = innerHeight, ar = r.width / r.height;
+  const tw = Math.min(W * 0.8, H * 0.8 * ar), th = tw / ar, tx = (W - tw) / 2, ty = (H - th) / 2 - 16;
+  zoom.style.display = "block"; zoom.style.width = r.width + "px"; zoom.style.height = r.height + "px"; zoom.style.transition = "none";
+  zoom.style.transform = `translate(${r.left}px, ${r.top}px) scale(1)`;
+  zv.src = t.dataset.full; zv.play().catch(() => {});
+  zt.textContent = t.dataset.title; zt.style.top = (ty + th + 14) + "px"; zt.style.display = "block"; zt.style.opacity = 0;
+  dim.classList.add("on");
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    zoom.style.transition = reduce ? "none" : "transform .75s cubic-bezier(.2,.8,.2,1)";
+    zoom.style.transform = `translate(${tx}px, ${ty}px) scale(${tw / r.width})`;
+    zt.style.transition = "opacity .4s .35s"; zt.style.opacity = 1;
+  }));
+  open = { t }; if (hold) setTimeout(pushOut, hold);
+}
+function pushOut() {
+  if (!open) return; const r = open.t.getBoundingClientRect(); open = null;
+  zoom.style.transform = `translate(${r.left}px, ${r.top}px) scale(1)`; zt.style.transition = "opacity .2s"; zt.style.opacity = 0; dim.classList.remove("on");
+  setTimeout(() => { zoom.style.display = "none"; zv.pause(); zv.removeAttribute("src"); zv.load(); zt.style.display = "none"; }, 780);
+}
+dim.addEventListener("click", pushOut);
+addEventListener("keydown", (e) => { if (e.key === "Escape") pushOut(); });
+
+// #tour: a scripted take for recording: eased scroll, three push-ins, back to the top
+const easeIO = (p) => (p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
+const scrollToY = (y, ms) => new Promise((res) => { const y0 = scrollY, t0 = performance.now();
+  const step = (now) => { const p = Math.min(1, (now - t0) / ms); scrollTo(0, y0 + (y - y0) * easeIO(p)); p < 1 ? requestAnimationFrame(step) : res(); }; requestAnimationFrame(step); });
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+async function tour() {
+  const picks = (location.search.match(/picks=([^&]+)/) || [, "39-comparison-split,71-lineage-board,s-27-podium-3d"])[1].split(",");
+  const maxY = document.documentElement.scrollHeight - innerHeight;
+  await wait(1500);
+  for (const id of picks) {
+    const el = document.getElementById(id); if (!el) continue;
+    const t = el.querySelector(".tile");
+    await scrollToY(Math.min(maxY, t.getBoundingClientRect().top + scrollY - innerHeight / 2 + t.offsetHeight / 2), 3000); await wait(350);
+    pushIn(t, 3200); await wait(4200);
+  }
+  await scrollToY(maxY, 5000); await wait(600);
+  await scrollToY(0, 4500);
+}
+fetch("components.json").then((r) => r.json()).then(build);
+
+// ---- record mode (#rec): no bar, no Shorts, nothing plays on its own. A capture script sets the time, frame by frame:
+// scroll, the push-in and every visible tile are pure functions of t, so the file is smooth whatever the machine does.
+if (location.hash === "#rec") {
+  document.documentElement.classList.add("rec");
+  const st = document.createElement("style"); st.textContent = ".rec .bar,.rec #shorts{display:none!important}.rec .page{padding-top:24px}.rec .tile video{transition:none}.rec #zoom{transition:none!important}.rec #zoom-t{display:none!important}.rec #dim{transition:none}"; document.head.appendChild(st);
+  const easeIO2 = (p) => (p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2), clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+  // only the videos near the camera hold a source (Chromium stops decoding past a few dozen open media elements)
+  const loaded = new Set();
+  const ensure = (v) => { if (loaded.has(v)) return Promise.resolve(); loaded.add(v); v.preload = "auto"; v.src = v.dataset.src; v.classList.add("in");
+    return new Promise((r) => { if (v.readyState >= 2) return r(); v.addEventListener("loadeddata", r, { once: true }); v.addEventListener("error", r, { once: true }); setTimeout(r, 4000); }); };
+  const release = (v) => { if (!loaded.has(v)) return; loaded.delete(v); v.removeAttribute("src"); v.load(); };
+  window.__ready = async () => {
+    await new Promise((r) => (document.getElementById("long").children.length ? r() : setTimeout(r, 300)));
+    const vs = [...document.querySelectorAll("#long video")];
+    await Promise.all(vs.filter((v) => v.getBoundingClientRect().top < innerHeight * 1.3).map(ensure));
+    return vs.length;
+  };
+  // the take: a short hold, then one long eased scroll down the board. No push-in.
+  const T = { scrollStart: 0, end: 15, dist: 4600 };
+  const yAt = (t) => { const maxY = document.documentElement.scrollHeight - innerHeight; return t <= T.scrollStart ? 0 : easeIO2(clamp((t - T.scrollStart) / (T.end - T.scrollStart), 0, 1)) * Math.min(maxY, T.dist); };
+  // each tile's clip starts the moment the tile enters the frame (plus a small stagger), so the camera always meets a
+  // component in action; a clip that finishes before the tile leaves holds its last frame
+  const enterAt = new Map();
+  window.__frame = async (t) => {
+    const y = yAt(t); scrollTo(0, y);
+    const vs = [...document.querySelectorAll("#long .tile video")];
+    // load what is coming (a third of a screen ahead), drop what is gone (a third behind): about 25 open videos at once
+    await Promise.all(vs.map((v) => { const rr = v.getBoundingClientRect();
+      if (rr.top < innerHeight * 1.35 && rr.bottom > -innerHeight * .35) return ensure(v); release(v); }));
+    const waits = [];
+    vs.forEach((v, i) => {
+      const rr = v.getBoundingClientRect(); if (rr.bottom < -innerHeight * .1 || rr.top > innerHeight * 1.15 || !(v.duration > 0)) return;
+      if (!enterAt.has(v)) enterAt.set(v, t <= 0 ? -((i % 5) * 0.12) : t - 0.15);   // the first screen is staggered left to right
+      // play from the entrance and keep looping, as the live page does: nothing ever freezes
+      const ct = (t - enterAt.get(v)) % v.duration;
+      if (Math.abs(v.currentTime - ct) > 1 / 120 || v.readyState < 2) { v.currentTime = ct;
+        waits.push(new Promise((r) => { const ok = () => (v.readyState >= 2 ? r() : setTimeout(ok, 20)); v.addEventListener("seeked", ok, { once: true }); setTimeout(r, 1500); })); }
+    });
+    await Promise.all(waits);
+    const vis = vs.filter((v) => { const rr = v.getBoundingClientRect(); return rr.bottom > 0 && rr.top < innerHeight; });
+    return { y: Math.round(y), visible: vis.length, decoded: vis.filter((v) => v.readyState >= 2).length, open: loaded.size };
+  };
+}
+</script>
+</html>

@@ -1,0 +1,562 @@
+<!doctype html>
+<!-- 47 Selection wheel, variant B: "Radio wheel" (9:16, 1080x1920, 30 fps).
+     A game radio wheel for a Short: a ring of 8 station badges (our own invented stations) round a centre label, on a
+     lacquered disc with a neon rim. While it is open the plate drops to slow motion, blurs and desaturates (the game's wheel
+     slow-mo). The selector ticks through the stations with masked label rolls and lands; the landed badge becomes a real lit
+     coin (Three.js: chrome bead rim, domed clear-coated face) that is pressed and springs out while a white-hot arc runs the
+     rim, then flies into the socket of a NOW PLAYING strip that wipes open from it. The badges fold into the hub, the disc
+     zooms out and is cut on the frame the plate snaps back to colour; the strip later wipes shut and the coin pops out.
+     Variable bg: "plate" (sample footage) / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="media/coin3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Barlow Condensed", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push, #grade { position: absolute; inset: 0; }
+      .shot { position: absolute; left: -40px; top: -40px; width: calc(100% + 80px); height: calc(100% + 80px); object-fit: cover; }
+      #ov, #npRig { position: absolute; inset: 0; }
+
+      /* ---------- wheel (840 px box, centre 420/420) ---------- */
+      #wheel { position: absolute; width: 840px; height: 840px; }
+      .layer { position: absolute; left: 0; top: 0; width: 840px; height: 840px; }
+      /* lacquered disc: 3-stop radial (lit centre, base, dark edge), near-opaque so there is no grey veil */
+      #wBase { position: absolute; left: 40px; top: 40px; width: 760px; height: 760px; border-radius: 50%;
+        background: radial-gradient(circle at 50% 40%, #6A2C9E 0%, #431470 46%, #1F0636 100%);
+        box-shadow: inset 0 2px 0 rgba(255,255,255,.22), inset 0 -30px 60px rgba(0,0,0,.42), 0 4px 10px rgba(0,0,0,.45), 0 50px 100px -30px rgba(0,0,0,.85); }
+      /* a slow conic sheen over the lacquer */
+      #wSheen { position: absolute; left: 40px; top: 40px; width: 760px; height: 760px; border-radius: 50%; mix-blend-mode: screen;
+        background: conic-gradient(from 300deg, rgba(255,255,255,0) 0deg, rgba(255,214,240,.09) 34deg, rgba(255,255,255,0) 80deg, rgba(255,255,255,0) 170deg,
+          rgba(255,140,210,.06) 210deg, rgba(255,255,255,0) 250deg, rgba(255,255,255,0) 360deg); }
+      /* the hub sits in a recess */
+      #hubRecess { position: absolute; left: 226px; top: 226px; width: 388px; height: 388px; border-radius: 50%;
+        background: radial-gradient(circle, rgba(10,0,22,0) 0px, rgba(10,0,22,0) 171px, rgba(10,0,22,.62) 176px, rgba(10,0,22,.22) 186px, rgba(10,0,22,0) 194px); }
+      .tok { position: absolute; width: 148px; height: 148px; border-radius: 50%;
+        box-shadow: 0 3px 6px rgba(0,0,0,.45), 0 14px 26px -6px rgba(0,0,0,.6); }
+      .tok-art { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; }
+      .tok-art svg { display: block; }
+      .tok-bevel { position: absolute; inset: 0; border-radius: 50%;
+        background: linear-gradient(158deg, rgba(255,255,255,.26) 0%, rgba(255,255,255,.06) 30%, rgba(255,255,255,0) 46%);
+        box-shadow: inset 0 0 0 2px rgba(255,255,255,.2), inset 0 2px 1px rgba(255,255,255,.45), inset 0 -10px 18px rgba(0,0,0,.42); }
+      .tok-flash { position: absolute; inset: 0; border-radius: 50%; opacity: 0; mix-blend-mode: screen;
+        background: radial-gradient(circle at 50% 40%, rgba(255,255,255,.6) 0%, rgba(255,255,255,.16) 55%, rgba(255,255,255,0) 72%); }
+      /* the locked badge stays seated and lit after the coin duplicate leaves: a full pink rim and a 24 px bloom behind it
+         (outer box-shadows paint only outside the badge, so the bloom sits behind it without veiling the art) */
+      .tok-bloom { position: absolute; inset: 0; border-radius: 50%; opacity: 0;
+        box-shadow: 0 0 24px 6px rgba(255,79,163,.92), 0 0 46px 12px rgba(255,79,163,.34); }
+      .tok-rim { position: absolute; inset: 0; border-radius: 50%; opacity: 0;
+        box-shadow: 0 0 0 3px #FF4FA3, 0 0 0 4.5px rgba(255,230,243,.6), inset 0 0 0 1px rgba(255,230,243,.5); }
+      /* the seat under the coin while it is pressed in the wheel */
+      .tsock { position: absolute; width: 148px; height: 148px; border-radius: 50%; opacity: 0;
+        background: radial-gradient(circle at 50% 58%, #0E0219 0%, #1A062C 62%, #2A0C44 100%);
+        box-shadow: inset 0 8px 16px rgba(0,0,0,.75), inset 0 -2px 0 rgba(255,255,255,.14), 0 0 0 1.5px rgba(255,92,174,.45); }
+      #halo { position: absolute; width: 270px; height: 270px; border-radius: 50%; mix-blend-mode: screen;
+        background: radial-gradient(circle, rgba(255,79,163,.62) 0%, rgba(255,79,163,.26) 40%, rgba(255,79,163,0) 70%); }
+
+      /* hub lens (348 px) */
+      #hub { position: absolute; left: 246px; top: 246px; width: 348px; height: 348px; border-radius: 50%;
+        background: radial-gradient(circle at 50% 30%, #7E38B4 0%, #4A1680 48%, #24073E 100%);
+        box-shadow: inset 0 0 0 2px rgba(255,92,174,.95), inset 0 0 0 3.5px rgba(255,255,255,.28), inset 0 3px 2px 2px rgba(255,255,255,.2),
+          inset 0 -18px 36px rgba(0,0,0,.45), 0 0 22px rgba(255,79,163,.5), 0 12px 30px rgba(0,0,0,.5); }
+      #hubFlash { position: absolute; inset: 0; border-radius: 50%; opacity: 0;
+        box-shadow: inset 0 0 0 3px #fff, inset 0 0 40px rgba(255,140,198,.8), 0 0 50px rgba(255,79,163,.95); }
+      #hubGloss { position: absolute; inset: 0; border-radius: 50%; mix-blend-mode: screen;
+        background: linear-gradient(160deg, rgba(255,255,255,.18) 0%, rgba(255,255,255,.04) 30%, rgba(255,255,255,0) 48%); }
+      #hKick { position: absolute; left: 0; top: 54px; width: 100%; text-align: center; font: 700 24px/1 "Barlow Condensed";
+        letter-spacing: .4em; padding-left: .4em; color: #FF9ACD; text-transform: uppercase; }
+      /* station label: name and genre roll in their own windows, pitch = window height (never two stations readable) */
+      #hWin { position: absolute; left: 24px; top: 90px; width: 300px; height: 132px; overflow: hidden; }
+      #gWin { position: absolute; left: 24px; top: 228px; width: 300px; height: 34px; overflow: hidden; }
+      #hCol, #gCol { position: absolute; left: 0; top: 0; width: 100%; }
+      .hn { width: 300px; height: 132px; display: flex; align-items: center; justify-content: center; text-align: center;
+        font: 800 72px/66px "Barlow Condensed"; letter-spacing: .02em; color: #fff; text-transform: uppercase; text-wrap: balance;
+        text-shadow: 0 2px 12px rgba(0,0,0,.45); }
+      .hg { width: 300px; height: 34px; text-align: center; font: 600 28px/34px "Barlow Condensed"; letter-spacing: .12em; padding-left: .12em;
+        color: rgba(255,255,255,.86); text-transform: uppercase; white-space: nowrap; }
+      #hEq { position: absolute; left: 0; top: 274px; width: 100%; height: 30px; display: flex; justify-content: center; align-items: flex-end; gap: 5px; }
+      .eqb { width: 6px; height: 30px; border-radius: 3px; transform-origin: 50% 100%;
+        background: linear-gradient(180deg, #FFD0E8 0%, #FF4FA3 60%, #B93CFF 100%); box-shadow: 0 0 8px rgba(255,79,163,.6); }
+
+      /* now playing strip (720 x 188, x 180-900): wipes open out of the coin socket */
+      #np { position: absolute; width: 720px; height: 188px; border-radius: 34px;
+        background: linear-gradient(180deg, #52207A 0%, #2E0A4E 58%, #1C0532 100%);
+        box-shadow: inset 0 0 0 2px rgba(255,92,174,.95), inset 0 0 0 3.5px rgba(255,255,255,.18), inset 0 2px 1px 2px rgba(255,255,255,.2),
+          inset 0 -14px 30px rgba(0,0,0,.4), 0 0 26px rgba(255,79,163,.42), 0 26px 50px -14px rgba(0,0,0,.75); }
+      #npGloss { position: absolute; inset: 0; border-radius: 34px; mix-blend-mode: screen;
+        background: linear-gradient(172deg, rgba(255,255,255,.14) 0%, rgba(255,255,255,0) 42%); }
+      #npSocket { position: absolute; left: 26px; top: 26px; width: 136px; height: 136px; border-radius: 50%;
+        background: radial-gradient(circle at 50% 60%, #12041F 0%, #1E0833 70%, #2A0C45 100%);
+        box-shadow: inset 0 7px 14px rgba(0,0,0,.75), inset 0 -1px 0 rgba(255,255,255,.18), 0 0 0 1.5px rgba(255,92,174,.5); }
+      #sockRing { position: absolute; left: 26px; top: 26px; width: 136px; height: 136px; border-radius: 50%; opacity: 0;
+        box-shadow: 0 0 0 3px #FF4FA3, 0 0 0 5px rgba(255,255,255,.4), 0 0 24px rgba(255,79,163,.85); }
+      #npKick { position: absolute; left: 186px; top: 22px; height: 26px; display: flex; align-items: center; gap: 12px; }
+      #npDot { width: 12px; height: 12px; border-radius: 50%; background: #FF4FA3; box-shadow: 0 0 10px #FF4FA3, 0 0 3px #fff inset; }
+      #npKickT { font: 700 24px/26px "Barlow Condensed"; letter-spacing: .32em; color: #FF9ACD; text-transform: uppercase; white-space: nowrap; }
+      #npTitle { position: absolute; left: 186px; top: 48px; width: 420px; font: 800 64px/1.02 "Barlow Condensed"; letter-spacing: .02em; color: #fff;
+        text-transform: uppercase; white-space: nowrap; }
+      #npArtist { position: absolute; left: 186px; top: 122px; font: 600 28px/32px "Barlow Condensed"; letter-spacing: .1em; color: rgba(255,255,255,.86);
+        text-transform: uppercase; white-space: nowrap; }
+      #npEq { position: absolute; right: 34px; top: 34px; height: 56px; display: flex; align-items: flex-end; gap: 7px; }
+      #npEq .eqb { width: 10px; height: 56px; border-radius: 4px; }
+      #npProg { position: absolute; left: 186px; right: 34px; bottom: 16px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.16); overflow: hidden; }
+      #npFill { position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-radius: 2px; transform-origin: 0 50%;
+        background: linear-gradient(90deg, #B93CFF, #FF4FA3 70%, #FFD0E8); }
+      #npEdge { position: absolute; width: 8px; height: 170px; border-radius: 4px; opacity: 0;
+        background: linear-gradient(180deg, rgba(255,230,243,0) 0%, #FFE6F3 30%, #fff 50%, #FFE6F3 70%, rgba(255,230,243,0) 100%);
+        box-shadow: 0 0 14px rgba(255,79,163,.95), 0 0 30px rgba(255,79,163,.6); }
+      /* the coin's own bloom: a pink glow that follows the 3D coin */
+      #coinGlow { position: absolute; left: 0; top: 0; width: 300px; height: 300px; margin: -150px 0 0 -150px; border-radius: 50%; opacity: 0; mix-blend-mode: screen;
+        background: radial-gradient(circle, rgba(255,79,163,.75) 0%, rgba(255,79,163,.34) 36%, rgba(255,79,163,0) 66%); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5.75" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push"><div id="grade">
+        <!-- the bed drops to 0.4x while the wheel is open, like the game's wheel slow-mo. media/v57-slowmo-v.mp4 is
+             v57 from 0.3 s, motion-interpolated to a smooth 2.5x stretch (a plain playback-rate would step at 12 fps) -->
+        <video id="shotA" class="clip shot" src="assets/shots/v57-gp-red-car-highway-v.mp4" muted playsinline data-start="0" data-duration="0.3" data-media-start="0" data-track-index="0"></video>
+        <video id="shotA2" class="clip shot" src="media/v57-slowmo-v.mp4" muted playsinline data-start="0.3" data-duration="4.02" data-media-start="0" data-track-index="0"></video>
+        <!-- the landing shot is a wide (DESIGN 11.21: never pay off on an upscaled 9:16 face close-up) -->
+        <video id="shotB" class="clip shot" src="assets/shots/v38-freeway-dusk-v.mp4" muted playsinline data-start="4.32" data-duration="1.43" data-media-start="0.2" data-track-index="0"></video>
+      </div></div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="5.75" data-track-index="1">
+        <div id="wheel">
+          <div id="wBack" class="layer"><div id="wBase"></div><div id="wSheen"></div><svg class="layer" id="rim" viewBox="0 0 840 840" width="840" height="840"></svg><div id="hubRecess"></div></div>
+          <div id="selU" class="layer"><div id="halo"></div></div>
+          <div id="toks" class="layer"></div>
+          <div id="selO" class="layer"><svg class="layer" id="selSvg" viewBox="0 0 840 840" width="840" height="840"></svg></div>
+          <svg class="layer" id="fx" viewBox="0 0 840 840" width="840" height="840"></svg>
+          <div id="hub">
+            <div id="hKick"></div>
+            <div id="hWin" data-layout-allow-overflow data-layout-allow-occlusion><div id="hCol" data-layout-allow-overflow data-layout-allow-occlusion></div></div>
+            <div id="gWin" data-layout-allow-overflow data-layout-allow-occlusion><div id="gCol" data-layout-allow-overflow data-layout-allow-occlusion></div></div>
+            <div id="hEq"></div>
+            <div id="hubGloss"></div>
+            <div id="hubFlash"></div>
+          </div>
+        </div>
+        <div id="npRig">
+          <div id="np">
+            <div id="npSocket"></div>
+            <div id="sockRing"></div>
+            <div id="npKick"><span id="npDot"></span><span id="npKickT"></span></div>
+            <div id="npTitle"></div>
+            <div id="npArtist"></div>
+            <div id="npEq"></div>
+            <div id="npProg"><div id="npFill"></div></div>
+            <div id="npGloss"></div>
+          </div>
+          <div id="npEdge"></div>
+          <div id="coinGlow" data-layout-allow-overlap data-layout-allow-occlusion></div>
+        </div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        kicker: "Radio",
+        // 8 stations clockwise from the top. art: palms | soul | block | talk | rock | night | bahia | deep (our own marks).
+        stations: [
+          { name: "Palms FM",       genre: "Pop hits",       art: "palms" },
+          { name: "Soul Cruise",    genre: "Classic soul",   art: "soul" },
+          { name: "808 Block",      genre: "West coast rap", art: "block" },
+          { name: "Static Talk",    genre: "Talk radio",     art: "talk" },
+          { name: "Desert Rock",    genre: "Classic rock",   art: "rock" },
+          { name: "Night Drive FM", genre: "Synthwave",      art: "night" },
+          { name: "Bahia 98",       genre: "Latin",          art: "bahia" },
+          { name: "Deep End",       genre: "House",          art: "deep" }
+        ],
+        current: 0,                       // station playing when the wheel opens
+        land: 5,                          // station the selector lands on and locks in (it ticks clockwise to it, one tick per entry in timing.ticks)
+        nowPlaying: { kicker: "Now playing", title: "Neon Mile", artist: "Vesper Coast" },
+        wheel: { cx: 540, cy: 780 },
+        strip: { left: 180, top: 1196 },  // 720 x 188; right edge stays inside the 9:16 safe column (x <= 900)
+        coin: { thick: 16, rim: "#FF9ACD", hot: "#FF4FA3" },   // the landed badge as a real coin: edge thickness (px) and chrome tint
+        plate: { blur: 12, saturate: 0.45, brightness: 0.66, contrast: 1.15 },
+        // lock = press; fly = the coin leaves for the strip (it lands flyDur later and the strip wipes open);
+        // snap = the frame the plate comes back (keep it at collapse + 0.32 and start the next shot there)
+        timing: { open: 0.3, ticks: [1.0, 1.15, 1.33, 1.56, 1.88], lock: 2.26, fly: 2.7, flyDur: 0.42, collapse: 4.0, snap: 4.32, stripOut: 5.22, end: 5.75 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const NS = "http://www.w3.org/2000/svg", C = 420, RT = 278, RR = 376;
+        const rad = (d) => d * Math.PI / 180;
+        const svgEl = (tag, attrs, parent) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (parent) parent.appendChild(n); return n; };
+        const P = (r, a) => [C + r * Math.cos(rad(a)), C + r * Math.sin(rad(a))];
+        const arcPath = (r, a1, a2) => { const p1 = P(r, a1), p2 = P(r, a2); return "M" + p1[0].toFixed(2) + " " + p1[1].toFixed(2) + " A" + r + " " + r + " 0 0 1 " + p2[0].toFixed(2) + " " + p2[1].toFixed(2); };
+
+        // ---------- station marks (our own; drawn in SVG with the two library faces) ----------
+        const IN = 'font-family="Inter"', BC = 'font-family="Barlow Condensed"';
+        const ART = {
+          palms: (u) => `<defs><linearGradient id="pa${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF3D9A"/><stop offset=".55" stop-color="#FF6F5E"/><stop offset="1" stop-color="#FFB547"/></linearGradient>
+            <linearGradient id="ps${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF6C4"/><stop offset="1" stop-color="#FFC94A"/></linearGradient></defs>
+            <rect width="148" height="148" fill="url(#pa${u})"/><circle cx="64" cy="104" r="34" fill="url(#ps${u})"/>
+            <rect x="20" y="108" width="100" height="3.5" fill="#FF7E58"/><rect x="20" y="116" width="100" height="4.5" fill="#FF8C52"/><rect x="20" y="125" width="100" height="6" fill="#FF9C4C"/>
+            <g fill="none" stroke="#3A0F45" stroke-linecap="round"><path d="M106 150 C105 130 102 114 97 100" stroke-width="5.5"/>
+            <path d="M97 99 Q84 88 70 95" stroke-width="5"/><path d="M97 99 Q88 80 74 79" stroke-width="5"/><path d="M97 99 Q101 80 115 77" stroke-width="5"/>
+            <path d="M97 99 Q112 90 124 99" stroke-width="5"/><path d="M97 99 Q108 101 113 113" stroke-width="4.5"/></g>
+            <text x="74" y="68" text-anchor="middle" ${IN} font-weight="900" font-style="italic" font-size="38" letter-spacing="-1.5" fill="#fff" stroke="#3A0F45" stroke-width="6" stroke-linejoin="round" paint-order="stroke">PALMS</text>
+            <text x="74" y="36" text-anchor="middle" ${BC} font-weight="800" font-size="14" letter-spacing="4" fill="#3A0F45">FM</text>`,
+          soul: (u) => `<defs><radialGradient id="sb${u}" cx=".5" cy=".38" r=".72"><stop offset="0" stop-color="#C02642"/><stop offset="1" stop-color="#3E0816"/></radialGradient>
+            <linearGradient id="sg${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF0B8"/><stop offset=".5" stop-color="#F6C453"/><stop offset="1" stop-color="#C98A1A"/></linearGradient></defs>
+            <rect width="148" height="148" fill="url(#sb${u})"/>
+            <circle cx="74" cy="74" r="44" fill="none" stroke="#000" stroke-opacity=".22" stroke-width="1"/><circle cx="74" cy="74" r="36" fill="none" stroke="#000" stroke-opacity=".2" stroke-width="1"/>
+            <circle cx="74" cy="74" r="61" fill="none" stroke="url(#sg${u})" stroke-width="2.5"/><circle cx="74" cy="74" r="55" fill="none" stroke="#F6C453" stroke-opacity=".45" stroke-width="1"/>
+            <path d="M74 30 l3 7 7.5 .6 -5.7 4.9 1.8 7.3 -6.6 -4 -6.6 4 1.8 -7.3 -5.7 -4.9 7.5 -.6z" fill="url(#sg${u})"/>
+            <text x="74" y="88" text-anchor="middle" ${IN} font-weight="900" font-style="italic" font-size="44" letter-spacing="-2" fill="url(#sg${u})" stroke="#2A0510" stroke-width="3" paint-order="stroke">Soul</text>
+            <text x="74" y="112" text-anchor="middle" ${BC} font-weight="700" font-size="16" letter-spacing="5" fill="#FFE7A0">CRUISE</text>`,
+          block: (u) => `<defs><linearGradient id="bb${u}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1D2024"/><stop offset="1" stop-color="#08090A"/></linearGradient>
+            <pattern id="bp${u}" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="3" height="8" fill="#38E07B" fill-opacity=".07"/></pattern></defs>
+            <rect width="148" height="148" fill="url(#bb${u})"/><rect width="148" height="148" fill="url(#bp${u})"/>
+            <rect x="22" y="48" width="104" height="54" rx="7" fill="#0C0E0F" stroke="#38E07B" stroke-width="3"/>
+            <text x="74" y="94" text-anchor="middle" ${IN} font-weight="900" font-size="48" letter-spacing="-2" fill="#38E07B">808</text>
+            <text x="74" y="124" text-anchor="middle" ${BC} font-weight="800" font-size="19" letter-spacing="6" fill="#fff">BLOCK</text>
+            <text x="74" y="38" text-anchor="middle" ${BC} font-weight="700" font-size="12" letter-spacing="4" fill="#38E07B" fill-opacity=".85">103.1 FM</text>`,
+          talk: (u) => `<defs><radialGradient id="tb${u}" cx=".5" cy=".3" r=".8"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#D3CDBF"/></radialGradient></defs>
+            <rect width="148" height="148" fill="url(#tb${u})"/>
+            <rect x="62" y="24" width="24" height="42" rx="12" fill="#1B1D24"/>
+            <g stroke="#fff" stroke-opacity=".35" stroke-width="1.5"><line x1="64" y1="36" x2="84" y2="36"/><line x1="64" y1="43" x2="84" y2="43"/><line x1="64" y1="50" x2="84" y2="50"/></g>
+            <path d="M54 50 Q54 76 74 76 Q94 76 94 50" fill="none" stroke="#1B1D24" stroke-width="4" stroke-linecap="round"/><line x1="74" y1="76" x2="74" y2="86" stroke="#1B1D24" stroke-width="4"/>
+            <g fill="none" stroke="#E0202E" stroke-width="3" stroke-linecap="round"><path d="M44 34 Q36 46 44 58"/><path d="M36 28 Q24 46 36 64"/><path d="M104 34 Q112 46 104 58"/><path d="M112 28 Q124 46 112 64"/></g>
+            <text x="74" y="114" text-anchor="middle" ${BC} font-weight="900" font-size="30" letter-spacing="1" fill="#1B1D24">STATIC</text>
+            <text x="74" y="129" text-anchor="middle" ${BC} font-weight="800" font-size="14" letter-spacing="3" fill="#E0202E">TALK 92.1</text>`,
+          rock: (u) => `<defs><linearGradient id="rb${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFB13A"/><stop offset=".5" stop-color="#FF672B"/><stop offset="1" stop-color="#B3261E"/></linearGradient></defs>
+            <rect width="148" height="148" fill="url(#rb${u})"/><circle cx="118" cy="104" r="14" fill="#FFE9A8" fill-opacity=".95"/>
+            <path d="M0 116 L30 86 L48 100 L78 70 L108 104 L128 90 L148 104 L148 148 L0 148 Z" fill="#4A0E0E"/>
+            <path d="M28 118 v-22 a4 4 0 0 1 8 0 v22 M28 106 h-6 v-7 a3 3 0 0 1 6 0 M36 110 h6 v-8 a3 3 0 0 1 6 0" fill="none" stroke="#4A0E0E" stroke-width="5" stroke-linecap="round"/>
+            <text x="74" y="56" text-anchor="middle" ${BC} font-weight="900" font-size="21" letter-spacing="5" fill="#fff">DESERT</text>
+            <text x="74" y="98" text-anchor="middle" ${BC} font-weight="900" font-size="48" letter-spacing="1" fill="#fff" stroke="#4A0E0E" stroke-width="6" stroke-linejoin="round" paint-order="stroke">ROCK</text>`,
+          night: (u) => `<defs><linearGradient id="nb${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#12062E"/><stop offset=".55" stop-color="#46107A"/><stop offset="1" stop-color="#B0187E"/></linearGradient>
+            <linearGradient id="ns${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE45E"/><stop offset="1" stop-color="#FF3F9E"/></linearGradient>
+            <clipPath id="nc${u}"><rect x="0" y="0" width="148" height="106"/></clipPath></defs>
+            <rect width="148" height="148" fill="url(#nb${u})"/>
+            <g clip-path="url(#nc${u})"><circle cx="74" cy="104" r="36" fill="url(#ns${u})"/>
+            <g fill="#5A1585"><rect x="30" y="86" width="90" height="2.5"/><rect x="30" y="93" width="90" height="3.5"/><rect x="30" y="100" width="90" height="4.5"/></g></g>
+            <rect x="0" y="106" width="148" height="42" fill="#1A0638"/>
+            <g stroke="#33D6FF" stroke-width="1.6" stroke-opacity=".9"><line x1="0" y1="106" x2="148" y2="106"/><line x1="0" y1="114" x2="148" y2="114"/><line x1="0" y1="125" x2="148" y2="125"/><line x1="0" y1="141" x2="148" y2="141"/>
+            <line x1="74" y1="106" x2="74" y2="148"/><line x1="62" y1="106" x2="38" y2="148"/><line x1="86" y1="106" x2="110" y2="148"/><line x1="50" y1="106" x2="0" y2="146"/><line x1="98" y1="106" x2="148" y2="146"/></g>
+            <text x="74" y="44" text-anchor="middle" ${BC} font-weight="900" font-size="27" letter-spacing="2" fill="#7FF0FF" transform="skewX(-8) translate(6 0)">NIGHT</text>
+            <text x="74" y="68" text-anchor="middle" ${BC} font-weight="900" font-size="27" letter-spacing="2" fill="#fff" transform="skewX(-8) translate(9 0)">DRIVE</text>`,
+          bahia: (u) => `<defs><linearGradient id="hb${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#20D9BF"/><stop offset="1" stop-color="#0A6F8E"/></linearGradient></defs>
+            <rect width="148" height="148" fill="url(#hb${u})"/><circle cx="104" cy="40" r="17" fill="#FFD23C"/>
+            <g fill="none" stroke="#fff" stroke-linecap="round"><path d="M0 120 Q18 112 37 120 T74 120 T111 120 T148 120" stroke-width="3" stroke-opacity=".75"/><path d="M0 131 Q18 123 37 131 T74 131 T111 131 T148 131" stroke-width="2.5" stroke-opacity=".45"/></g>
+            <text x="72" y="80" text-anchor="middle" ${IN} font-weight="900" font-size="36" letter-spacing="-1.5" fill="#fff" stroke="#075A6B" stroke-width="5" stroke-linejoin="round" paint-order="stroke">BAHIA</text>
+            <text x="74" y="110" text-anchor="middle" ${IN} font-weight="900" font-style="italic" font-size="28" letter-spacing="-1" fill="#FFD23C" stroke="#075A6B" stroke-width="4" stroke-linejoin="round" paint-order="stroke">98</text>`,
+          deep: (u) => `<defs><radialGradient id="db${u}" cx=".5" cy=".25" r=".85"><stop offset="0" stop-color="#4C78FF"/><stop offset=".6" stop-color="#1B2C8C"/><stop offset="1" stop-color="#0A1240"/></radialGradient></defs>
+            <rect width="148" height="148" fill="url(#db${u})"/>
+            <g fill="none" stroke="#fff"><circle cx="74" cy="74" r="62" stroke-opacity=".12" stroke-width="1.5"/><circle cx="74" cy="74" r="52" stroke-opacity=".18" stroke-width="1.5"/></g>
+            <text x="74" y="72" text-anchor="middle" ${BC} font-weight="900" font-size="42" letter-spacing="3" fill="#fff">DEEP</text>
+            <text x="74" y="110" text-anchor="middle" ${BC} font-weight="900" font-size="42" letter-spacing="3" fill="none" stroke="#fff" stroke-width="1.8">END</text>`
+        };
+        const artSVG = (key, u, size) => '<svg viewBox="0 0 148 148" width="' + size + '" height="' + size + '" xmlns="' + NS + '">' + ART[key](u) + '</svg>';
+
+        // ---------- layout ----------
+        const W = CONFIG.wheel, wheel = $("#wheel"), SP = CONFIG.strip;
+        wheel.style.left = (W.cx - C) + "px"; wheel.style.top = (W.cy - C) + "px";
+        const np = $("#np"); np.style.left = SP.left + "px"; np.style.top = SP.top + "px";
+        $("#hKick").textContent = CONFIG.kicker;
+
+        // rim: neon tube, top-lit bevel inside it, hairline track, 8 detents
+        const rim = $("#rim"), rd = svgEl("defs", {}, rim);
+        const g1 = svgEl("filter", { id: "rg47", x: "-20%", y: "-20%", width: "140%", height: "140%" }, rd); svgEl("feGaussianBlur", { stdDeviation: "6" }, g1);
+        const bvG = svgEl("linearGradient", { id: "bv47", gradientUnits: "userSpaceOnUse", x1: C, y1: C - 370, x2: C, y2: C + 370 }, rd);
+        svgEl("stop", { offset: "0", "stop-color": "#C77BEA" }, bvG); svgEl("stop", { offset: ".42", "stop-color": "#4A1676" }, bvG); svgEl("stop", { offset: "1", "stop-color": "#12031F" }, bvG);
+        svgEl("circle", { cx: C, cy: C, r: 362, fill: "none", stroke: "url(#bv47)", "stroke-width": 16 }, rim);
+        svgEl("circle", { cx: C, cy: C, r: 354, fill: "none", stroke: "#000", "stroke-opacity": 0.5, "stroke-width": 1.5 }, rim);
+        const rimGlow = svgEl("circle", { cx: C, cy: C, r: RR, fill: "none", stroke: "#FF4FA3", "stroke-width": 12, opacity: 0.55, filter: "url(#rg47)" }, rim);
+        const rimCore = svgEl("circle", { cx: C, cy: C, r: RR, fill: "none", stroke: "#FF5CAE", "stroke-width": 4 }, rim);
+        svgEl("circle", { cx: C, cy: C, r: RR, fill: "none", stroke: "#FFE3F1", "stroke-width": 1.2, opacity: 0.9 }, rim);
+        svgEl("circle", { cx: C, cy: C, r: 196, fill: "none", stroke: "#fff", "stroke-opacity": 0.14, "stroke-width": 1 }, rim);
+        for (let k = 0; k < 8; k++) {
+          const a = -90 + 45 * k + 22.5, p1 = P(RT - 9, a), p2 = P(RT + 9, a);
+          svgEl("line", { x1: p1[0], y1: p1[1], x2: p2[0], y2: p2[1], stroke: "#fff", "stroke-opacity": 0.32, "stroke-width": 1.6, "stroke-linecap": "round" }, rim);
+        }
+
+        // tokens (+ the empty seat under the one that becomes the coin)
+        const toksEl = $("#toks");
+        const LS = CONFIG.land, sp0 = P(RT, -90 + 45 * LS);
+        const tsock = document.createElement("div"); tsock.className = "tsock"; tsock.style.left = (sp0[0] - 74) + "px"; tsock.style.top = (sp0[1] - 74) + "px"; toksEl.appendChild(tsock);
+        const TK = CONFIG.stations.map((s, i) => {
+          const a = -90 + 45 * i, p = P(RT, a);
+          const el = document.createElement("div"); el.className = "tok"; el.style.left = (p[0] - 74) + "px"; el.style.top = (p[1] - 74) + "px";
+          el.innerHTML = (i === LS ? '<div class="tok-bloom" data-layout-ignore></div>' : '') +
+            '<div class="tok-art" data-layout-ignore>' + artSVG(s.art, "t" + i, 148) + '</div><div class="tok-bevel"></div><div class="tok-flash"></div>' +
+            (i === LS ? '<div class="tok-rim" data-layout-ignore></div>' : '');
+          toksEl.appendChild(el);
+          return { el, art: el.querySelector(".tok-art"), flash: el.querySelector(".tok-flash"), bloom: el.querySelector(".tok-bloom"), rimL: el.querySelector(".tok-rim"), dx: p[0] - C, dy: p[1] - C, a };
+        });
+
+        // selector (rotates round the wheel centre; drawn at the top slot)
+        const halo = $("#halo"); halo.style.left = (C - 135) + "px"; halo.style.top = (C - RT - 135) + "px";
+        const selSvg = $("#selSvg"), sd = svgEl("defs", {}, selSvg);
+        const g2 = svgEl("filter", { id: "sg47", x: "-50%", y: "-50%", width: "200%", height: "200%" }, sd); svgEl("feGaussianBlur", { stdDeviation: "6" }, g2);
+        const ty = C - RT;
+        const ringGlow = svgEl("circle", { cx: C, cy: ty, r: 88, fill: "none", stroke: "#FF4FA3", "stroke-width": 10, opacity: 0.8, filter: "url(#sg47)" }, selSvg);
+        const ringCore = svgEl("circle", { cx: C, cy: ty, r: 88, fill: "none", stroke: "#FF5CAE", "stroke-width": 4.5 }, selSvg);
+        const ringHot = svgEl("circle", { cx: C, cy: ty, r: 88, fill: "none", stroke: "#FFE6F3", "stroke-width": 1.6 }, selSvg);
+        const arcD = arcPath(RR, -90 - 15, -90 + 15);
+        svgEl("path", { d: arcD, fill: "none", stroke: "#FF4FA3", "stroke-width": 18, "stroke-linecap": "round", opacity: 0.85, filter: "url(#sg47)" }, selSvg);
+        svgEl("path", { d: arcD, fill: "none", stroke: "#FFF2F9", "stroke-width": 5.5, "stroke-linecap": "round" }, selSvg);
+
+        // fx: the lock light, one 40 deg white-hot arc that runs the whole neon rim; label-roll blurs
+        const fx = $("#fx"), fd = svgEl("defs", {}, fx);
+        const g3 = svgEl("filter", { id: "fg47", x: "-50%", y: "-50%", width: "200%", height: "200%" }, fd); svgEl("feGaussianBlur", { stdDeviation: "9" }, g3);
+        const g4 = svgEl("filter", { id: "fh47", x: "-50%", y: "-50%", width: "200%", height: "200%" }, fd); svgEl("feGaussianBlur", { stdDeviation: "2.5" }, g4);
+        const runG = svgEl("g", { opacity: 0 }, fx);
+        svgEl("path", { d: arcPath(RR, -40, 0), fill: "none", stroke: "#FF4FA3", "stroke-width": 36, "stroke-linecap": "round", filter: "url(#fg47)" }, runG);
+        svgEl("path", { d: arcPath(RR, -40, 0), fill: "none", stroke: "#FFD6EC", "stroke-width": 14, "stroke-linecap": "round", opacity: 0.7, filter: "url(#fh47)" }, runG);
+        svgEl("path", { d: arcPath(RR, -40, 0), fill: "none", stroke: "#fff", "stroke-width": 7, "stroke-linecap": "round" }, runG);
+        const mbF = (id) => { const f = svgEl("filter", { id: id, x: "-10%", y: "-30%", width: "120%", height: "160%" }, fd); return svgEl("feGaussianBlur", { in: "SourceGraphic", stdDeviation: "0 0" }, f); };
+        const mbN = mbF("mbN47"), mbG = mbF("mbG47");
+
+        // hub label columns: the station at open, then one block per tick
+        const nTicks = T.ticks.length, rollOrder = [];
+        for (let k = 0; k <= nTicks; k++) rollOrder.push((CONFIG.current + k) % 8);
+        const hCol = $("#hCol"), gCol = $("#gCol"), NSTEP = 132, GSTEP = 34;
+        const allow = (e) => { e.setAttribute("data-layout-allow-overflow", ""); e.setAttribute("data-layout-allow-occlusion", ""); return e; };
+        rollOrder.forEach((i) => {
+          const s = CONFIG.stations[i];
+          const n = allow(document.createElement("div")); n.className = "hn"; n.textContent = s.name; hCol.appendChild(n);
+          const g = allow(document.createElement("div")); g.className = "hg"; g.textContent = s.genre; gCol.appendChild(g);
+        });
+        const hEq = $("#hEq"), HB = [];
+        for (let k = 0; k < 9; k++) { const b = document.createElement("div"); b.className = "eqb"; hEq.appendChild(b); HB.push(b); }
+
+        // now playing strip
+        const NP = CONFIG.nowPlaying, landSt = CONFIG.stations[LS];
+        $("#npKickT").textContent = NP.kicker;
+        $("#npTitle").textContent = NP.title;
+        $("#npArtist").textContent = NP.artist + " · " + landSt.name;
+        const npEq = $("#npEq"), NB = [];
+        for (let k = 0; k < 5; k++) { const b = document.createElement("div"); b.className = "eqb"; npEq.appendChild(b); NB.push(b); }
+        const pick = TK[LS];
+        const fromX = W.cx + pick.dx, fromY = W.cy + pick.dy, toX = SP.left + 94, toY = SP.top + 94;
+        const BADGE = 128 / 148;   // coin size in the socket
+        const edge = $("#npEdge"); edge.style.left = (SP.left - 4) + "px"; edge.style.top = (SP.top + 9) + "px";
+
+        // ---------- states ----------
+        const DIM = "brightness(0.68) saturate(0.75)", HI = "brightness(1.04) saturate(1.05)", DROP = "brightness(0.52) saturate(0.62)";
+        TK.forEach((t, i) => { gsap.set(t.el, { scale: 1, x: 0, y: 0, opacity: 0 }); gsap.set(t.art, { filter: i === CONFIG.current ? HI : DIM }); });
+        ["#selU", "#selO", "#wBack", "#toks", "#fx"].forEach((q) => gsap.set(q, { transformOrigin: "420px 420px" }));
+        gsap.set("#wheel", { transformOrigin: "420px 420px" });
+        gsap.set(runG, { svgOrigin: C + " " + C });
+
+        const pl = CONFIG.plate;
+        const CLEAN = "blur(0px) saturate(1) brightness(1) contrast(1)";
+        const BLUR = "blur(" + pl.blur + "px) saturate(" + pl.saturate + ") brightness(" + pl.brightness + ") contrast(" + pl.contrast + ")";
+        // clip-path states for the strip wipe (40 px of slack top/left/bottom keeps the glow; right edge is the wipe)
+        const CLIP = (r) => "inset(-40px " + r.toFixed(1) + "px -40px -40px round 34px)";
+        const CLOSED = 720 - 94, OPEN = -40, WIPED = 0;
+
+        const L = T.lock, SPR = L + 0.06, SW = T.ticks[nTicks - 1] + 0.03, LAND = T.fly + T.flyDur, X = T.stripOut;
+        const fonts = ['600 100px "Barlow Condensed"', '700 100px "Barlow Condensed"', '800 100px "Barlow Condensed"', '900 100px "Barlow Condensed"', '900 100px Inter', 'italic 900 100px Inter'];
+        Promise.all(fonts.map((f) => document.fonts.load(f))).then(() => document.fonts.ready)
+          .then(() => Coin3D.paintArt(artSVG(landSt.art, "coin", 148), 512)).then((face) => {
+          // ---- the coin (real geometry) and its bloom; drawn per frame from t ----
+          const glow = $("#coinGlow");
+          const coin = Coin3D({
+            W: 1080, H: 1920, radius: 74, thick: CONFIG.coin.thick, face, rimColor: CONFIG.coin.rim, hotColor: CONFIG.coin.hot,
+            from: [fromX, fromY], to: [toX, toY], badge: BADGE,
+            timing: { swap: SW, press: L, spring: SPR, fly: T.fly, flyDur: T.flyDur, land: LAND, out: X + 0.2 },
+            onState: (S) => {
+              if (!S.vis) { glow.style.opacity = "0"; return; }
+              const inWheel = S.x === fromX && S.y === fromY;
+              glow.style.opacity = Math.min(1, (inWheel ? 0.3 : 0.38) + 0.55 * S.hot).toFixed(3);
+              glow.style.transform = "translate(" + S.x.toFixed(1) + "px," + S.y.toFixed(1) + "px) scale(" + (S.s * (1 + 0.25 * S.hot)).toFixed(3) + ")";
+            }
+          });
+          coin.canvas.setAttribute("data-layout-allow-overlap", ""); coin.canvas.setAttribute("data-layout-allow-occlusion", "");
+          $("#npRig").appendChild(coin.canvas);
+
+          const tl = gsap.timeline({ paused: true });
+          const FT = (el, from, to, at) => tl.fromTo(el, from, Object.assign({ immediateRender: false }, to), at);
+          const flashAt = (el, at, peak, decay) => {
+            FT(el, { opacity: 0 }, { opacity: peak, duration: 1 / 30, ease: "none" }, at);
+            FT(el, { opacity: peak }, { opacity: 0, duration: decay, ease: "power2.out" }, at + 2 / 30);
+          };
+          const eqDrive = (bars, seed, lo, from, until, rampDur) => Look.drive(tl, from, until - from, (p) => {
+            const t = from + p * (until - from), ramp = Math.min(1, (t - from) / rampDur);
+            if (p <= 0) { bars.forEach((b) => (b.style.transform = "scaleY(" + lo + ")")); return; }
+            bars.forEach((b, i) => {
+              const f = t * 15, k = Math.floor(f), u = f - k, s = u * u * (3 - 2 * u);
+              const v0 = Look.hash(seed + i * 977 + k * 13), v1 = Look.hash(seed + i * 977 + (k + 1) * 13);
+              b.style.transform = "scaleY(" + (lo + ramp * (1 - lo) * (v0 + (v1 - v0) * s)).toFixed(3) + ")";
+            });
+          });
+
+          // ---- plate: slow-mo bed blurs, drops and keeps its blacks; snaps back on the cut ----
+          if (plate) {
+            gsap.set("#grade", { filter: CLEAN });
+            FT("#grade", { filter: CLEAN }, { filter: BLUR, duration: 0.36, ease: "power2.out" }, T.open);
+            Look.push(tl, "#push", 0, T.snap, { from: 1, to: 1.04 });
+          }
+
+          // ---- open: every part is solid within 2 frames, then springs into place ----
+          const O = T.open;
+          gsap.set("#wheel", { scale: 0.7, opacity: 0 });
+          FT("#wheel", { scale: 0.7 }, { scale: 1, duration: 0.48, ease: "back.out(1.6)" }, O);
+          FT("#wheel", { opacity: 0 }, { opacity: 1, duration: 0.066, ease: "none" }, O);
+          gsap.set("#wBack", { rotation: -30 });
+          FT("#wBack", { rotation: -30 }, { rotation: 0, duration: 0.7, ease: "expo.out" }, O);
+          FT("#wSheen", { rotation: 0 }, { rotation: 28, duration: T.snap - O, ease: "none" }, O);
+          TK.forEach((t, i) => {
+            const sc = i === CONFIG.current ? 1.12 : 1, at = O + i * 0.022;
+            FT(t.el, { scale: 0.3, x: -t.dx * 0.35, y: -t.dy * 0.35 }, { scale: sc, x: 0, y: 0, duration: 0.38, ease: "back.out(1.9)" }, at);
+            FT(t.el, { opacity: 0 }, { opacity: 1, duration: 0.066, ease: "none" }, at);
+          });
+          gsap.set("#hub", { scale: 0.4, opacity: 0 });
+          FT("#hub", { scale: 0.4 }, { scale: 1, duration: 0.46, ease: "back.out(2.2)" }, O);
+          FT("#hub", { opacity: 0 }, { opacity: 1, duration: 0.066, ease: "none" }, O);
+          gsap.set("#wBase", { opacity: 0 });
+          FT("#wBase", { opacity: 0 }, { opacity: 1, duration: 0.066, ease: "none" }, O);
+          const r0s = 45 * CONFIG.current - 25;
+          gsap.set(["#selU", "#selO"], { opacity: 0, rotation: r0s });
+          FT(["#selU", "#selO"], { rotation: r0s }, { rotation: 45 * CONFIG.current, duration: 0.45, ease: "back.out(1.8)" }, O + 0.34);
+          FT(["#selU", "#selO"], { opacity: 0 }, { opacity: 1, duration: 0.066, ease: "none" }, O + 0.34);
+          flashAt(TK[CONFIG.current].flash, O + 0.42, 0.3, 0.25);
+          HB.forEach((b) => (b.style.transform = "scaleY(0.12)"));
+
+          // ---- ticks: clockwise to the landing station, slowing down; name and genre roll in their own windows ----
+          let prev = CONFIG.current;
+          T.ticks.forEach((t, k) => {
+            const n = (prev + 1) % 8, a = TK[prev], b = TK[n], next = T.ticks[k + 1] || T.lock, gap = Math.min(next - t, 0.4);
+            const r0 = 45 * (CONFIG.current + k), r1 = r0 + 45, isLand = k === T.ticks.length - 1;
+            const d = isLand ? 0.34 : Math.max(0.1, gap * 0.85), e = isLand ? "back.out(2.6)" : "back.out(1.8)";
+            FT(["#selU", "#selO"], { rotation: r0 }, { rotation: r1, duration: d, ease: e }, t);
+            FT(a.el, { scale: 1.12 }, { scale: 1, duration: 0.14, ease: "power2.out" }, t);
+            FT(a.art, { filter: HI }, { filter: DIM, duration: 0.12 }, t);
+            FT(b.el, { scale: 1 }, { scale: 1.12, duration: 0.22, ease: "back.out(3)" }, t + 0.03);
+            FT(b.art, { filter: DIM }, { filter: HI, duration: 0.1 }, t + 0.03);
+            flashAt(b.flash, t + 0.03, 0.25, 0.16);
+            FT("#hCol", { y: -NSTEP * k }, { y: -NSTEP * (k + 1), duration: 0.12, ease: "power3.inOut" }, t);
+            FT("#gCol", { y: -GSTEP * k }, { y: -GSTEP * (k + 1), duration: 0.12, ease: "power3.inOut" }, t + 0.02);
+            FT("#hub", { scale: 1 }, { scale: 1.018, duration: 0.05 }, t);
+            FT("#hub", { scale: 1.018 }, { scale: 1, duration: 0.12, ease: "power2.out" }, t + 0.05);
+            prev = n;
+          });
+          // 6 px vertical motion blur on each roll, peaking mid-roll (one driver per column so the ticks never fight)
+          const rollBlur = (el, node, id, off) => Look.drive(tl, 0, T.end, (p) => {
+            const t = p * T.end; let b = 0;
+            T.ticks.forEach((tk) => { const u = (t - tk - off) / 0.12; if (u > 0 && u < 1) b = Math.max(b, 6 * Math.sin(Math.PI * u)); });
+            node.setAttribute("stdDeviation", "0 " + b.toFixed(2)); el.style.filter = b > 0.05 ? "url(#" + id + ")" : "";
+          });
+          rollBlur($("#hCol"), mbN, "mbN47", 0); rollBlur($("#gCol"), mbG, "mbG47", 0.02);
+
+          // ---- the landed badge becomes the coin (under the landing tick's flash); its seat shows once it has left ----
+          tl.set(pick.el, { opacity: 0 }, SW);
+          tl.set(tsock, { opacity: 1 }, SW);
+          // when the coin leaves for the strip it is a duplicate: the badge is under it on that frame, seated and lit
+          // (full pink rim, 24 px bloom that swells as the coin clears and then breathes); the other badges stay dropped
+          tl.set(pick.el, { opacity: 1 }, T.fly);
+          tl.set(tsock, { opacity: 0 }, T.fly);
+          tl.set(pick.rimL, { opacity: 1 }, T.fly);
+          gsap.set(pick.bloom, { opacity: 0 });
+          Look.drive(tl, T.fly, T.collapse - T.fly, (p) => {
+            const u = p * (T.collapse - T.fly), rise = Math.min(1, u / 0.2), e = 1 - Math.pow(1 - rise, 2);
+            pick.bloom.style.opacity = (p <= 0 ? 0 : e * (0.88 + 0.12 * Math.cos(2 * Math.PI * Math.max(0, u - 0.2) / 1.1))).toFixed(3);
+          });
+
+          // ---- LOCK-IN (payoff): the coin is pressed and springs (Coin3D); the rim light runs the wheel; one exposure beat ----
+          const LA = -90 + 45 * LS;
+          FT("#selO", { scale: 1 }, { scale: 0.985, duration: 0.06, ease: "power2.out" }, L);
+          FT("#selO", { scale: 0.985 }, { scale: 1, duration: 0.3, ease: "back.out(2.2)" }, SPR);
+          TK.forEach((t) => { if (t !== pick) FT(t.art, { filter: DIM }, { filter: DROP, duration: 0.3 }, SPR); });
+          FT([ringGlow, ringCore, ringHot], { attr: { r: 88 } }, { attr: { r: 98 }, duration: 0.45, ease: "back.out(3.2)" }, SPR);
+          FT(ringHot, { attr: { "stroke-width": 1.6 } }, { attr: { "stroke-width": 4.5 }, duration: 1 / 30, ease: "none" }, SPR);
+          FT(ringHot, { attr: { "stroke-width": 4.5 } }, { attr: { "stroke-width": 2.2 }, duration: 0.4, ease: "power2.out" }, SPR + 3 / 30);
+          // white-hot arc: from the pick, once round the full rim in 0.45 s, the tube itself flares as it passes
+          FT(runG, { rotation: LA + 20 }, { rotation: LA + 20 + 360, duration: 0.45, ease: "power2.inOut" }, SPR);
+          FT(runG, { opacity: 0 }, { opacity: 1, duration: 0.04, ease: "none" }, SPR);
+          FT(runG, { opacity: 1 }, { opacity: 0, duration: 0.1, ease: "power2.in" }, SPR + 0.4);
+          FT(rimGlow, { attr: { opacity: 0.55, "stroke-width": 12 } }, { attr: { opacity: 1, "stroke-width": 20 }, duration: 0.08, ease: "power2.out" }, SPR);
+          FT(rimGlow, { attr: { opacity: 1, "stroke-width": 20 } }, { attr: { opacity: 0.6, "stroke-width": 12 }, duration: 0.6, ease: "power2.out" }, SPR + 0.4);
+          FT(rimCore, { attr: { stroke: "#FF5CAE" } }, { attr: { stroke: "#FFC2E1" }, duration: 0.08 }, SPR);
+          FT(rimCore, { attr: { stroke: "#FFC2E1" } }, { attr: { stroke: "#FF5CAE" }, duration: 0.5, ease: "power2.out" }, SPR + 0.4);
+          if (plate) Look.expose(tl, SPR, { target: "#shake", peak: 1.25, hold: 2 / 30, dur: 0.36, saturate: 1.12 });
+          flashAt("#hubFlash", SPR + 0.02, 1, 0.5);
+          FT("#hub", { scale: 1 }, { scale: 1.04, duration: 0.08, ease: "power2.out" }, SPR);
+          FT("#hub", { scale: 1.04 }, { scale: 1, duration: 0.4, ease: "back.out(3)" }, SPR + 0.08);
+          eqDrive(HB, 11, 0.12, SPR, T.snap, 0.2);
+
+          // ---- the coin lands in the strip socket (Coin3D), the socket ring lights, the strip wipes open from it ----
+          FT("#sockRing", { opacity: 0 }, { opacity: 1, duration: 0.05 }, LAND);
+          // the strip's clip is driven per frame (hidden -> wipe open from the socket -> free -> wipe shut into the socket)
+          const EO = gsap.parseEase("expo.out"), P3I = gsap.parseEase("power3.in");
+          const stripClip = (t) => {
+            if (t < LAND) return CLIP(CLOSED + 200);
+            if (t < LAND + 0.25) return CLIP(CLOSED + (WIPED - CLOSED) * EO((t - LAND) / 0.25));
+            if (t < X) return "none";
+            if (t < X + 0.22) return CLIP(OPEN + (CLOSED - OPEN) * P3I((t - X) / 0.22));
+            return CLIP(CLOSED + 200);
+          };
+          np.style.clipPath = stripClip(0);
+          Look.drive(tl, 0, T.end, (p) => { np.style.clipPath = stripClip(p * T.end); });
+          FT(edge, { x: 94, opacity: 1 }, { x: 720, duration: 0.25, ease: "expo.out" }, LAND);
+          tl.set(edge, { opacity: 0 }, LAND + 0.25);
+          gsap.set(edge, { opacity: 0 });
+          // strip type: masked rises only (nothing fades in)
+          Look.reveal(tl, "#npTitle", LAND - 0.01, { by: "chars", dur: 0.38, stagger: 0.02 });
+          Look.reveal(tl, "#npKickT", LAND - 0.02, { by: "words", dur: 0.34, stagger: 0.05 });
+          Look.reveal(tl, "#npArtist", LAND + 0.05, { by: "words", dur: 0.4, stagger: 0.04 });
+          gsap.set("#npDot", { scale: 0 });
+          FT("#npDot", { scale: 0 }, { scale: 1, duration: 0.3, ease: "back.out(3)" }, LAND);
+          gsap.set("#npFill", { scaleX: 0.06 });
+          FT("#npFill", { scaleX: 0.06 }, { scaleX: 0.42, duration: X - LAND, ease: "none" }, LAND);
+          eqDrive(NB, 29, 0.15, LAND, X + 0.2, 0.3);
+
+          // ---- collapse: the badges (the lit one last) fold into the hub, the disc zooms out with blur and is cut on the snap frame ----
+          const K = T.collapse;
+          FT(["#selU", "#selO"], { scale: 1 }, { scale: 0, duration: 0.2, ease: "power3.in" }, K);
+          tl.set(["#selU", "#selO"], { opacity: 0 }, K + 0.2);
+          let q = 0;
+          for (let j = 1; j <= 8; j++) {
+            const i = (LS + j) % 8, t = TK[i], el = t.el, at = K + q * 0.015, s0 = i === LS ? 1.12 : 1;
+            FT(el, { scale: s0, x: 0, y: 0 }, { scale: 0.2, x: -t.dx, y: -t.dy, duration: 0.2, ease: "power3.in" }, at);
+            Look.mblur(tl, el, at, 0.2, { x: 0, y: 0, to: [Math.abs(t.dx) / RT * 6, Math.abs(t.dy) / RT * 6], ease: "power3.in" });
+            tl.set(el, { opacity: 0 }, at + 0.2);
+            q++;
+          }
+          const DZ = K + 0.16;
+          FT("#wheel", { scale: 1 }, { scale: 0.6, duration: T.snap - DZ, ease: "power2.in" }, DZ);
+          FT("#wheel", { filter: "blur(0px)" }, { filter: "blur(8px)", duration: T.snap - DZ, ease: "power2.in" }, DZ);
+          tl.set("#wheel", { opacity: 0 }, T.snap);
+          if (plate) {
+            FT("#grade", { filter: BLUR }, { filter: CLEAN, duration: 1 / 60, ease: "none" }, T.snap - 1 / 60);
+            Look.expose(tl, T.snap, { target: "#shake", peak: 1.32, hold: 2 / 30, dur: 0.42, saturate: 1.16 });
+            Look.impact(tl, T.snap, { shake: "#shake", amp: 6, dur: 0.28, flash: 0, zoom: 1.025 });
+            Look.push(tl, "#push", T.snap, T.end - T.snap, { from: 1, to: 1.035 });
+          }
+          FT("#npRig", { y: 0 }, { y: -8, duration: 0.1, ease: "power2.out" }, T.snap);
+          FT("#npRig", { y: -8 }, { y: 0, duration: 0.4, ease: "back.out(3)" }, T.snap + 0.1);
+
+          // ---- strip leaves: wipes shut into its socket; the coin pops out after it (Coin3D, cut on its zero frame) ----
+          tl.set("#sockRing", { opacity: 0 }, X + 0.22);
+
+          // the coin is drawn from t on every render (and on hf-seek)
+          Look.drive(tl, 0, T.end, (p) => coin.renderAt(p * T.end));
+
+          // the coin canvas is a full-frame layer over the strip on purpose (the coin seats in the socket): tell the layout check
+          document.querySelectorAll("#np, #np *, #hub, #hub *").forEach((n) => { n.setAttribute("data-layout-allow-occlusion", ""); n.setAttribute("data-layout-allow-overlap", ""); });
+
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

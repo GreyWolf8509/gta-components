@@ -1,0 +1,294 @@
+<!doctype html>
+<!-- 13 Circle and arrow, variant A (16:9, 1920x1080, 30 fps): "Draw-on circle".
+     A hand-drawn red brush circle draws round the player, then a curled brush arrow flicks in from the right and its head pops.
+     The annotation is tracked to the subject (CONFIG.track). Variable bg: "plate" (sample GTA V footage) / "none" (transparent). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #fx { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: visible; }
+      #glowG, .hot { mix-blend-mode: screen; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5" data-width="1920" data-height="1080">
+      <div id="shake">
+        <div id="push">
+          <video id="shotA" class="clip shot" src="assets/shots/v35-penthouse-dusk-h.mp4" muted playsinline
+                 data-start="0" data-duration="5" data-media-start="0.3" data-track-index="0"></video>
+        </div>
+        <svg id="fx" class="clip" data-start="0" data-duration="5" data-track-index="1" width="1920" height="1080" viewBox="0 0 1920 1080">
+          <defs>
+            <linearGradient id="red" gradientUnits="userSpaceOnUse" x1="0" y1="-210" x2="0" y2="220">
+              <stop offset="0" stop-color="#FF4A3D" />
+              <stop offset="0.5" stop-color="#EE1C25" />
+              <stop offset="1" stop-color="#B20E1C" />
+            </linearGradient>
+            <!-- the paint: broken edge, dark ink rim, contact shadow, a rounded glossy body (fixed key) and a raking glint -->
+            <filter id="paint" filterUnits="userSpaceOnUse" x="-240" y="-420" width="880" height="640" color-interpolation-filters="sRGB">
+              <feOffset in="SourceGraphic" dx="0" dy="0" result="g" />
+              <feMorphology in="g" operator="dilate" radius="2" result="dil" />
+              <feFlood flood-color="#5A0010" flood-opacity="0.7" result="ink" />
+              <feComposite in="ink" in2="dil" operator="in" result="rim" />
+              <feGaussianBlur in="g" stdDeviation="2.5" result="sb" />
+              <feOffset in="sb" dx="3" dy="5" result="so" />
+              <feFlood flood-color="#000000" flood-opacity="0.45" />
+              <feComposite in2="so" operator="in" result="shadow" />
+              <feGaussianBlur in="g" stdDeviation="3.4" result="bump" />
+              <feSpecularLighting in="bump" surfaceScale="3" specularConstant="0.42" specularExponent="34" lighting-color="#FFF1EE" result="s1">
+                <feDistantLight azimuth="225" elevation="42" />
+              </feSpecularLighting>
+              <feComposite in="s1" in2="g" operator="in" result="s1in" />
+              <feSpecularLighting id="rakeSpec" in="bump" surfaceScale="4" specularConstant="0" specularExponent="30" lighting-color="#FFFFFF" result="s2">
+                <fePointLight id="rakeLight" x="0" y="0" z="70" />
+              </feSpecularLighting>
+              <feComposite in="s2" in2="g" operator="in" result="s2in" />
+              <feComposite in="g" in2="s1in" operator="arithmetic" k1="0" k2="1" k3="0.6" k4="0" result="lit1" />
+              <feComposite in="lit1" in2="s2in" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" result="lit" />
+              <feMerge><feMergeNode in="shadow" /><feMergeNode in="rim" /><feMergeNode in="lit" /></feMerge>
+            </filter>
+            <filter id="glow" filterUnits="userSpaceOnUse" x="-270" y="-460" width="940" height="720" color-interpolation-filters="sRGB">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="b" />
+              <feColorMatrix in="b" type="matrix" values="1 0 0 0 0.2  0 1 0 0 0.16  0 0 1 0 0.14  0 0 0 1.3 0" />
+            </filter>
+            <!-- the payoff bloom: a white-hot core about 40 px across that falls off through the ink red -->
+            <radialGradient id="hot">
+              <stop offset="0" stop-color="#FFFFFF" stop-opacity="1" />
+              <stop offset="0.2" stop-color="#FFEDE6" stop-opacity="0.95" />
+              <stop offset="0.42" stop-color="#FF7060" stop-opacity="0.5" />
+              <stop offset="0.72" stop-color="#FF2A2A" stop-opacity="0.14" />
+              <stop offset="1" stop-color="#FF0000" stop-opacity="0" />
+            </radialGradient>
+          </defs>
+          <g id="ann" transform="translate(760 540)">
+            <g id="glowG" filter="url(#glow)" opacity="0"><use href="#inkG" /></g>
+            <g id="paintG" filter="url(#paint)">
+              <g id="inkG">
+                <g id="cG" transform="scale(1)"><path id="cBody" fill="url(#red)" d="" /><g id="cStr"></g></g>
+                <g id="aG"><path id="aBody" fill="url(#red)" d="" /><g id="aStr"></g>
+                  <g id="hG" transform="scale(0)">
+                    <path id="b1Body" fill="url(#red)" d="" /><g id="b1Str"></g>
+                    <path id="b2Body" fill="url(#red)" d="" /><g id="b2Str"></g>
+                  </g>
+                </g>
+              </g>
+            </g>
+            <circle id="bloomHead" class="hot" r="100" fill="url(#hot)" opacity="0" />
+            <circle id="bloomRake" class="hot" r="72" fill="url(#hot)" opacity="0" />
+          </g>
+        </svg>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        clip: { src: "assets/shots/v35-penthouse-dusk-h.mp4", in: 0.3 },
+        // Annotation centre. With a track it rides the subject (per-frame canvas px, measured from the clip); set track:null for a fixed target.
+        target: { x: 760, y: 540 },
+        offset: { x: 4, y: 32 },          // circle centre from the tracked head: head and shoulders
+        track: { t0: 0.3, fps: 30,   // the player's head, template-tracked on this clip
+          x: [727,728,730,732,734,735,737,739,740,741,742,742,742,742,741,740,739,738,736,735,733,731,729,728,726,725,725,724,724,725,726,727,728,730,732,734,736,738,740,741,743,744,745,745,746,745,745,744,743,742,740,739,737,735,734,733,731,731,730,730,730,730,731,732,733,735,736,738,739,741,742,743,744,745,745,745,745,745,744,743,741,740,738,736,735,733,732,731,730,729,729,729,730,731,732,733,735,737,739,741,743,745,747,748,749,750,751,751,751,750,749,748,747,745,744,742,741,740,739,738,738,738,738,739,740,741,743,745,747,749,751,754,756,758,759,761,762,763,764,764,764,764,763,762,761,760,758,756,755,753,751,749,748,746],
+          y: [419,421,422,423,424,425,426,427,428,428,429,430,430,430,431,431,431,432,432,432,432,433,433,433,433,433,433,433,433,432,432,432,432,432,431,431,431,431,431,431,431,431,431,431,431,431,431,431,431,431,431,431,431,432,432,432,432,431,431,431,431,431,430,430,430,430,430,430,430,429,429,429,429,430,430,430,430,430,430,431,431,431,431,432,432,432,432,432,432,432,432,432,432,432,431,431,431,431,431,431,431,431,431,430,430,430,430,430,430,431,431,431,431,431,431,431,431,432,432,432,431,431,431,431,431,431,431,430,430,430,430,430,430,430,430,430,430,430,430,430,430,430,430,430,430,429,429,429,428,428,427,427,426,425] },
+        circle: { rx: 145, ry: 128, tilt: -8, start: 205, sweep: 398, width: 42 },
+        // the shaft curls in from `from` round `ctrl`; its tip is placed automatically `gap` px off the ring's outer edge at ring angle `aim`
+        // (degrees, 0 = right, -90 = top). The head is two brush flicks `barb` px long, `barbAngle` off the shaft, `barbWidth` at the root.
+        arrow: { from: [540, -120], ctrl: [330, -320], aim: -42, gap: 10, width: 32, barb: 104, barbAngle: 36, barbWidth: 36 },
+        timing: { circleIn: 0.40, circleDur: 0.62, arrowIn: 1.02, arrowDur: 0.30, pop: 1.32, headDur: 0.08, rake: 0.45, out: 4.30, end: 5.0 }
+      };
+
+      /* Brush: a variable-width paint stroke along a dense centreline. draw(s0, s1) shows the stroke between arc fractions s0..s1
+         (draw-on grows s1; the exit raises s0). Pressure taper in, flick out, a pressure wobble, and bristle strands that splay
+         into a dry-brush tail. Everything is rebuilt from (s0, s1), so it is a pure function of time. */
+      const Brush = (function () {
+        const NS = "http://www.w3.org/2000/svg";
+        const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+        const f1 = (v) => Math.round(v * 10) / 10;
+        return function (body, strandHost, o) {
+          const P = o.pts, n = P.length, L = [0];
+          for (let i = 1; i < n; i++) L.push(L[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+          const S = L.map((l) => l / L[n - 1]);
+          const TG = P.map((p, i) => { const a = P[Math.max(0, i - 1)], b = P[Math.min(n - 1, i + 1)]; const dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy) || 1; return [dx / d, dy / d]; });
+          const wAt = (s) => {
+            let w = o.W * (1 + (o.wob || 0.06) * Math.sin(s * Math.PI * 2 * 1.3 + (o.seed || 0)));
+            if (o.tin) { const f0 = o.tinFloor || 0.14; w *= f0 + (1 - f0) * Math.pow(sm(0, o.tin, s), 0.6); }
+            if (o.tout) { const fe = o.toutFloor || 0, te = o.tEnd || 1; w *= fe + (1 - fe) * Math.pow(1 - sm(te - o.tout, te, s), 0.75); }
+            return Math.max(0, w);
+          };
+          // chisel-tip marker: the stroke is thick across the nib and thin along it, like a real marker held at an angle
+          const nibA = (o.nib || 0) * Math.PI / 180, nibK = o.nibAmt || 0;
+          const wQ = (q) => wAt(q.s) * ((1 - nibK) + nibK * Math.abs(Math.sin(Math.atan2(q.t[1], q.t[0]) - nibA)));
+          const at = (s) => { // interpolated point + tangent at arc fraction s
+            let lo = 0, hi = n - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (S[m] <= s) lo = m; else hi = m; }
+            const k = S[hi] > S[lo] ? (s - S[lo]) / (S[hi] - S[lo]) : 0;
+            return { p: [P[lo][0] + (P[hi][0] - P[lo][0]) * k, P[lo][1] + (P[hi][1] - P[lo][1]) * k], t: TG[k < 0.5 ? lo : hi], i: lo };
+          };
+          const samples = (s0, s1, step) => {
+            const out = [Object.assign(at(s0), { s: s0 })];
+            for (let i = 0; i < n; i += step) if (S[i] > s0 && S[i] < s1) out.push({ p: P[i], t: TG[i], s: S[i] });
+            out.push(Object.assign(at(s1), { s: s1 })); return out;
+          };
+          const strands = (o.strands || []).map((st) => {
+            const el = document.createElementNS(NS, "path");
+            el.setAttribute("fill", "none"); el.setAttribute("stroke", st.c); el.setAttribute("stroke-opacity", st.op);
+            el.setAttribute("stroke-width", st.w); el.setAttribute("stroke-linecap", "round"); el.setAttribute("stroke-linejoin", "round");
+            strandHost.appendChild(el); return { st, el };
+          });
+          function draw(s0, s1) {
+            if (s1 - s0 < 0.002) { body.setAttribute("d", ""); strands.forEach((x) => x.el.setAttribute("d", "")); return; }
+            const Q = samples(s0, s1, 1), Lf = [], Rt = [];
+            Q.forEach((q) => { const w = wQ(q) / 2, nx = -q.t[1], ny = q.t[0]; Lf.push([q.p[0] + nx * w, q.p[1] + ny * w]); Rt.push([q.p[0] - nx * w, q.p[1] - ny * w]); });
+            const cap = (q, dir) => { // semicircle from +n round the tip (dir=1 forward, -1 back) to -n
+              const r = wQ(q) / 2, nx = -q.t[1], ny = q.t[0], out = [];
+              for (let k = 1; k < 8; k++) { const a = (k / 8) * Math.PI, c = Math.cos(a), s = Math.sin(a);
+                out.push([q.p[0] + (nx * c + q.t[0] * s) * r * dir, q.p[1] + (ny * c + q.t[1] * s) * r * dir]); }
+              return out;
+            };
+            let d = "M" + Lf.map((p) => f1(p[0]) + " " + f1(p[1])).join("L");
+            d += "L" + cap(Q[Q.length - 1], 1).map((p) => f1(p[0]) + " " + f1(p[1])).join("L");
+            d += "L" + Rt.slice().reverse().map((p) => f1(p[0]) + " " + f1(p[1])).join("L");
+            d += "L" + cap(Q[0], -1).map((p) => f1(p[0]) + " " + f1(p[1])).join("L") + "Z";
+            body.setAttribute("d", d);
+            strands.forEach(({ st, el }) => {
+              const a = Math.max(s0, st.a), b = Math.min(s1, st.b);
+              if (b - a < 0.004) { el.setAttribute("d", ""); return; }
+              const R = samples(a, b, 2);
+              el.setAttribute("d", "M" + R.map((q) => { const lit = st.lit ? (-q.t[1] * -0.7071 + q.t[0] * -0.7071) : 1;
+                // dry bristles keep a fixed offset, so they split away from the body as it thins at the end of the stroke
+                const off = st.dry ? st.o * 0.5 * o.W : st.o * 0.5 * Math.max(wQ(q), o.W * 0.5) * lit;
+                return f1(q.p[0] - q.t[1] * off) + " " + f1(q.p[1] + q.t[0] * off); }).join("L"));
+            });
+          }
+          const end = at(1);
+          return { draw, end: { p: end.p, t: TG[n - 1] } };
+        };
+      })();
+
+      const STRANDS = [
+        { o: 0.56, w: 5, c: "#FF7C6E", op: 0.5, a: 0.02, b: 0.975, lit: true },    // wet highlight, always on the up-left side
+        { o: -0.52, w: 10, c: "#9E0A16", op: 0.58, a: 0.0, b: 1.0, lit: true },     // dark core on the shadow side
+        { o: 0.12, w: 1.6, c: "#8E0714", op: 0.35, a: 0.05, b: 0.99 },
+        { o: -0.18, w: 1.3, c: "#FFB4AC", op: 0.3, a: 0.08, b: 0.96 }
+      ];
+      // dry brush: three bristle streaks that run on past the body where the brush lifts (end of the ring, start of the shaft)
+      const dry = (a, b) => [
+        { o: -0.62, w: 3.6, c: "url(#red)", op: 0.95, a: a, b: b - 0.006, dry: true },
+        { o: 0.04, w: 2.6, c: "url(#red)", op: 0.95, a: a + 0.01, b: b, dry: true },
+        { o: 0.6, w: 3.1, c: "url(#red)", op: 0.95, a: a + 0.004, b: b - 0.016, dry: true }
+      ];
+
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const C = CONFIG, T = C.timing, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x)), seg = (t, a, d) => clamp((t - a) / d, 0, 1), lerp = (a, b, k) => a + (b - a) * k;
+        const E = (n) => gsap.parseEase(n);
+
+        // ---------- geometry (annotation-local px, origin = target) ----------
+        const ci = C.circle, tr = ci.tilt * Math.PI / 180, cpts = [];
+        for (let i = 0; i <= 460; i++) {
+          const u = i / 460, th = (ci.start + ci.sweep * u) * Math.PI / 180;
+          const r = (1 + 0.045 * Math.sin(2 * th + 0.7) + 0.025 * Math.sin(3 * th + 2.1)) * (0.965 + 0.095 * Math.pow(u, 1.6));
+          const x = ci.rx * r * Math.cos(th), y = ci.ry * r * Math.sin(th);
+          cpts.push([x * Math.cos(tr) - y * Math.sin(tr), x * Math.sin(tr) + y * Math.cos(tr)]);
+        }
+        const circle = Brush($("#cBody"), $("#cStr"), { pts: cpts, W: ci.width, tin: 0.05, tout: 0.2, tEnd: 0.965, wob: 0.07, seed: 1.2, nib: 40, nibAmt: 0.4, strands: STRANDS.concat(dry(0.83, 1.0)) });
+        // arrow tip: `gap` px outside the ring's outer edge at angle `aim` (first pass of the loop), plus the head's own half-width
+        const ar = C.arrow, aimI = Math.round(((((ar.aim - ci.start) % 360) + 360) % 360) / ci.sweep * 460);
+        const rp = cpts[aimI], rq = cpts[aimI + 1], rl = Math.hypot(rq[0] - rp[0], rq[1] - rp[1]), nOut = [(rq[1] - rp[1]) / rl, -(rq[0] - rp[0]) / rl];
+        // the ring's real half-width there (the chisel nib thins it where the stroke runs along the nib), then the gap, then the head's front
+        const nibHalf = ci.width / 2 * (0.6 + 0.4 * Math.abs(Math.sin(Math.atan2(rq[1] - rp[1], rq[0] - rp[0]) - 40 * Math.PI / 180)));
+        const reach = nibHalf + ar.gap + ar.barbWidth * 0.4;
+        const tip = [rp[0] + nOut[0] * reach, rp[1] + nOut[1] * reach], apts = [];
+        for (let i = 0; i <= 140; i++) { const u = i / 140, a = (1 - u) * (1 - u), b = 2 * u * (1 - u), c = u * u;
+          apts.push([a * ar.from[0] + b * ar.ctrl[0] + c * tip[0], a * ar.from[1] + b * ar.ctrl[1] + c * tip[1]]); }
+        const shaft = Brush($("#aBody"), $("#aStr"), { pts: apts, W: ar.width, tin: 0.15, tinFloor: 0.3, tout: 0.06, toutFloor: 0.7, wob: 0.05, seed: 2.6, nib: 40, nibAmt: 0.42, strands: STRANDS.concat(dry(0.0, 0.15)) });
+        // the head: two tapered flicks from the tip, back along the shaft at +/- barbAngle, bowed slightly outward
+        const tE = shaft.end.t, back = [-tE[0], -tE[1]];
+        const barbPts = (sg) => { const a = sg * ar.barbAngle * Math.PI / 180, c = Math.cos(a), sn = Math.sin(a);
+          const d = [back[0] * c - back[1] * sn, back[0] * sn + back[1] * c], nb = [-d[1] * sg, d[0] * sg], out = [];
+          for (let i = 0; i <= 48; i++) { const u = i / 48, bow = 5 * Math.sin(Math.PI * u);
+            out.push([tip[0] + d[0] * ar.barb * u + nb[0] * bow, tip[1] + d[1] * ar.barb * u + nb[1] * bow]); }
+          return out; };
+        const BARB_STR = STRANDS.slice(0, 2).map((x) => Object.assign({}, x, { a: 0.04, b: 0.9 }));
+        const barbs = [1, -1].map((sg, k) => Brush($("#b" + (k + 1) + "Body"), $("#b" + (k + 1) + "Str"),
+          { pts: barbPts(sg), W: ar.barbWidth, tout: 1, toutFloor: 0.3, wob: 0.03, seed: 4.1 + k, strands: BARB_STR }));
+        const headC = [tip[0] + back[0] * 60, tip[1] + back[1] * 60];
+        // the raking light rides the ring's centreline
+        const ringAt = (deg) => { const th = deg * Math.PI / 180, r = (1 + 0.045 * Math.sin(2 * th + 0.7) + 0.025 * Math.sin(3 * th + 2.1)) * 0.99;
+          const x = ci.rx * r * Math.cos(th), y = ci.ry * r * Math.sin(th); return [x * Math.cos(tr) - y * Math.sin(tr), x * Math.sin(tr) + y * Math.cos(tr)]; };
+
+        // ---------- the track ----------
+        const trackAt = (t) => {
+          if (!C.track) return [C.target.x, C.target.y];
+          const k = (C.clip.in + t - C.track.t0) * C.track.fps, X = C.track.x, Y = C.track.y;
+          const i = clamp(Math.floor(k), 0, X.length - 1), j = Math.min(X.length - 1, i + 1), f = clamp(k - i, 0, 1);
+          return [X[i] + (X[j] - X[i]) * f, Y[i] + (Y[j] - Y[i]) * f];
+        };
+        const spring = (tau, k, w) => tau <= 0 ? 0 : 1 - Math.exp(-k * tau) * (Math.cos(w * tau) + (k / w) * Math.sin(w * tau));
+        const eCircle = E("sine.inOut"), eShaft = E("power2.out"), eIn = E("power2.in"), eBack = E("back.in(2)"), eRake = E("power2.inOut");
+        const ann = $("#ann"), cG = $("#cG"), head = $("#hG"), glow = $("#glowG"), rakeL = $("#rakeLight"), rakeS = $("#rakeSpec");
+        const bloomH = $("#bloomHead"), bloomR = $("#bloomRake");
+
+        function renderAt(t) {
+          const [tx, ty] = trackAt(t);
+          ann.setAttribute("transform", "translate(" + (tx + C.offset.x).toFixed(2) + " " + (ty + C.offset.y).toFixed(2) + ")");
+          // circle: draws on, then unwinds chasing its end
+          const c1 = eCircle(seg(t, T.circleIn, T.circleDur)), c0 = eIn(seg(t, T.out + 0.02, 0.30));
+          circle.draw(c0, t < T.circleIn ? 0 : c1);
+          // shaft: flicks in thin, ends under the head; on exit it retracts toward its tail
+          const a1 = t < T.arrowIn ? 0 : eShaft(seg(t, T.arrowIn, T.arrowDur)) * (1 - eIn(seg(t, T.out + 0.08, 0.22)));
+          shaft.draw(0, a1);
+          // head: two flicks drawn from the tip in headDur (the second 0.03 s behind), with a scale pop about the tip; retract first on the exit
+          const tau = t - T.pop, hOut = eIn(seg(t, T.out, 0.1));
+          barbs.forEach((b, k) => b.draw(0, (tau <= 0.03 * k ? 0 : E("power3.out")(seg(tau - 0.03 * k, 0, T.headDur))) * (1 - hOut)));
+          const hk = tau <= 0 ? 0 : tau < 0.07 ? lerp(0.7, 1.16, E("power2.out")(tau / 0.07)) : tau < 0.13 ? lerp(1.16, 0.96, E("power2.inOut")((tau - 0.07) / 0.06)) : tau < 0.21 ? lerp(0.96, 1, E("power2.out")((tau - 0.13) / 0.08)) : 1;
+          const hr = tau <= 0 ? 0 : -10 * (1 - spring(tau, 10, 18));
+          head.setAttribute("transform", "translate(" + tip[0].toFixed(1) + " " + tip[1].toFixed(1) + ") rotate(" + hr.toFixed(2) + ") scale(" + hk.toFixed(4) + ") translate(" + (-tip[0]).toFixed(1) + " " + (-tip[1]).toFixed(1) + ")");
+          // payoff: the circle thumps, a white-hot bloom on the head (3-frame hold), a short tight ink bloom
+          const th = tau > 0 ? 1 + 0.045 * Math.exp(-7 * tau) * Math.sin(2 * Math.PI * 2.4 * tau) : 1;
+          cG.setAttribute("transform", "scale(" + th.toFixed(4) + ")");
+          const bt = tau - 0.04, bh = bt < 0 ? 0 : bt < 0.033 ? bt / 0.033 : bt < 0.133 ? 1 : Math.exp(-(bt - 0.133) / 0.07);
+          bloomH.setAttribute("opacity", (bh < 0.004 ? 0 : bh).toFixed(3));
+          bloomH.setAttribute("cx", headC[0].toFixed(1)); bloomH.setAttribute("cy", headC[1].toFixed(1));
+          bloomH.setAttribute("transform", "translate(" + headC[0].toFixed(1) + " " + headC[1].toFixed(1) + ") scale(" + (0.75 + 0.35 * Math.min(1, Math.max(0, bt) / 0.2)).toFixed(3) + ") translate(" + (-headC[0]).toFixed(1) + " " + (-headC[1]).toFixed(1) + ")");
+          glow.setAttribute("opacity", (bh < 0.004 ? 0 : 0.5 * bh).toFixed(3));
+          // the glint: crosses the head (0.1 s), then runs once round the whole ring (T.rake), as a hard specular plus a small bloom
+          const rT = t - (T.pop + 0.04), RD = 0.1 + T.rake;
+          let lp = headC, env = 0;
+          if (rT > 0 && rT < RD) {
+            if (rT < 0.1) { const e = E("power1.inOut")(rT / 0.1), r0 = ringAt(ar.aim); lp = [lerp(headC[0], r0[0], e), lerp(headC[1], r0[1], e)]; }
+            else lp = ringAt(ar.aim + 360 * eRake((rT - 0.1) / T.rake));
+            env = Math.min(1, rT / 0.03) * Math.min(1, (RD - rT) / 0.1);
+          }
+          rakeL.setAttribute("x", lp[0].toFixed(1)); rakeL.setAttribute("y", lp[1].toFixed(1));
+          rakeS.setAttribute("specularConstant", (3.2 * env).toFixed(3));
+          bloomR.setAttribute("cx", lp[0].toFixed(1)); bloomR.setAttribute("cy", lp[1].toFixed(1));
+          bloomR.setAttribute("opacity", (0.6 * env).toFixed(3));
+        }
+
+        const FACES = ["900 100px Inter", "900 100px Archivo"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          Look.impact(tl, T.pop + 0.05, { shake: "#shake", amp: 5, dur: 0.28, flash: 0, host: "#root", zoom: 1.012 });
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

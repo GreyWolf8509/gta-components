@@ -1,0 +1,14 @@
+# per-component working folders (created by setup.sh / the HyperFrames CLI)
+**/assets/
+**/.hyperframes/
+**/node_modules/
+**/renders/
+**/rounds/
+# footage never goes in the repo
+*.mp4
+*.webm
+*.mov
+# showcase tiles are built locally
+showcase/media/
+# os
+.DS_Store

@@ -1,0 +1,342 @@
+<!doctype html>
+<!-- GTA-niche 73 Chapter counter card, variant B (9:16, 1080x1920, 30 fps, 4.7 s). The Shorts chapter card, phone-first (DESIGN lesson 26): the drum is the hero at 64% of frame width, a three-line 128 px headline, an 84 px chip at right 144 / top 240, all inside x 72-936 / y 230-1480, no footage window (no room in the safe band), and the card cuts to footage at 2.3 s. Otherwise the long-form card from
+     films/gta6-rdr2-gta5: a lit navy board, a mechanical NN / 14 counter drum (real Three.js cylinders, one per column,
+     digits painted on a canvas texture, lit by a key + rim + softbox env) and the two-line "X BECOMES Y" headline.
+     Order: kicker, "/ 14", headline and rule rise in through masks; then the drum winds back, rolls, overshoots and snaps
+     into its detent: the one payoff, a 3-frame light hit on the drum face with a 1-frame punch. At 2.55 s the drum lifts
+     off the board and flies into the top-right corner while the board slides up to the chapter's first shot; the docked
+     drum becomes the NN / 14 progress chip, which unfolds its "/ 14", holds, and leaves through the corner.
+     Full-kind component (always footage). Same object structure as the film kit's `card` + `prog`. Oswald only
+     (bundled in media/fonts). See ../DECISIONS.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Sample footage"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <style>
+      @font-face { font-family: "Oswald"; src: url("media/fonts/Oswald-wght.ttf") format("truetype"); font-weight: 200 700; font-style: normal; font-display: block; }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #0B0E1C; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #0B0E1C; font-family: "Oswald", sans-serif;
+        color: #ECEBFA; -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      .o { position: absolute; }
+
+      /* ---- the card: a lit painted board ---- */
+      #card { position: absolute; inset: 0; overflow: hidden; will-change: transform; }
+      .board { position: absolute; inset: 0; background: linear-gradient(180deg, #121733 0%, #0C1022 55%, #090C19 100%); }
+      .pool { position: absolute; left: -440px; top: -230px; width: 1800px; height: 1700px; will-change: transform;
+        background: radial-gradient(ellipse 46% 44% at 50% 50%, rgba(50,60,112,0.95) 0%, rgba(38,46,88,0.78) 26%, rgba(24,30,60,0.42) 56%, rgba(12,16,34,0) 100%); }
+      .pool2 { position: absolute; left: 60px; top: 900px; width: 1400px; height: 1300px;
+        background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(34,42,84,0.55) 0%, rgba(24,30,62,0.30) 40%, rgba(12,16,34,0) 100%); }
+      .rake { position: absolute; left: -900px; top: 0; width: 2880px; height: 100%; will-change: transform;
+        background: linear-gradient(105deg, rgba(214,222,255,0) 0%, rgba(214,222,255,0) 43%, rgba(214,222,255,0.10) 49%, rgba(214,222,255,0.10) 51%, rgba(214,222,255,0) 57%, rgba(214,222,255,0) 100%); }
+      .win { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 6px; transform-origin: 0 0; will-change: transform, clip-path; }
+      .winframe { position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-radius: 6px; pointer-events: none; clip-path: inset(50% 0px 50% 0px); transform-origin: 0 0; will-change: transform, clip-path;
+        box-shadow: inset 0 0 0 2px rgba(255,255,255,0.16), 0 4px 8px rgba(0,0,0,0.6), 0 60px 120px rgba(0,0,0,0.55); }
+      .arrive { position: absolute; inset: 0; transform-origin: 50% 50%; will-change: transform, filter; }
+      .sheen { position: absolute; inset: 0; background: linear-gradient(112deg, rgba(255,255,255,0) 30%, rgba(214,222,255,0.05) 46%, rgba(255,255,255,0) 62%); }
+      .vig { position: absolute; inset: 0; background: radial-gradient(ellipse 92% 64% at 46% 42%, rgba(3,4,9,0) 42%, rgba(3,4,9,0.36) 74%, rgba(3,4,9,0.82) 100%); }
+      .grain { position: absolute; inset: 0; opacity: 0.07; mix-blend-mode: overlay;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='7' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1 0'/></filter><rect width='300' height='300' filter='url(%23n)'/></svg>"); }
+
+      /* ---- type: every reveal is a mask rise (clip-path from the bottom + y + blur), opacity always 1 ---- */
+      .wipe { clip-path: inset(100% 0px 0px 0px); white-space: nowrap; padding-bottom: 0.06em; }
+      .wipe > span { display: inline-block; will-change: transform; }
+      .kick { font-weight: 500; font-size: 48px; line-height: 1; letter-spacing: 0.18em; color: #C9C7E8; }
+      .cof { font-weight: 500; font-size: 76px; line-height: 1; letter-spacing: 0.02em; color: #C9C7E8; font-variant-numeric: tabular-nums; }
+      .head { font-weight: 700; font-size: 128px; line-height: 1; letter-spacing: 0.01em; }
+      .head .hl1, .head .hl2, .head .hl3 { display: block; }
+      .head .hl2, .head .hl3 { margin-top: 2px; }
+      .head .a { color: #DC4852; }
+      .head .v { color: #C9C7E8; }
+      .head .b { color: #F2558E; }
+      .rule { height: 8px; background: #F2558E; transform-origin: 0 50%; transform: scaleX(0); }
+
+      /* ---- the counter drum: housing plate, window, GL cylinders, window shade ---- */
+      .drumshadow { position: absolute; border-radius: 50%; pointer-events: none;
+        background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(2,3,8,0.72) 0%, rgba(2,3,8,0.42) 45%, rgba(2,3,8,0) 100%); }
+      #fly { position: absolute; inset: 0; pointer-events: none; }
+      .flyer { position: absolute; transform-origin: 0 0; will-change: transform; }
+      .housing { position: absolute; left: 0; top: 0; border-radius: 14px; transform-origin: 50% 50%; will-change: transform;
+        background: linear-gradient(180deg, #2A3159 0%, #1B2143 18%, #141A36 60%, #0E1229 100%);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(0,0,0,0.6), inset 1px 0 0 rgba(255,255,255,0.06),
+          0 2px 3px rgba(0,0,0,0.6), 0 18px 34px rgba(0,0,0,0.55), 0 44px 70px -12px rgba(0,0,0,0.6); }
+      .cavity { position: absolute; border-radius: 6px; background: #04050B; overflow: hidden; will-change: filter;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.9), 0 1px 0 rgba(255,255,255,0.08); }
+      .cavity canvas { position: absolute; left: 0; top: 0; display: block; }
+      .winshade { position: absolute; inset: 0; pointer-events: none; border-radius: 6px;
+        background: linear-gradient(180deg, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.34) 9%, rgba(0,0,0,0) 24%, rgba(0,0,0,0) 76%, rgba(0,0,0,0.38) 91%, rgba(0,0,0,0.82) 100%);
+        box-shadow: inset 0 0 0 1px rgba(0,0,0,0.75), inset 0 18px 22px -12px rgba(0,0,0,0.85), inset 0 -18px 22px -12px rgba(0,0,0,0.85); }
+      .split { position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; pointer-events: none;
+        background: linear-gradient(180deg, rgba(0,0,0,0.9) 0 50%, rgba(255,255,255,0.10) 50% 100%); }
+      .divider { position: absolute; top: 0; bottom: 0; pointer-events: none;
+        background: linear-gradient(90deg, rgba(0,0,0,0.9), rgba(0,0,0,0.55) 50%, rgba(255,255,255,0.05)); }
+
+      /* ---- the persistent progress chip: the docked drum (mini housing) + an unfolding "/ 14" tail ---- */
+      .prog { position: absolute; display: flex; align-items: stretch; height: 84px; border-radius: 12px; white-space: nowrap; will-change: transform, clip-path;
+        background: linear-gradient(180deg, #232A4D 0%, #151A38 45%, #0E1226 100%);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.26), inset 0 -1px 0 rgba(0,0,0,0.7), 0 1px 2px rgba(0,0,0,0.7), 0 4px 6px rgba(0,0,0,0.45), 0 14px 28px rgba(0,0,0,0.5); }
+      .prog .mini { position: relative; flex: none; height: 84px; border-radius: 12px;
+        background: linear-gradient(180deg, #2A3159 0%, #1B2143 18%, #141A36 60%, #0E1229 100%);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(0,0,0,0.6), 2px 0 4px rgba(0,0,0,0.5); }
+      .prog .minicav { position: absolute; inset: 6px; border-radius: 4px; background: #04050B; display: flex; align-items: center; justify-content: center;
+        box-shadow: inset 0 3px 5px rgba(0,0,0,0.9), inset 0 -2px 4px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(0,0,0,0.8); }
+      .prog .n { font-weight: 700; font-size: 54px; line-height: 1; color: #F1F0FF; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; padding-top: 0.05em; }
+      .prog .tail { display: flex; align-items: center; padding: 0 24px 0 18px; overflow: hidden; }
+      .prog .d { display: inline-block; font-weight: 500; font-size: 48px; line-height: 1; color: #C9C7E8; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; padding-top: 0.08em; will-change: transform; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="4.7" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <video id="shot1" class="clip shot" src="assets/shots/v17-deluxo-sunset-v.mp4" muted playsinline data-start="2.25" data-duration="1.6" data-media-start="0" data-track-index="0"></video>
+        <video id="shot2" class="clip shot" src="assets/shots/v44-bridge-skyline-v.mp4" muted playsinline data-start="3.83" data-duration="0.87" data-media-start="0.2" data-track-index="0"></video>
+      </div>
+      <div id="card" class="clip" data-start="0" data-duration="2.70" data-track-index="2">
+        <div class="board"></div><div class="pool" id="pool" data-layout-allow-overflow></div><div class="pool2" data-layout-allow-overflow></div><div class="rake" id="rake" data-layout-allow-overflow></div><div class="sheen"></div><div class="vig"></div><div class="grain"></div>
+        <div class="o kick wipe" id="kick"><span></span></div>
+        <div class="o drumshadow" id="drumshadow"></div>
+        <div class="o cof wipe" id="cof"><span></span></div>
+        <div class="o head" id="head">
+          <div class="hl1 wipe"><span><span class="a" id="ha"></span></span></div>
+          <div class="hl2 wipe"><span><span class="v" id="hv"></span> <span class="b" id="hb"></span></span></div>
+        </div>
+        <div class="o rule" id="rule"></div>
+      </div>
+      <div id="fly" class="clip" data-start="0" data-duration="2.67" data-track-index="3">
+        <div class="flyer" id="flyer" data-layout-allow-overflow><div class="arrive" id="arrive"><div class="housing" id="housing"><div class="cavity" id="cavity"><canvas id="gl"></canvas><div class="winshade"></div><div class="split"></div></div></div></div></div>
+      </div>
+      <div id="prog" class="clip" data-start="2.67" data-duration="2.03" data-track-index="4">
+        <div class="prog" id="chip" data-layout-allow-overflow><div class="mini" id="mini"><div class="minicav"><span class="n" id="chipN"></span></div></div><div class="tail"><span class="d" id="chipD"></span></div></div>
+      </div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        num: 1, of: 14, from: null,                 // from defaults to num - 1
+        kick: "SYSTEM", a: "THE HORSE", verb: "BECOMES", b: "THE CAR",
+        colors: { ink: "#F1F0FF", drum: "#1B2246", drumLow: "#131837" },
+        layout: {                                    // 16:9 numbers (B carries its own)
+          W: 1080, H: 1920, x: 72, housingX: 72, kickTop: 326, housingTop: 390, inset: 20, R: 560, colLen: 320, gap: 8, winH: 526, cap: 270,
+          headSize: 128, headTop: 1000, ruleTop: 1428, ruleW: 560, safeRight: 912, chipRight: 144, chipTop: 240, chipH: 84, camD: 2200, stack3: true,
+          win: null                                  // no footage window on 9:16 (the safe band is full)
+        },
+        timing: { kick: 0.05, of: 0.22, head: 0.34, head2: 0.44, rule: 0.66, roll: 0.50, lock: 1.08, win: 0, fold: 2.11, fly: 2.25, cardOut: 2.30, chipIn: 2.67, chipOut: 4.7, end: 4.7 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";            // full-kind: footage is the bed in both modes
+        const T = CONFIG.timing, L = CONFIG.layout, $ = (s) => document.querySelector(s);
+        const FPS = 30, F = 1 / FPS, E = (e) => gsap.parseEase(e), lerp = (a, b, t) => a + (b - a) * t, clamp01 = (x) => Math.max(0, Math.min(1, x));
+        const seg = (t, at, dur) => clamp01((t - at) / dur);
+        const from = CONFIG.from == null ? Math.max(0, CONFIG.num - 1) : CONFIG.from, to = CONFIG.num;
+        const fs = String(from).padStart(2, "0"), ts = String(to).padStart(2, "0");
+
+        // ---- content ----
+        $("#kick > span").textContent = CONFIG.kick; $("#cof > span").textContent = "/ " + CONFIG.of;
+        $("#ha").textContent = CONFIG.a; $("#hv").textContent = CONFIG.verb; $("#hb").textContent = CONFIG.b;
+        $("#chipN").textContent = ts; $("#chipD").textContent = "/ " + CONFIG.of;
+        const head = $("#head");
+        if (L.stack3) {                              // Shorts: verb and object on their own lines
+          const hl2 = head.querySelector(".hl2"), hl3 = document.createElement("div"); hl3.className = "hl3 wipe";
+          const hv = $("#hv"), hb = $("#hb"), inner = document.createElement("span"); inner.appendChild(hb); hl3.appendChild(inner); head.appendChild(hl3);
+          hl2.firstElementChild.innerHTML = ""; hl2.firstElementChild.appendChild(hv);
+        }
+        const chip = $("#chip"); chip.style.right = L.chipRight + "px"; chip.style.top = L.chipTop + "px";
+
+        // ---- fonts, then measure, then build ----
+        window.__hf = window.__hf || {}; window.__hf.buildReady = window.__hf.buildReady || {};
+        const ready = Promise.all(["700 100px Oswald", "500 100px Oswald"].map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(build);
+        window.__hf.buildReady["chapter-counter"] = ready;
+
+        function build() {
+          const mc = document.createElement("canvas").getContext("2d");
+          const measure = (font, s) => { mc.font = font; return mc.measureText(s); };
+          const capRatio = measure("700 100px Oswald", "0").actualBoundingBoxAscent / 100;        // cap height per px of font size
+          const digitFont = L.cap / capRatio;                                                      // texture font size
+          const bearingT = Math.max(0, -measure("700 " + L.headSize + "px Oswald", CONFIG.a[0]).actualBoundingBoxLeft); // ink inset of the headline's first glyph
+          const bearing0 = -measure("700 " + digitFont.toFixed(1) + "px Oswald", fs[0]).actualBoundingBoxLeft;  // ink inset of the first digit
+          const w0 = measure("700 " + digitFont.toFixed(1) + "px Oswald", "0").width;
+
+          // ---- layout: the drum's ink edge, the kicker, the headline and the rule share one x ----
+          const winW = L.colLen * 2 + L.gap, winH = L.winH, hW = winW + L.inset * 2, hH = winH + L.inset * 2;
+          const inkLeftInWin = (L.colLen - w0) / 2 + bearing0;                                     // the first digit's ink edge inside the window
+          const hx = L.housingX != null ? L.housingX : Math.round(L.x + bearingT - L.inset - inkLeftInWin), hy = L.housingTop;
+          const tx = L.housingX != null ? Math.round(hx + L.inset + inkLeftInWin - bearingT) : L.x;   // where the type's ink edge sits
+          const flyer = $("#flyer"); flyer.style.left = hx + "px"; flyer.style.top = hy + "px"; flyer.style.width = hW + "px"; flyer.style.height = hH + "px";
+          const housing = $("#housing"); housing.style.width = hW + "px"; housing.style.height = hH + "px";
+          const cavity = $("#cavity"); cavity.style.left = L.inset + "px"; cavity.style.top = L.inset + "px"; cavity.style.width = winW + "px"; cavity.style.height = winH + "px";
+          const div = document.createElement("div"); div.className = "divider"; div.style.left = L.colLen + "px"; div.style.width = L.gap + "px"; cavity.appendChild(div);
+          const sh = $("#drumshadow"); sh.style.left = (hx - 40) + "px"; sh.style.top = (hy + hH - 70) + "px"; sh.style.width = (hW + 80) + "px"; sh.style.height = "150px";
+          const kick = $("#kick"); kick.style.left = (tx - Math.max(0, -measure("500 48px Oswald", CONFIG.kick[0]).actualBoundingBoxLeft)) + "px"; kick.style.top = L.kickTop + "px";
+          head.style.left = tx + "px"; head.style.top = L.headTop + "px"; head.style.width = (L.safeRight - tx) + "px";
+          const rule = $("#rule"); rule.style.left = (tx + bearingT) + "px"; rule.style.top = L.ruleTop + "px"; rule.style.width = L.ruleW + "px";
+          // "/ 14" on the digit baseline (the front digit's cap box is centred on the window)
+          const cof = $("#cof");
+          const strut = document.createElement("span"); strut.style.cssText = "display:inline-block;width:0;height:0;vertical-align:baseline"; cof.appendChild(strut);
+          cof.style.left = (hx + hW + 16) + "px"; cof.style.top = "0px";
+          const baselineInBox = strut.offsetTop; strut.remove();
+          const digitBaseline = hy + L.inset + winH / 2 + L.cap / 2;
+          cof.style.top = Math.round(digitBaseline - baselineInBox) + "px";
+          // headline auto-fit (the longest line must fit the safe width)
+          head.querySelectorAll(".wipe").forEach((h) => { h.style.fontSize = ""; const w = h.firstElementChild.offsetWidth; const max = L.safeRight - tx; if (w > max) h.style.fontSize = Math.floor(L.headSize * max / w) + "px"; });
+          // the chip: its mini housing is the docked drum, so the fly target is the chip's left edge
+          const mini = $("#mini"); const dockS = L.chipH / hH, miniW = Math.round(hW * dockS); mini.style.width = miniW + "px";
+          const dSize = parseFloat(getComputedStyle($("#chipD")).fontSize), tailPad = L.chipH < 80 ? 34 : 42;   // measured, not read from the DOM: #prog may be hidden at build
+          const chipW = Math.round(miniW + tailPad + measure("500 " + dSize + "px Oswald", "/ " + CONFIG.of).width + 0.02 * dSize * 4); chip.style.width = chipW + "px";
+          const dockX = L.W - L.chipRight - chipW, dockY = L.chipTop;
+
+          // ---- Three.js drum: z = 0 is the front of the cylinders, 1 unit = 1 px ----
+          const Wc = winW, Hc = winH, canvas = $("#gl"); canvas.width = Wc; canvas.height = Hc; canvas.style.width = Wc + "px"; canvas.style.height = Hc + "px";
+          const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+          renderer.setPixelRatio(1); renderer.setSize(Wc, Hc, false); renderer.setClearColor(0x000000, 0);
+          renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+          const scene = new THREE.Scene();
+          const D = L.camD, fov = 2 * Math.atan((Hc / 2) / D) * 180 / Math.PI;
+          const camera = new THREE.PerspectiveCamera(fov, Wc / Hc, 50, D * 3); camera.position.set(0, 0, D); camera.lookAt(0, 0, 0);
+
+          // softbox environment: bright panel above-front, dim horizon, black floor (reflections in the clearcoat)
+          const envScene = new THREE.Scene();
+          envScene.add(new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false,
+            vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+            fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 top = vec3(0.55,0.60,0.72), hor = vec3(0.07,0.08,0.12), low = vec3(0.008,0.009,0.014);" +
+              " vec3 c = y > 0.0 ? mix(hor, top, smoothstep(0.05, 0.8, y)) : mix(hor, low, smoothstep(0.0, 0.5, -y)); gl_FragColor = vec4(c, 1.0); }" })));
+          const panel = (w, h, x, y, z, c) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); envScene.add(m); };
+          panel(40, 10, -8, 26, 24, new THREE.Color(3.2, 3.1, 3.0));
+          panel(30, 3, 10, -22, 20, new THREE.Color(0.6, 0.8, 1.2));
+          const pmrem = new THREE.PMREMGenerator(renderer); scene.environment = pmrem.fromScene(envScene, 0.0, 0.1, 200).texture;
+          const key = new THREE.DirectionalLight(0xfff0e2, 2.6); key.position.set(-0.75, 1.0, 0.85); scene.add(key);
+          const rim = new THREE.DirectionalLight(0x9db6ff, 0.55); rim.position.set(0.7, -0.7, 0.45); scene.add(rim);
+          const flare = new THREE.DirectionalLight(0xffffff, 0); flare.position.set(0.05, 0.55, 1.0); scene.add(flare);
+          scene.add(new THREE.HemisphereLight(0xd7ddff, 0x05060c, 0.5));
+
+          // digit texture: 10 cells stacked, digit k centred in cell k; v runs down the screen at the front of the drum
+          const pitch = 2 * Math.PI * L.R / 10, cell = Math.min(400, Math.round(pitch * 1.15)), k = cell / pitch, Tw = Math.round(L.colLen * k);  // texture px per screen px, same on both axes
+          const tc = document.createElement("canvas"); tc.width = Tw; tc.height = cell * 10; const g = tc.getContext("2d");
+          const grad = g.createLinearGradient(0, 0, Tw, 0); grad.addColorStop(0, CONFIG.colors.drumLow); grad.addColorStop(0.5, CONFIG.colors.drum); grad.addColorStop(1, CONFIG.colors.drumLow);
+          g.fillStyle = grad; g.fillRect(0, 0, Tw, cell * 10);
+          g.fillStyle = "rgba(0,0,0,0.35)"; for (let i = 0; i < 10; i++) g.fillRect(0, i * cell - 1, Tw, 2);  // the faint seam between painted segments
+          g.font = "700 " + (digitFont * k).toFixed(1) + "px Oswald"; g.textAlign = "center"; g.textBaseline = "alphabetic"; g.fillStyle = CONFIG.colors.ink;
+          for (let i = 0; i < 10; i++) g.fillText(String(i), Tw / 2, i * cell + cell / 2 + (L.cap * k) / 2);
+          const tex = new THREE.CanvasTexture(tc); tex.flipY = false; tex.colorSpace = THREE.SRGBColorSpace; tex.wrapT = THREE.RepeatWrapping;
+          tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = true;
+          tex.needsUpdate = true;
+          const mat = new THREE.MeshPhysicalMaterial({ map: tex, color: 0xffffff, roughness: 0.42, metalness: 0.25, clearcoat: 0.55, clearcoatRoughness: 0.22, envMapIntensity: 1.15, side: THREE.DoubleSide });
+
+          // one cylinder per column, axis along x, front at z = 0
+          function drumGeo(R, len, N) {
+            const pos = [], nrm = [], uv = [], idx = [];
+            for (let i = 0; i <= N; i++) { const th = i / N * Math.PI * 2, cy = Math.cos(th), sz = Math.sin(th);
+              for (let j = 0; j <= 1; j++) { pos.push(-len / 2 + j * len, R * cy, R * sz); nrm.push(0, cy, sz); uv.push(j, i / N); } }
+            for (let i = 0; i < N; i++) { const a = i * 2, b = a + 1, c = a + 2, d = a + 3; idx.push(a, c, b, b, c, d); }
+            const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute("normal", new THREE.Float32BufferAttribute(nrm, 3));
+            geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(idx); return geo;
+          }
+          const root3 = new THREE.Group(); root3.position.set(0, 0, -L.R); scene.add(root3);
+          const wheels = [];
+          for (let c = 0; c < 2; c++) {
+            const m = new THREE.Mesh(drumGeo(L.R, L.colLen, 160), mat); m.position.x = -winW / 2 + L.colLen / 2 + c * (L.colLen + L.gap); root3.add(m);
+            const a = parseInt(fs[c], 10), b = parseInt(ts[c], 10);
+            wheels.push({ mesh: m, from: a, to: a === b ? a : (b < a ? b + 10 : b), rolls: a !== b });
+          }
+          const capMat = new THREE.MeshStandardMaterial({ color: 0x05060c, roughness: 0.9, metalness: 0.1 });
+          wheels.forEach((w) => { [-1, 1].forEach((s) => { const d = new THREE.Mesh(new THREE.CircleGeometry(L.R, 96), capMat); d.position.set(w.mesh.position.x + s * L.colLen / 2, 0, 0); d.rotation.y = s * Math.PI / 2; root3.add(d); }); });
+
+          // ---- motion: the drum is a pure function of t ----
+          const eWind = E("power2.out"), eRoll = E("power2.inOut"), eSnap = E("power3.in"), eOut = E("power2.out");
+          const R0 = T.roll, rollEnd = T.lock - 0.10;                       // wind back 0.12 s, roll, snap into the detent at T.lock
+          const posOf = (t) => {                                             // digit position offset 0 -> 1 (+ overshoot)
+            if (t < R0 + 0.12) return -0.12 * eWind(seg(t, R0, 0.12));
+            if (t < rollEnd) return lerp(-0.12, 1.14, eRoll(seg(t, R0 + 0.12, rollEnd - R0 - 0.12)));
+            return lerp(1.14, 1.0, eSnap(seg(t, rollEnd, 0.10)));
+          };
+          const hitK = (t) => {                                              // the lock light: 1-frame attack, 3-frame hold, decay
+            const tau = t - T.lock; if (tau < 0) return 0; const a = F, hold = 3 * F;
+            return tau < a ? tau / a : tau < a + hold ? 1 : 1 - eOut(clamp01((tau - a - hold) / 0.26));
+          };
+          const punchK = (t) => { const f = Math.round((t - T.lock) * FPS); return f < 0 ? 0 : [1, 0.6, 0.25, 0.08][f] || 0; };
+          function renderAt(t) {
+            const p = posOf(t), steps = (w) => w.rolls ? (w.to - w.from) : 0;
+            wheels.forEach((w) => { const d = w.from + steps(w) * p; w.mesh.rotation.x = Math.PI / 2 - 2 * Math.PI * (d + 0.5) / 10; });
+            const hk = hitK(t), drift = seg(t, 0.3, 2.3);
+            key.position.set(lerp(-0.85, -0.35, drift), 1.0, 0.85); key.intensity = 2.6 + 1.8 * hk;
+            flare.intensity = 1.8 * hk; renderer.toneMappingExposure = 1.05 + 0.12 * hk;
+            renderer.render(scene, camera);
+            const pk = punchK(t);                                            // 1-frame punch: the housing dips 3 px and squashes 1.6%
+            housing.style.transform = pk > 0 ? "translateY(" + (3 * pk).toFixed(2) + "px) scale(" + (1 - 0.016 * pk).toFixed(4) + ")" : "";
+            cavity.style.filter = hk > 0.01 ? "brightness(" + (1 + 0.22 * hk).toFixed(3) + ")" : "";   // the light stays on the drum face
+          }
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+
+          // ---- timeline ----
+          const tl = gsap.timeline({ paused: true });
+          renderAt(0);
+          Look.drive(tl, 0, T.chipIn, (p) => renderAt(p * T.chipIn));
+          const rise = (el, at, dur, dy) => {                                // mask rise: clip from the bottom + y + blur, opacity always 1
+            const w = $(el), inner = w.firstElementChild;
+            gsap.set(w, { clipPath: "inset(100% 0px 0px 0px)" }); gsap.set(inner, { y: dy, filter: "blur(8px)" });
+            tl.fromTo(w, { clipPath: "inset(100% 0px 0px 0px)" }, { clipPath: "inset(0% 0px 0px 0px)", duration: dur, ease: "expo.out", immediateRender: false }, at);
+            tl.fromTo(inner, { y: dy }, { y: 0, duration: dur * 1.2, ease: "expo.out", immediateRender: false }, at);
+            tl.fromTo(inner, { filter: "blur(8px)" }, { filter: "blur(0px)", duration: dur * 0.8, ease: "power2.out", immediateRender: false }, at);
+            tl.set(inner, { filter: "none" }, at + dur * 0.8 + 0.01);
+          };
+          rise("#kick", T.kick, 0.30, 30);
+          rise("#cof", T.of, 0.34, 48);
+          rise("#head .hl1", T.head, 0.38, 70);
+          rise("#head .hl2", T.head2, 0.40, 70);
+          if (L.stack3) rise("#head .hl3", T.head2 + 0.10, 0.40, 70);
+          tl.fromTo("#rule", { scaleX: 0 }, { scaleX: 1, duration: 0.42, ease: "expo.out", immediateRender: false }, T.rule);
+          // the drum arrives (a settle, never a fade) and the key light rakes across the board: the pool drifts, a soft band crosses
+          gsap.set("#arrive", { scale: 0.96, y: 18, filter: "blur(6px)" });
+          tl.fromTo("#arrive", { scale: 0.96, y: 18, filter: "blur(6px)" }, { scale: 1, y: 0, filter: "blur(0px)", duration: 0.22, ease: "expo.out", immediateRender: false }, 0);
+          tl.set("#arrive", { filter: "none" }, 0.23);
+          gsap.set("#pool", { x: 0, y: 0, scale: 1 }); gsap.set("#rake", { x: -900 });
+          tl.fromTo("#pool", { x: 0, y: 0, scale: 1 }, { x: 70, y: 24, scale: 1.05, duration: T.cardOut, ease: "sine.inOut", immediateRender: false }, 0);
+          tl.fromTo("#rake", { x: -900 }, { x: 900, duration: T.fold - 0.2, ease: "sine.inOut", immediateRender: false }, 0.2);
+          // the chapter's footage window irises open on the right after the lock, then expands into the full frame on the cut
+          if (L.win) {
+            const [wx, wy, ww, wh] = L.win, win = $("#win"), wf = $("#winframe");
+            const ws = ww / L.W;                                           // the window is the whole frame scaled down (transforms only, no layout motion)
+            gsap.set([win, wf], { clipPath: "inset(50% 0px 50% 0px)", x: wx, y: wy, scale: ws });
+            tl.fromTo([win, wf], { clipPath: "inset(50% 0px 50% 0px)" }, { clipPath: "inset(0% 0px 0% 0px)", duration: 0.30, ease: "expo.out", immediateRender: false }, T.win);
+            tl.fromTo(win, { x: wx, y: wy, scale: ws }, { x: 0, y: 0, scale: 1, duration: T.chipIn + 0.03 - T.fly, ease: "power3.inOut", immediateRender: false }, T.fly);
+            tl.fromTo(wf, { x: wx, y: wy, scale: ws }, { x: -3, y: -3, scale: 1 + 6 / L.W, duration: T.chipIn + 0.03 - T.fly, ease: "power3.inOut", immediateRender: false }, T.fly);
+          }
+          // the lock: shake only (the light lives on the drum face)
+          Look.impact(tl, T.lock, { shake: "#shake", amp: 3, dur: 0.24, flash: 0 });
+          // before the lift: "/ 14" folds in under the drum and the kicker wipes out, so nothing floats alone on the board
+          tl.fromTo(cof, { x: 0, scale: 1 }, { x: -(cof.offsetWidth + 40), scale: 0.04, duration: 0.16, ease: "power3.in", immediateRender: false }, T.fold);   // swallowed by the drum
+          tl.fromTo("#kick", { clipPath: "inset(0% 0px 0px 0px)" }, { clipPath: "inset(0% 0px 100% 0px)", duration: 0.12, ease: "power2.in", immediateRender: false }, T.fold);
+          // dock: the drum lifts straight up off the top, then drops into the chip's corner (never across the type) while the board slides up
+          const liftY = -(hy + hH + 60), liftS = 0.8;
+          gsap.set(flyer, { x: 0, y: 0, scale: 1 });
+          tl.fromTo(flyer, { x: 0, y: 0, scale: 1 }, { x: 0, y: liftY, scale: liftS, duration: 0.16, ease: "power2.in", immediateRender: false }, T.fly);
+          tl.fromTo(flyer, { x: 0, y: liftY, scale: liftS }, { x: dockX - hx, y: dockY - hy, scale: dockS, duration: T.chipIn - T.fly - 0.16, ease: "power3.out", immediateRender: false }, T.fly + 0.16);
+          tl.fromTo("#drumshadow", { opacity: 1, scale: 1 }, { opacity: 0, scale: 0.6, duration: 0.14, ease: "power2.in", immediateRender: false }, T.fly);
+          tl.fromTo("#card", { y: 0 }, { y: -L.H, duration: 0.40, ease: "power3.in", immediateRender: false }, T.cardOut);
+          // the chip: the docked drum is already in place; the "/ 14" tail unfolds out of it, then it holds and leaves through the corner
+          const tailW = chipW - miniW, dEl = $("#chipD");
+          gsap.set(chip, { clipPath: "inset(0px " + tailW + "px 0px 0px)", y: 0, x: 0 }); gsap.set(dEl, { x: -tailW });
+          tl.fromTo(chip, { clipPath: "inset(0px " + tailW + "px 0px 0px)" }, { clipPath: "inset(0px 0px 0px 0px)", duration: 0.14, ease: "expo.out", immediateRender: false }, T.chipIn);
+          tl.fromTo(dEl, { x: -tailW }, { x: 0, duration: 0.16, ease: "expo.out", immediateRender: false }, T.chipIn);
+          if (T.chipOut < T.end) {                                           // optional: leave through the corner (the chip is persistent by default)
+            tl.fromTo(chip, { y: 0, x: 0 }, { y: -(L.chipTop + L.chipH + 60), x: 30, duration: 0.26, ease: "power3.in", immediateRender: false }, T.chipOut);
+            tl.fromTo(chip, { filter: "blur(0px)" }, { filter: "blur(3px)", duration: 0.26, ease: "power3.in", immediateRender: false }, T.chipOut);
+          }
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        }
+      })();
+    </script>
+  </body>
+</html>

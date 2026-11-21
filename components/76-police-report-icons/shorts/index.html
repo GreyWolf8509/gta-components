@@ -1,0 +1,312 @@
+<!doctype html>
+<!-- GTA-niche 76 Police report icons, variant B (9:16 Short, 1080x1920, 30 fps, 7.5 s), phone-first.
+     Three of our own line icons (OUTFIT, CAMERA, WEAPON) stamp in one by one on the beats as real Three.js lacquer slabs
+     (extruded, bevelled, clearcoat navy, pink emissive strokes), then travel to a top band and lock in as THE POLICE REPORT:
+     the witness-evidence object. Film kit object from films/gta6-rdr2-gta5 (assets/kit/film.js `report`), rebuilt with
+     material, light and a real payoff. Variable bg: "plate" (official GTA VI footage) / "none" (footage hidden). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <style>
+      @font-face { font-family: "Oswald"; src: url("media/fonts/oswald-latin.woff2") format("woff2"); font-weight: 200 700; font-display: block; }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Oswald", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      #shake { z-index: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #under { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+      #gl { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; pointer-events: none; z-index: 3; }
+      #ui { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
+      /* the band: a lacquer strip, not a flat bar */
+      #band { position: absolute; overflow: hidden; visibility: hidden; opacity: 0.94;
+        background: linear-gradient(180deg, #2A3260 0%, #1A2042 42%, #121733 100%);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.26), inset 0 -2px 0 rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.07),
+          0 2px 3px rgba(0,0,0,.4), 0 26px 48px -14px rgba(0,0,0,.75); }
+      #band .top { position: absolute; left: 0; right: 0; top: 0; height: 46%; background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,0)); }
+      #band .brush { position: absolute; inset: 0; background: linear-gradient(104deg, rgba(255,255,255,0) 18%, rgba(255,255,255,.055) 42%, rgba(255,255,255,0) 64%); }
+      #band .sock { position: absolute; border-radius: 22px; opacity: 0; background: radial-gradient(ellipse at 50% 50%, rgba(255,120,170,.55) 0%, rgba(242,85,142,.28) 45%, rgba(242,85,142,0) 72%); }
+      #band .tray { position: absolute; border-radius: 20px; background: rgba(4,7,20,.46);
+        box-shadow: inset 0 3px 8px rgba(0,0,0,.7), inset 0 -1px 0 rgba(255,255,255,.07), 0 1px 0 rgba(255,255,255,.07); }
+      #band .spine { position: absolute; left: 0; top: 0; bottom: 0; width: 12px; background: linear-gradient(90deg, #FF7FB0 0%, #F2558E 55%, #C73A70 100%);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.35); }
+      #band .sheen { position: absolute; top: -30%; left: 0; width: 320px; height: 160%; opacity: 0;
+        background: linear-gradient(100deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.10) 36%, rgba(255,240,246,.26) 50%, rgba(255,255,255,.10) 64%, rgba(255,255,255,0) 100%); }
+      .win { position: absolute; overflow: hidden; white-space: nowrap; }
+      .win .tx { display: inline-block; white-space: nowrap; line-height: 1; }
+      .lab .tx { font-weight: 600; letter-spacing: .12em; color: #FFFFFF; text-shadow: 0 1px 1px rgba(0,0,0,.5), 0 3px 6px rgba(0,0,0,.55), 0 10px 26px rgba(0,0,0,.4); }
+      .title .tx { font-weight: 600; letter-spacing: .2em; color: #F2558E; text-shadow: 0 1px 0 rgba(0,0,0,.35); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="7.5" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <video id="s1" class="clip shot" style="z-index:3" src="assets/clips/gta6-t2-031_0.30_5.35.mp4" muted playsinline data-start="0" data-duration="3.0" data-media-start="0" data-track-index="0"></video>
+        <video id="s2" class="clip shot" style="z-index:2" src="assets/clips/gta6-launch-021_0.00_2.00.mp4" muted playsinline data-start="2.9333" data-duration="1.8667" data-media-start="0" data-track-index="1"></video>
+        <video id="s3" class="clip shot" style="z-index:1" src="assets/clips/gta6-ps5feat-013_0.00_3.08.mp4" muted playsinline data-start="4.7333" data-duration="2.7667" data-media-start="0" data-track-index="2"></video>
+      </div></div>
+      <div id="under" class="clip" data-start="0" data-duration="7.5" data-track-index="3" data-layout-allow-overlap>
+        <div id="band" data-layout-ignore><div class="top"></div><div class="brush"></div><div class="tray"></div><div class="spine"></div><div class="sheen"></div></div>
+      </div>
+      <canvas id="gl" data-layout-allow-occlusion width="1080" height="1920"></canvas>
+      <div id="ui" class="clip" data-start="0" data-duration="7.5" data-track-index="4" data-layout-allow-overlap></div>
+    </div>
+    <script>
+      const CONFIG = {
+        dockLabel: "THE POLICE REPORT",         // the band's title once the icons dock
+        icons: [                                // one slab per icon, in order; `at` = stamp time (s). kinds: outfit, camera, weapon
+          { kind: "outfit", label: "OUTFIT", at: 0.5 },
+          { kind: "camera", label: "CAMERA", at: 2.0 },
+          { kind: "weapon", label: "WEAPON", at: 3.2 }
+        ],
+        dockAt: 4.3,                            // the slabs start travelling; they lock in 0.5 s later, on the cut to the police shot
+        out: 7.0, end: 7.5,                     // designed exit, composition end
+        colors: { pink: "#F2558E", navy: "#1B2246", ink: "#FFFFFF" },
+        layout: {                               // 9:16, phone-first: a 250 px stamp row inside the safe zone, dock to a band 80% of the frame width with labels beneath
+          stamp: { size: 250, cx: [219, 504, 789], cy: 940, labelGap: 20, labelPx: 40 },
+          dock: { x: 72, y: 236, w: 864, h: 336, titlePx: 44, titleY: 24, rowY: 172, slab: 176, labelPx: 36, labelPos: "below", labelGap: 14, unitGap: 90, trayPad: 36 }
+        }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const C = CONFIG, L = C.layout, W = 1080, H = 1920, FPS = 30, N = C.icons.length;
+        const E = (n) => gsap.parseEase(n);
+        const eOut2 = E("power2.out"), eIO2 = E("power2.inOut"), eIn3 = E("power3.in"), eExpo = E("expo.out"), eBack = E("back.out(1.6)"), eBackS = E("back.out(1.25)"), eRise = E("back.out(1.5)");
+        const seg = (t, t0, d) => Math.max(0, Math.min(1, (t - t0) / d));
+        const lerp = (a, b, k) => a + (b - a) * k;
+        const LOCK = C.dockAt + 0.5;
+        const SZ = L.stamp.size, DS = L.dock.slab / SZ, EXIT_DY = L.dock.y + L.dock.h + 80;   // the whole docked object leaves upward as one piece
+
+        // ---------- our own line marks (100-box path data, 14 px strokes at the 260 px face) ----------
+        const MARK = {
+          outfit: ["M30 18 L42 12 Q50 22 58 12 L70 18 L86 34 L74 46 L70 42 L70 86 L30 86 L30 42 L26 46 L14 34 Z"],
+          camera: ["M20 30 H80 A8 8 0 0 1 88 38 V72 A8 8 0 0 1 80 80 H20 A8 8 0 0 1 12 72 V38 A8 8 0 0 1 20 30 Z", "M65 55 A15 15 0 1 1 35 55 A15 15 0 1 1 65 55 Z", "M36 30 L42 18 L58 18 L64 30"],
+          weapon: ["M12 34 L84 34 L84 50 L40 50 L36 62 L34 78 L18 78 L22 50 L12 50 Z", "M52 50 L52 60 L62 60"]
+        };
+        function faceCanvas(kind, emissive) {
+          const R = 512, c = document.createElement("canvas"); c.width = c.height = R; const g = c.getContext("2d");
+          if (emissive) { g.fillStyle = "#000"; g.fillRect(0, 0, R, R); }
+          else {
+            const gr = g.createLinearGradient(0, 0, 0, R); gr.addColorStop(0, "#2A3260"); gr.addColorStop(0.5, "#1C2348"); gr.addColorStop(1, "#141A38");
+            g.fillStyle = gr; g.fillRect(0, 0, R, R);
+            const rg = g.createRadialGradient(R * 0.3, R * 0.18, 0, R * 0.3, R * 0.18, R * 0.9); rg.addColorStop(0, "rgba(255,255,255,.10)"); rg.addColorStop(1, "rgba(255,255,255,0)");
+            g.fillStyle = rg; g.fillRect(0, 0, R, R);
+          }
+          const k = (R / SZ) * (SZ * 0.64) / 100;                // the mark spans 64% of the face
+          g.save(); g.translate(R / 2 - 50 * k, R / 2 - 50 * k); g.scale(k, k);
+          g.lineWidth = 14 * (R / SZ) / k; g.lineCap = "round"; g.lineJoin = "round"; g.strokeStyle = emissive ? "#FF6FA2" : C.colors.pink;
+          (MARK[kind] || MARK.outfit).forEach((d) => g.stroke(new Path2D(d)));
+          g.restore(); return c;
+        }
+
+        // ---------- renderer, camera (z = 0 maps 1:1 to canvas px), studio env ----------
+        const renderer = new THREE.WebGLRenderer({ canvas: $("#gl"), alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+        renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 0);
+        renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
+        const scene = new THREE.Scene();
+        const FOV = 22, DIST = (H / 2) / Math.tan((FOV / 2) * Math.PI / 180);
+        const camera = new THREE.PerspectiveCamera(FOV, W / H, 10, DIST * 3); camera.position.set(0, 0, DIST); camera.lookAt(0, 0, 0);
+        const wx = (x) => x - W / 2, wy = (y) => H / 2 - y;
+        const envScene = new THREE.Scene();
+        envScene.add(new THREE.Mesh(new THREE.SphereGeometry(50, 48, 24), new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false,
+          vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 top = vec3(0.70,0.72,0.84), hor = vec3(0.12,0.13,0.24), low = vec3(0.012,0.012,0.03);" +
+            " vec3 c = y > 0.0 ? mix(hor, top, smoothstep(0.1, 0.9, y)) : mix(hor, low, smoothstep(0.0, 0.35, -y)); gl_FragColor = vec4(c, 1.0); }" })));
+        const panel = (w, h, x, y, z, c) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); envScene.add(m); };
+        panel(40, 10, -4, 30, 26, new THREE.Color(4.6, 4.5, 4.8));   // softbox overhead
+        panel(5, 34, -30, 4, 22, new THREE.Color(3.2, 0.9, 1.8));    // pink strip left
+        panel(34, 6, 6, -6, 34, new THREE.Color(1.1, 1.0, 1.4));     // cool floor bounce
+        panel(14, 26, 32, 8, 10, new THREE.Color(2.0, 2.0, 2.4));    // cool strip right
+        scene.environment = new THREE.PMREMGenerator(renderer).fromScene(envScene, 0.0, 0.1, 200).texture;
+        const key = new THREE.DirectionalLight(0xfff4f2, 1.7); key.position.set(-0.55, 0.85, 1.0); scene.add(key);
+        scene.add(new THREE.HemisphereLight(0xeef0ff, 0x0d1020, 0.6));
+        const sheenMat = () => new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
+          uniforms: { uX: { value: -99999 }, uA: { value: 0 }, uW: { value: SZ * 0.32 }, uF: { value: 0 }, uH: { value: FW / 2 } },
+          vertexShader: "varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "uniform float uX; uniform float uA; uniform float uW; uniform float uF; uniform float uH; varying vec2 vP; void main(){ float d = (vP.x + vP.y * 0.45 - uX) / uW; float b = exp(-d * d) * uA;" +
+            " float g = smoothstep(-0.2, 1.0, vP.y / uH) * 0.11; float a = clamp(b + g + uF * 0.5, 0.0, 1.0); vec3 c = vec3(1.0, 0.94, 0.97) * (b + g) + vec3(1.0, 0.5, 0.72) * uF * 0.5; gl_FragColor = vec4(c, a); }" });
+
+        // ---------- the slabs: extruded bevelled rounded squares, lacquer body + lit face, contact shadow ----------
+        function rrect(w, h, r) { const s = new THREE.Shape(), x = -w / 2, y = -h / 2; s.moveTo(x + r, y); s.lineTo(x + w - r, y); s.quadraticCurveTo(x + w, y, x + w, y + r);
+          s.lineTo(x + w, y + h - r); s.quadraticCurveTo(x + w, y + h, x + w - r, y + h); s.lineTo(x + r, y + h); s.quadraticCurveTo(x, y + h, x, y + h - r); s.lineTo(x, y + r); s.quadraticCurveTo(x, y, x + r, y); return s; }
+        const DEPTH = 18, BEV = 9;
+        const bodyGeo = new THREE.ExtrudeGeometry(rrect(SZ, SZ, 40), { depth: DEPTH, bevelEnabled: true, bevelThickness: BEV, bevelSize: 9, bevelOffset: -9, bevelSegments: 6, curveSegments: 14 });
+        bodyGeo.translate(0, 0, -(DEPTH + BEV));                               // front face at z = 0
+        const bodyMat = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.colors.navy), metalness: 0.18, roughness: 0.28, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 1.5 });
+        const FW = SZ - 20;
+        const faceGeo = new THREE.ShapeGeometry(rrect(FW, FW, 34), 12);
+        { const p = faceGeo.attributes.position, u = faceGeo.attributes.uv; for (let i = 0; i < p.count; i++) u.setXY(i, p.getX(i) / FW + 0.5, p.getY(i) / FW + 0.5); u.needsUpdate = true; }
+        const shadowTex = (() => { const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d");
+          const r = g.createRadialGradient(128, 128, 20, 128, 128, 128); r.addColorStop(0, "rgba(0,0,0,.62)"); r.addColorStop(0.55, "rgba(0,0,0,.3)"); r.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = r; g.fillRect(0, 0, 256, 256);
+          const t = new THREE.CanvasTexture(c); return t; })();
+        const slabs = C.icons.map((ic) => {
+          const g = new THREE.Group();
+          const mapT = new THREE.CanvasTexture(faceCanvas(ic.kind, false)), emT = new THREE.CanvasTexture(faceCanvas(ic.kind, true));
+          mapT.colorSpace = THREE.SRGBColorSpace; emT.colorSpace = THREE.SRGBColorSpace; mapT.anisotropy = 4;
+          const faceMat = new THREE.MeshPhysicalMaterial({ map: mapT, emissive: new THREE.Color(0xffffff), emissiveMap: emT, emissiveIntensity: 1.0,
+            metalness: 0.05, roughness: 0.26, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 1.2 });
+          const body = new THREE.Mesh(bodyGeo, bodyMat), face = new THREE.Mesh(faceGeo, faceMat); face.position.z = 0.5;
+          const shn = new THREE.Mesh(faceGeo, sheenMat()); shn.position.z = 1.2;
+          const sh = new THREE.Mesh(new THREE.PlaneGeometry(SZ * 1.7, SZ * 1.7), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false })); sh.position.z = -(DEPTH + BEV) - 2;
+          g.add(sh); g.add(body); g.add(face); g.add(shn); g.visible = false; scene.add(g);
+          return { g, faceMat, sh, shn };
+        });
+
+        // ---------- DOM: labels (window + text), band + title ----------
+        const ui = $("#ui"), band = $("#band"), sheen = band.querySelector(".sheen");
+        band.style.left = L.dock.x + "px"; band.style.top = L.dock.y + "px"; band.style.width = L.dock.w + "px"; band.style.height = L.dock.h + "px"; band.style.borderRadius = "22px";
+        { const D = L.dock, tray = band.querySelector(".tray"), top = D.rowY - D.slab / 2 - 14, bottom = D.labelPos === "below" ? D.rowY + D.slab / 2 + D.labelGap + D.labelPx + 12 : D.rowY + D.slab / 2 + 14;
+          tray.style.left = D.trayPad + "px"; tray.style.right = D.trayPad + "px"; tray.style.top = top + "px"; tray.style.height = (bottom - top) + "px"; }
+        const socks = C.icons.map(() => { const e = document.createElement("div"); e.className = "sock"; band.appendChild(e); return e; });
+        function placeSocks() { const D = L.dock, sz = D.slab + 28; socks.forEach((e, i) => { e.style.width = sz + "px"; e.style.height = sz + "px"; e.style.left = (dockPos[i].x - D.x - sz / 2) + "px"; e.style.top = (D.rowY - sz / 2) + "px"; }); }
+        const mkWin = (cls, text, px) => { const w = document.createElement("div"); w.className = "win " + cls; w.setAttribute("data-layout-allow-overflow", "");
+          w.innerHTML = '<span class="tx" data-layout-allow-occlusion></span>'; const tx = w.querySelector(".tx"); tx.textContent = text; tx.style.fontSize = px + "px"; w.style.visibility = "hidden"; ui.appendChild(w); return { w, tx }; };
+        const labs = C.icons.map((ic) => mkWin("lab", ic.label, L.stamp.labelPx));
+        const title = mkWin("title", C.dockLabel, L.dock.titlePx);
+
+        // ---------- positions ----------
+        const stampPos = (i) => ({ x: L.stamp.cx[i], y: L.stamp.cy });
+        let dockPos = C.icons.map((_, i) => ({ x: L.dock.x + L.dock.w / 2 + (i - 1) * 300, y: L.dock.y + L.dock.rowY })), labW100 = C.icons.map(() => 300), titleW = 400;
+        const labW = (i, px) => labW100[i] * px / 100;   // label width at a given font size
+        function layoutDock() {   // measured after the font loads: units of [slab][gap][label] (or label beneath) centred in the band
+          const D = L.dock, cxB = D.x + D.w / 2;
+          if (D.labelPos === "right") {
+            const units = labW100.map((w) => D.slab + D.labelGap + w * D.labelPx / 100), total = units.reduce((a, b) => a + b, 0) + (N - 1) * D.unitGap;
+            let x = cxB - total / 2; dockPos = units.map((u) => { const p = { x: x + D.slab / 2, y: D.y + D.rowY }; x += u + D.unitGap; return p; });
+          } else {
+            const pitch = D.slab + D.unitGap; dockPos = C.icons.map((_, i) => ({ x: cxB + (i - (N - 1) / 2) * pitch, y: D.y + D.rowY }));
+          }
+        }
+
+        // ---------- state from time (pure) ----------
+        const dip = (t) => { const u = seg(t, C.dockAt - 0.1, 0.1); return u > 0 && u < 1 ? Math.sin(Math.PI * u) : 0; };
+        function slabState(i, t) {
+          const ic = C.icons[i], at = ic.at, s0 = stampPos(i), d0 = dockPos[i];
+          if (t < at) return { vis: false };
+          let x = s0.x, y = s0.y, z = 0, s = 1, rx = -0.1, rz = 0, ry = 0, sx = 1, sy = 1, glow = 1, flash = 0;
+          const k = t - at;
+          if (k < 0.3) {      // the kit stamp: 0.6 -> 1.07 (0.14 s power2.out) -> 1 (0.16 s power2.inOut), arriving from z +60 tilted
+            const u1 = seg(k, 0, 0.14), u2 = seg(k, 0.14, 0.16);
+            s = u1 < 1 ? lerp(0.6, 1.07, eOut2(u1)) : lerp(1.07, 1.0, eIO2(u2));
+            z = 60 * (1 - eOut2(u1)); rx = -0.1 - 0.35 * (1 - eOut2(u1));
+          }
+          // stamp light: 3-frame peak then decay
+          const f = Math.floor(k * FPS + 1e-6); glow = f < 3 ? 2.6 : 1 + 1.6 * Math.exp(-(k - 0.1) / 0.14); flash = f < 3 ? 1 : Math.exp(-(k - 0.1) / 0.04);
+          const idle = seg(k, 0.3, 0.5); ry = 0.05 * Math.sin(2 * Math.PI * 0.45 * k + i * 1.4) * idle; rx += 0.025 * Math.sin(2 * Math.PI * 0.35 * k + i * 0.8) * idle;
+          // dock travel with anticipation, overshoot and a lean; lock-in squash
+          const dp = dip(t); y += 16 * dp; s *= 1 + 0.04 * dp;
+          const u = seg(t, C.dockAt, 0.5);
+          if (u > 0) {
+            const pe = eBack(u), se = eBackS(u);
+            x = lerp(s0.x, d0.x, pe); y = lerp(s0.y, d0.y, pe); s = lerp(1, DS, se);
+            rz = -0.11 * Math.sin(Math.PI * u) * Math.sign(d0.x - s0.x || 1); rx = -0.1 + 0.22 * Math.sin(Math.PI * u); ry *= 1 - u;
+          }
+          const kl = t - LOCK;
+          if (kl >= 0) {
+            const fl = Math.floor(kl * FPS + 1e-6);
+            if (fl === 0) { sx = 1.07; sy = 0.9; } else if (fl === 1) { sx = 0.985; sy = 1.02; }
+            glow = fl < 3 ? 2.2 : 1 + 1.2 * Math.exp(-(kl - 0.1) / 0.22);
+          }
+          // the confirm: each slab's face lights for 3 frames in turn after the lock-in, its socket lighting with it
+          const kc = t - (LOCK + 0.08 * i), fc = Math.floor(kc * FPS + 1e-6);
+          if (kc >= 0) { flash = Math.max(flash, fc < 3 ? 0.8 : 0.8 * Math.exp(-(kc - 0.1) / 0.05)); glow = Math.max(glow, fc < 3 ? 3.0 : 1 + 2 * Math.exp(-(kc - 0.1) / 0.2)); }
+          // exit: up and away with the band
+          const uo = seg(t, C.out, 0.3);
+          if (uo > 0) { const e = eIn3(uo); y -= EXIT_DY * e; if (uo >= 1) return { vis: false }; }
+          return { vis: true, x, y, z, s, sx, sy, rx, ry, rz, glow, flash, kc };
+        }
+        function labelState(i, t) {
+          const st = slabState(i, t); if (!st.vis) return { vis: false };
+          const at = C.icons[i].at, kr = t - (at + 0.1); if (kr < 0) return { vis: false };
+          const rise = eRise(seg(kr, 0, 0.22));
+          const u = seg(t, C.dockAt, 0.5), pe = eBack(u);
+          const px = lerp(L.stamp.labelPx, L.dock.labelPx, u > 0 ? eIO2(u) : 0);
+          const half = st.s * SZ / 2;
+          let x, y;
+          if (L.dock.labelPos === "right") {
+            // under the slab while stamped, beside it once docked
+            const ux = st.x + half + L.dock.labelGap, uy = st.y - L.dock.labelPx / 2;
+            const bx = st.x - labW(i, px) / 2, by = st.y + half + L.stamp.labelGap;
+            x = lerp(bx, ux, pe); y = lerp(by, uy, pe);
+          } else { x = st.x - labW(i, px) / 2; y = st.y + half + lerp(L.stamp.labelGap, L.dock.labelGap, pe); }
+          const uo = seg(t, C.out, 0.3), e = uo > 0 ? eIn3(uo) : 0;
+          return { vis: true, x, y, px, w: labW(i, px), rise, blur: 6 * e };   // y already rides the slab, which carries the exit
+        }
+
+        function renderAt(t) {
+          // slabs
+          let keyKick = 0;
+          // the lock-in light: a soft sheen travels across the three faces (clipped to the faces) and the band for 0.6 s
+          const ru = seg(t, LOCK, 0.62), sweepX = lerp(dockPos[0].x - 200, dockPos[N - 1].x + 200, eIO2(ru)), sweepA = ru > 0 && ru < 1 ? 0.8 * Math.sin(Math.PI * ru) : 0;
+          slabs.forEach((S, i) => {
+            const st = slabState(i, t); S.g.visible = st.vis; if (!st.vis) return;
+            S.g.position.set(wx(st.x), wy(st.y), st.z); S.g.rotation.set(st.rx, st.ry, -st.rz); S.g.scale.set(st.s * st.sx, st.s * st.sy, st.s);
+            S.shn.material.uniforms.uX.value = (sweepX - st.x) / st.s; S.shn.material.uniforms.uA.value = sweepA; S.shn.material.uniforms.uF.value = st.flash;
+            socks[i].style.opacity = st.kc >= 0 ? Math.min(1, st.kc < 0.1 ? 1 : Math.exp(-(st.kc - 0.1) / 0.25)).toFixed(3) : 0;
+            S.faceMat.emissiveIntensity = st.glow; keyKick += Math.max(0, st.glow - 1) * 0.5;
+          });
+          key.intensity = 1.7 + keyKick + sweepA * 0.9;
+          sheen.style.opacity = ru > 0 && ru < 1 ? Math.sin(Math.PI * ru).toFixed(3) : 0;
+          sheen.style.transform = "translateX(" + (lerp(-340, L.dock.w + 60, eIO2(ru))).toFixed(1) + "px) skewX(-12deg)";
+          // band: clip-path wipe from the top as the slabs arrive, wipe up and away on exit
+          const bi = eExpo(seg(t, C.dockAt + 0.25, 0.25)), bo = seg(t, C.out, 0.3) > 0 ? eIn3(seg(t, C.out, 0.3)) : 0;
+          const bandVis = bi > 0 && bo < 1;
+          band.style.visibility = bandVis ? "visible" : "hidden";
+          band.style.clipPath = "inset(0 0 " + ((1 - bi) * 100).toFixed(2) + "% 0 round 22px)";
+          band.style.transform = "translateY(" + (-24 * (1 - bi) - EXIT_DY * bo).toFixed(2) + "px)";
+          const kb = t - LOCK, fb = Math.floor(kb * FPS + 1e-6), bx = kb < 0 ? 0 : fb < 3 ? 1 : Math.exp(-(kb - 0.1) / 0.16);   // the band takes the hit: a 3-frame exposure pulse
+          band.style.filter = (bo > 0 ? "blur(" + (6 * bo).toFixed(2) + "px) " : "") + (bx > 0.01 ? "brightness(" + (1 + 0.38 * bx).toFixed(3) + ")" : "") || "none";
+          // title rolls up through its window on the band after the lock-in
+          const tr = eRise(seg(t, LOCK + 0.06, 0.26)), tvis = t >= LOCK + 0.06 && bo < 1;
+          title.w.style.visibility = tvis ? "visible" : "hidden";
+          title.w.style.left = (L.dock.x + L.dock.w / 2 - titleW / 2).toFixed(1) + "px"; title.w.style.top = (L.dock.y + L.dock.titleY - EXIT_DY * bo).toFixed(1) + "px";
+          title.w.style.width = (titleW + 6) + "px"; title.w.style.height = (L.dock.titlePx * 1.3) + "px";
+          title.tx.style.transform = "translateY(" + ((1 - tr) * 115).toFixed(2) + "%)"; title.w.style.filter = bo > 0 ? "blur(" + (6 * bo).toFixed(2) + "px)" : "none";
+          // labels
+          labs.forEach((Lb, i) => {
+            const st = labelState(i, t); Lb.w.style.visibility = st.vis ? "visible" : "hidden"; if (!st.vis) return;
+            Lb.tx.style.fontSize = st.px.toFixed(2) + "px";
+            Lb.w.style.left = st.x.toFixed(1) + "px"; Lb.w.style.top = st.y.toFixed(1) + "px"; Lb.w.style.width = (st.w + 10).toFixed(1) + "px"; Lb.w.style.height = (st.px * 1.3) + "px";
+            Lb.tx.style.transform = "translateY(" + ((1 - st.rise) * 115).toFixed(2) + "%)"; Lb.w.style.filter = st.blur > 0.01 ? "blur(" + st.blur.toFixed(2) + "px)" : "none";
+          });
+          // camera: 3-frame impact per stamp, 1-frame impact at the lock-in (our own, from time)
+          let shx = 0, shy = 0;
+          C.icons.forEach((ic) => { const f = Math.floor((t - ic.at - 0.1) * FPS + 1e-6); if (f === 0) { shx = -5; shy = 3; } else if (f === 1) { shx = 3.5; shy = -2; } });
+          { const f = Math.floor((t - LOCK) * FPS + 1e-6); if (f === 0) { shx = -4; shy = 2.4; } }
+          $("#shake").style.transform = (shx || shy) ? "translate(" + shx + "px," + shy + "px)" : "none";
+          renderer.render(scene, camera);
+        }
+        window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+
+        const FACES = ["600 40px Oswald", "500 40px Oswald"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const meas = (text, px, cls) => { const m = document.createElement("div"); m.className = "win " + cls; m.style.cssText = "position:absolute;visibility:hidden;left:0;top:0";
+            m.innerHTML = '<span class="tx"></span>'; m.firstChild.textContent = text; m.firstChild.style.fontSize = px + "px"; ui.appendChild(m); const w = m.firstChild.offsetWidth; m.remove(); return w; };
+          labW100 = C.icons.map((ic) => meas(ic.label, 100, "lab"));
+          titleW = Math.ceil(meas(C.dockLabel, L.dock.titlePx, "title"));
+          layoutDock(); placeSocks();
+          const tl = gsap.timeline({ paused: true });
+          renderAt(0);
+          Look.drive(tl, 0, C.end, (p) => renderAt(p * C.end));
+          if (plate) Look.push(tl, "#push", 0, C.end, { from: 1.0, to: 1.045 });
+          tl.set({}, {}, C.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,331 @@
+<!doctype html>
+<!-- 43 Alert toast, variant A: "Cheat activated" help toast (16:9). The GTA help box that creators pop top-left on a cheat beat,
+     rebuilt: a charcoal help slab, the code struck in on keycaps, and a real Three.js shield emblem that spins and ignites on the lock-in.
+     Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). See gta/DESIGN.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+
+      /* ---------- the help slab ---------- */
+      #toast { position: absolute; left: 0; top: 0; height: 152px; transform-origin: 86px 76px; visibility: hidden; }
+      #slab { position: absolute; inset: 0; border-radius: 5px; overflow: hidden;
+        background:
+          linear-gradient(180deg, rgba(255,255,255,.075) 0%, rgba(255,255,255,0) 38%),
+          repeating-linear-gradient(90deg, rgba(255,255,255,.012) 0 1px, rgba(0,0,0,0) 1px 3px),
+          linear-gradient(180deg, #2C3038 0%, #1B1D23 52%, #111216 100%);
+        box-shadow: inset 0 1.5px 0 rgba(255,255,255,.20), inset 0 -2px 0 rgba(0,0,0,.55), inset 0 -8px 14px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.055),
+          0 26px 48px rgba(0,0,0,.46), 0 7px 14px rgba(0,0,0,.38); }
+      /* the badge well the shield sits in: a recessed square with its own inner shadow */
+      #well { position: absolute; left: 12px; top: 12px; width: 148px; height: 128px; border-radius: 3px;
+        background: radial-gradient(120% 90% at 50% 30%, #23272F 0%, #15171C 70%, #0F1014 100%);
+        box-shadow: inset 0 3px 8px rgba(0,0,0,.65), inset 0 -1px 0 rgba(255,255,255,.07); }
+      #wellGlow { position: absolute; left: 12px; top: 12px; width: 148px; height: 128px; border-radius: 3px; opacity: 0;
+        background: radial-gradient(60% 62% at 50% 50%, rgba(56,224,123,.55) 0%, rgba(56,224,123,.16) 55%, rgba(56,224,123,0) 100%); }
+      #cshadow { position: absolute; left: 50px; top: 122px; width: 84px; height: 22px; border-radius: 50%;
+        background: radial-gradient(closest-side, rgba(0,0,0,.75), rgba(0,0,0,0)); filter: blur(3px); }
+      /* the accent spine on the slab's right of the well: grey until the lock-in, then it fills green bottom-up */
+      #spine { position: absolute; left: 0; top: 0; width: 5px; height: 100%; background: #2F343D; border-radius: 5px 0 0 5px; overflow: hidden; }
+      #spineFill { position: absolute; inset: 0; background: linear-gradient(180deg, #8DFFBE 0%, #38E07B 45%, #17A653 100%); transform-origin: 50% 100%; transform: scaleY(0); }
+      #sheen { position: absolute; top: -20%; height: 140%; width: 190px; left: 0; opacity: 0;
+        background: linear-gradient(90deg, rgba(190,255,215,0) 0%, rgba(190,255,215,.12) 35%, rgba(235,255,242,.30) 50%, rgba(190,255,215,.12) 65%, rgba(190,255,215,0) 100%);
+        transform: skewX(-18deg); }
+      #edge { position: absolute; left: 5px; right: 0; top: 0; height: 2px; background: linear-gradient(90deg, #8DFFBE, #38E07B 60%, rgba(56,224,123,0));
+        transform-origin: 0 50%; transform: scaleX(0); }
+
+      /* ---------- type ---------- */
+      .win { position: absolute; overflow: hidden; }
+      #r1 { left: 182px; top: 16px; height: 60px; }
+      #r2 { left: 166px; top: 76px; height: 72px; }
+      #r1 span { position: absolute; left: 0; top: 0; white-space: nowrap; font: 900 46px/60px "Inter"; letter-spacing: -0.015em; color: #fff;
+        text-shadow: 0 2px 2px rgba(0,0,0,.55); }
+      #r1a { color: rgba(255,255,255,.58) !important; }
+      #keys { position: absolute; left: 16px; top: 11px; height: 50px; display: flex; gap: 4px; }
+      .key { position: relative; width: 37px; height: 46px; }
+      .key b { position: absolute; inset: 0; border-radius: 6px; display: flex; align-items: center; justify-content: center;
+        font: 800 26px/1 "JetBrains Mono"; color: #F4F6FA;
+        background: linear-gradient(180deg, #4D5360 0%, #353A44 55%, #2A2E36 100%);
+        box-shadow: inset 0 1.5px 0 rgba(255,255,255,.26), inset 0 -1px 0 rgba(0,0,0,.35), 0 3px 0 #121418, 0 5px 7px rgba(0,0,0,.45); }
+      .key i { position: absolute; inset: 0; border-radius: 6px; opacity: 0;
+        background: linear-gradient(180deg, #A4FFCB 0%, #49EA8B 45%, #1FB45D 100%);
+        box-shadow: inset 0 1.5px 0 rgba(255,255,255,.7), 0 0 14px rgba(56,224,123,.75); }
+      .key em { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 800 26px/1 "JetBrains Mono"; font-style: normal; color: #07220F; opacity: 0; }
+      #name { position: absolute; left: 16px; top: 0; white-space: nowrap; font: 900 40px/72px "Inter"; letter-spacing: 0.01em; color: #4EF08F;
+        text-shadow: 0 2px 2px rgba(0,0,0,.5); }
+
+      #gl { position: absolute; width: 188px; height: 300px; display: block; }
+      #halo { position: absolute; width: 380px; height: 380px; border-radius: 50%; opacity: 0;
+        background: radial-gradient(closest-side, rgba(110,255,170,.55) 0%, rgba(56,224,123,.26) 38%, rgba(56,224,123,.07) 70%, rgba(56,224,123,0) 100%); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5.8" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="shot1" class="clip shot" src="assets/shots/v54-gp-trevor-walk-h.mp4" muted playsinline data-start="0" data-duration="1.5" data-media-start="0.4" data-track-index="0"></video>
+        <video id="shot2" class="clip shot" src="assets/shots/v30-street-explosion-h.mp4" muted playsinline data-start="1.5" data-duration="1.6" data-media-start="0" data-track-index="0"></video>
+        <video id="shot3" class="clip shot" src="assets/shots/v09-juggernaut-minigun-h.mp4" muted playsinline data-start="3.1" data-duration="1.2" data-media-start="0" data-track-index="0"></video>
+        <video id="shot4" class="clip shot" src="assets/shots/v26-bridge-explosion-h.mp4" muted playsinline data-start="4.3" data-duration="1.5" data-media-start="0.1" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="5.8" data-track-index="1">
+        <div id="toast">
+          <div id="slab"><div id="well"></div><div id="wellGlow"></div><div id="cshadow"></div><div id="sheen"></div><div id="edge"></div></div>
+          <div id="spine"><div id="spineFill"></div></div>
+          <div id="r1" class="win"><span id="r1a"></span><span id="r1b"></span></div>
+          <div id="r2" class="win"><div id="keys"></div><span id="name"></span></div>
+        </div>
+        <div id="halo"></div>
+        <canvas id="gl" width="188" height="300"></canvas>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        header: { before: "ENTER CHEAT", after: "CHEAT ACTIVATED" },
+        code: "PAINKILLER",                 // struck in on keycaps, one per step
+        name: "INVINCIBILITY",              // what the cheat does
+        pos: { x: 84, y: 62 },              // slab top-left (docked like the GTA help box)
+        colors: { accent: "#38E07B", enamelOff: "#2A3039", enamelOn: "#0C9A44", steel: "#D9DEE6" },
+        timing: { in: 0.2, type: 0.6, step: 0.072, act: 1.5, swap: 2.05, out: 4.86, end: 5.8 }   // act = the lock-in, on the cut
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x)), lerp = (a, b, p) => a + (b - a) * p;
+        const seg = (t, a, d) => clamp((t - a) / d, 0, 1), E = (n) => gsap.parseEase(n);
+        const eOut3 = E("power3.out"), eIn3 = E("power3.in"), eIO2 = E("power2.inOut"), eExpo = E("expo.out"), eBack = E("back.out(1.6)"), eBack2 = E("back.out(2.2)");
+
+        // ---------- DOM content ----------
+        $("#r1a").textContent = CONFIG.header.before; $("#r1b").textContent = CONFIG.header.after; $("#name").textContent = CONFIG.name;
+        const keys = [];
+        for (const ch of CONFIG.code) {
+          const k = document.createElement("div"); k.className = "key";
+          k.innerHTML = "<b></b><i></i><em></em>"; k.querySelector("b").textContent = ch; k.querySelector("em").textContent = ch;
+          $("#keys").appendChild(k); keys.push(k);
+        }
+        const X0 = CONFIG.pos.x, Y0 = CONFIG.pos.y, SCX = X0 + 86, SCY = Y0 + 76;   // shield centre on the page
+        const toast = $("#toast"); toast.style.left = X0 + "px"; toast.style.top = Y0 + "px";
+        const gl = $("#gl"); gl.style.left = (SCX - 94) + "px"; gl.style.top = (SCY - 150) + "px";
+        const halo = $("#halo"); halo.style.left = (SCX - 190) + "px"; halo.style.top = (SCY - 190) + "px";
+
+        // ---------- Three.js: the shield emblem (z = 0 maps 1:1 to canvas px) ----------
+        const W = 188, H = 300;
+        const renderer = new THREE.WebGLRenderer({ canvas: gl, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+        renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 0);
+        renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
+        const scene = new THREE.Scene();
+        const FOV = 22, DIST = (H / 2) / Math.tan((FOV / 2) * Math.PI / 180);
+        const camera = new THREE.PerspectiveCamera(FOV, W / H, 10, DIST * 3);
+        camera.position.set(0, 0, DIST); camera.lookAt(0, 0, 0);
+
+        // studio environment for the chrome: a big softbox overhead, a strip key front-left, a cool bar right, dark floor
+        const envScene = new THREE.Scene();
+        envScene.add(new THREE.Mesh(new THREE.SphereGeometry(50, 48, 24), new THREE.ShaderMaterial({
+          side: THREE.BackSide, depthWrite: false,
+          vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 top = vec3(0.80,0.84,0.92), hor = vec3(0.09,0.10,0.12), low = vec3(0.012,0.014,0.016);" +
+            " vec3 c = y > 0.0 ? mix(hor, top, smoothstep(0.1, 0.9, y)) : mix(hor, low, smoothstep(0.0, 0.4, -y)); gl_FragColor = vec4(c, 1.0); }"
+        })));
+        const panel = (w, h, x, y, z, c) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); envScene.add(m); };
+        panel(40, 12, -4, 30, 22, new THREE.Color(5.0, 4.95, 4.9));
+        panel(4, 36, -30, 4, 22, new THREE.Color(4.2, 4.2, 4.3));
+        panel(5, 26, 32, -2, 14, new THREE.Color(1.6, 2.6, 2.2));
+        panel(44, 1.6, 0, 24, 28, new THREE.Color(3.0, 3.0, 3.0));
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        scene.environment = pmrem.fromScene(envScene, 0.0, 0.1, 200).texture;
+        const key = new THREE.DirectionalLight(0xfff4ec, 1.6); key.position.set(-0.7, 0.9, 1.0); scene.add(key);
+        const rim = new THREE.DirectionalLight(0xc8ffe0, 0.7); rim.position.set(0.9, -0.2, 0.5); scene.add(rim);
+        scene.add(new THREE.HemisphereLight(0xf2f5ff, 0x0c0e14, 0.55));
+
+        // geometry helpers: merge coincident vertices so bevels shade smooth (no facets on the chrome)
+        function smooth(geo) {
+          const pos = geo.attributes.position, map = new Map(), idx = [], verts = [];
+          for (let i = 0; i < pos.count; i++) {
+            const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), k = Math.round(x * 50) + "," + Math.round(y * 50) + "," + Math.round(z * 50);
+            let j = map.get(k); if (j === undefined) { j = verts.length / 3; map.set(k, j); verts.push(x, y, z); } idx.push(j);
+          }
+          const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3)); g.setIndex(idx); g.computeVertexNormals(); return g;
+        }
+        // the heater-shield outline, half-width a (px)
+        function shield(a, dy) {
+          const s = new THREE.Shape(), P = (x, y) => [x * a, y * a + (dy || 0)];
+          s.moveTo(...P(0, 0.90)); s.quadraticCurveTo(...P(0.52, 1.08), ...P(1.0, 0.98));
+          s.lineTo(...P(1.0, 0.20)); s.bezierCurveTo(...P(1.0, -0.52), ...P(0.50, -0.94), ...P(0, -1.20));
+          s.bezierCurveTo(...P(-0.50, -0.94), ...P(-1.0, -0.52), ...P(-1.0, 0.20)); s.lineTo(...P(-1.0, 0.98));
+          s.quadraticCurveTo(...P(-0.52, 1.08), ...P(0, 0.90));
+          return s;
+        }
+        const A = 58;                                   // shield half-width in px: ~106 x 117 px on screen
+        const outer = shield(A), inner = shield(A * 0.76, -A * 0.03);
+        const rimShape = shield(A); rimShape.holes.push(new THREE.Path(inner.getPoints(48).reverse()));
+        const steel = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(CONFIG.colors.steel), metalness: 1, roughness: 0.16, clearcoat: 0.8, clearcoatRoughness: 0.05, envMapIntensity: 1.5 });
+        const enamel = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(CONFIG.colors.enamelOff), metalness: 0.05, roughness: 0.28, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 0.9,
+          emissive: new THREE.Color(CONFIG.colors.accent), emissiveIntensity: 0 });
+        const checkMat = new THREE.MeshPhysicalMaterial({ color: 0x59606c, metalness: 0.6, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 1.2,
+          emissive: new THREE.Color(0xffffff), emissiveIntensity: 0 });
+        const pivot = new THREE.Group(), spin = new THREE.Group(), badge = new THREE.Group();
+        pivot.add(spin); spin.add(badge); scene.add(pivot);
+        const rimGeo = smooth(new THREE.ExtrudeGeometry(rimShape, { depth: 10, bevelEnabled: true, bevelThickness: 6, bevelSize: 4.5, bevelOffset: -4.5, bevelSegments: 6, curveSegments: 18 }));
+        rimGeo.translate(0, 0, -8); badge.add(new THREE.Mesh(rimGeo, steel));
+        const fieldGeo = smooth(new THREE.ExtrudeGeometry(inner, { depth: 8, bevelEnabled: true, bevelThickness: 2.5, bevelSize: 2, bevelOffset: -2, bevelSegments: 4, curveSegments: 18 }));
+        fieldGeo.translate(0, 0, -6); badge.add(new THREE.Mesh(fieldGeo, enamel));
+        // back plate (closes the shield so the spin shows a solid object, not a hollow ring)
+        const backGeo = new THREE.ExtrudeGeometry(shield(A * 0.97), { depth: 6, bevelEnabled: false, curveSegments: 18 }); backGeo.translate(0, 0, -14);
+        badge.add(new THREE.Mesh(backGeo, new THREE.MeshPhysicalMaterial({ color: 0x9aa2ad, metalness: 1, roughness: 0.32, clearcoat: 0.5, envMapIntensity: 1.2 })));
+        // the check: a thick mitred polyline, extruded and bevelled, standing proud of the enamel
+        function thick(pts, h) {
+          const n = [], L = [], R = [];
+          for (let i = 0; i < pts.length - 1; i++) { const dx = pts[i + 1][0] - pts[i][0], dy = pts[i + 1][1] - pts[i][1], l = Math.hypot(dx, dy); n.push([-dy / l, dx / l]); }
+          for (let i = 0; i < pts.length; i++) {
+            let m; if (i === 0) m = n[0]; else if (i === pts.length - 1) m = n[n.length - 1];
+            else { const mx = n[i - 1][0] + n[i][0], my = n[i - 1][1] + n[i][1], ml = Math.hypot(mx, my), d = (mx / ml) * n[i][0] + (my / ml) * n[i][1]; m = [mx / ml / d, my / ml / d]; }
+            L.push([pts[i][0] + m[0] * h, pts[i][1] + m[1] * h]); R.push([pts[i][0] - m[0] * h, pts[i][1] - m[1] * h]);
+          }
+          const s = new THREE.Shape(); const all = L.concat(R.reverse()); s.moveTo(all[0][0], all[0][1]); for (let i = 1; i < all.length; i++) s.lineTo(all[i][0], all[i][1]); return s;
+        }
+        const ck = thick([[-0.40 * A, 0.02 * A], [-0.11 * A, -0.30 * A], [0.43 * A, 0.36 * A]], 0.105 * A);
+        const ckGeo = smooth(new THREE.ExtrudeGeometry(ck, { depth: 4, bevelEnabled: true, bevelThickness: 3, bevelSize: 2.2, bevelOffset: -2.2, bevelSegments: 4 }));
+        ckGeo.translate(0, -0.04 * A, 1.5); badge.add(new THREE.Mesh(ckGeo, checkMat));
+        // specular rake: a soft diagonal band, additive, clipped to the shield's face
+        const rakeMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
+          uniforms: { uPos: { value: -1e4 }, uAmp: { value: 0 } },
+          vertexShader: "varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "uniform float uPos; uniform float uAmp; varying vec2 vP; void main(){ float d = dot(vP, normalize(vec2(0.74, -0.67))); float a = uAmp * exp(-pow((d - uPos) / 15.0, 2.0)); gl_FragColor = vec4(1.0, 0.99, 0.96, a); }" });
+        const rake = new THREE.Mesh(new THREE.ShapeGeometry(outer, 24), rakeMat); rake.position.z = 6.4; rake.renderOrder = 4; badge.add(rake);
+
+        const cOff = new THREE.Color(CONFIG.colors.enamelOff), cOn = new THREE.Color(CONFIG.colors.enamelOn), ckOff = new THREE.Color(0x59606c), ckOn = new THREE.Color(0xf6fff9);
+        function bump(t, at, a, d) { const u = (t - at); if (u < 0) return 0; return u < a ? u / a : Math.exp(-(u - a) / d); }
+
+        // ---------- motion: everything is a pure function of t ----------
+        const REST = { ry: -0.32, rx: 0.1 };   // resting 3/4 turn: the chrome rim and the thickness stay visible
+        const HIT = T.act, SPIN = T.act - 0.11;  // the spin starts 3 frames early so the edge-on state swap IS the cut frame
+        const eElastic = E("elastic.out(1,0.5)"), eRoll = E("back.out(1.5)");
+        function renderAt(t) {
+          const vis = t >= T.in && t < T.out + 0.6;
+          toast.style.visibility = vis ? "visible" : "hidden";
+          // ---- shield: grows in lit and turning, lands at a 3/4 rest; spins a full turn through the lock-in; collapses out ----
+          const u = seg(t, T.in, 0.45), ub = eBack(u);
+          let s = lerp(0.3, 1, ub), ry = lerp(-1.3, REST.ry, eOut3(u)), rx = lerp(0.35, REST.rx, eOut3(u)), rz = lerp(-0.25, 0, ub);
+          const a = seg(t, SPIN, 0.62), ae = E("back.out(1.25)")(a);
+          ry += 2 * Math.PI * ae;
+          s *= 1 + 0.2 * Math.sin(Math.PI * clamp(a / 0.55, 0, 1)) * (1 - a * 0.3);
+          // idle: a slow breathing tilt during the hold so the chrome keeps catching light
+          const idle = seg(t, SPIN + 0.62, 0.4);
+          ry += idle * 0.16 * Math.sin((t - SPIN - 0.62) * 2.2); rx += idle * 0.05 * Math.sin((t - SPIN) * 1.7);
+          const x = seg(t, T.out + 0.26, 0.22), xe = eIn3(x);
+          ry += 1.4 * xe; s *= 1 - xe;
+          pivot.visible = t >= T.in && s > 0.1;
+          pivot.scale.setScalar(Math.max(0.001, s)); spin.rotation.set(rx, ry, rz);
+          // state: slate enamel + dead check, then (edge-on, on the cut) green enamel + white-hot check
+          const lit = t >= HIT ? 1 : 0;
+          const heat = lit ? bump(t, HIT, 0.07, 0.22) : 0;
+          enamel.color.copy(lit ? cOn : cOff); enamel.emissiveIntensity = lit ? 0.16 + 0.9 * heat : 0;
+          checkMat.color.copy(lit ? ckOn : ckOff); checkMat.emissiveIntensity = lit ? 0.18 + 1.6 * heat : 0;
+          checkMat.metalness = lit ? 0.15 : 0.6;
+          key.intensity = 1.6 + 2.0 * (lit ? (t - HIT < 0.1 ? 1 : Math.exp(-(t - HIT - 0.1) / 0.2)) : 0);
+          const ka = 2.3 - 1.4 * eIO2(seg(t, SPIN, 0.8));
+          key.position.set(Math.cos(ka) * 1.1, Math.sin(ka) * 1.1, 0.9);
+          const rk = seg(t, HIT + 0.31, 0.42), rk2 = seg(t, 3.4, 0.5);
+          const rkA = rk > 0 && rk < 1 ? Math.sin(Math.PI * rk) * 0.75 : (rk2 > 0 && rk2 < 1 ? Math.sin(Math.PI * rk2) * 0.45 : 0);
+          rakeMat.uniforms.uPos.value = rk > 0 && rk < 1 ? lerp(-90, 90, eIO2(rk)) : lerp(-90, 90, eIO2(rk2));
+          rakeMat.uniforms.uAmp.value = rkA;
+          renderer.render(scene, camera);
+          const bl = (u > 0 && u < 0.4 ? 6 * (1 - u / 0.4) : 0) + (a > 0 && a < 0.4 ? 3 * Math.sin(Math.PI * a / 0.4) : 0) + 6 * xe;
+          gl.style.filter = bl > 0.2 ? "blur(" + bl.toFixed(2) + "px)" : "none";
+          // green halo behind the shield: 3-frame peak on the lock-in, then a low burn
+          halo.style.opacity = lit && pivot.visible ? (0.35 * (1 - xe) + 0.65 * Math.min(1, heat)).toFixed(3) : 0;
+          halo.style.transform = "scale(" + (0.8 + 0.25 * Math.min(1, heat) + 0.2 * s - 0.2).toFixed(3) + ")";
+
+          // ---- slab: wipes open from the shield with a slide and motion blur; punches on the cut; collapses back into it ----
+          const o = seg(t, T.in + 0.1, 0.5), oe = eExpo(o);
+          const c = seg(t, T.out + 0.08, 0.26), ce = eIn3(c);
+          const open = oe * (1 - ce);
+          const SW = toast.offsetWidth;
+          const rightCut = (1 - open) * (SW + 60);
+          toast.style.clipPath = "inset(-60px " + rightCut.toFixed(1) + "px -60px -60px)";
+          const slide = (1 - oe) * -36 + ce * -10;
+          const pk = 1 + (t >= HIT ? 0.05 * (1 - eElastic(seg(t, HIT, 0.55))) : 0);
+          toast.style.transform = "translateX(" + slide.toFixed(2) + "px) scale(" + pk.toFixed(4) + ")";
+          const mb = (o > 0 && o < 0.6 ? 7 * (1 - o / 0.6) : 0) + 6 * Math.sin(Math.PI * c);
+          toast.style.filter = mb > 0.25 ? "blur(" + mb.toFixed(2) + "px)" : "none";
+          $("#cshadow").style.opacity = (pivot.visible ? clamp(s, 0, 1) * 0.9 : 0).toFixed(3);
+          $("#cshadow").style.transform = "scaleX(" + (0.6 + 0.4 * Math.abs(Math.cos(ry))).toFixed(3) + ")";
+          $("#wellGlow").style.opacity = lit ? (0.45 + 0.55 * Math.min(1, heat)).toFixed(3) : 0;
+          // the lock-in light: spine fills bottom-up, the top edge lights left to right, a green specular band crosses the slab
+          $("#spineFill").style.transform = "scaleY(" + eOut3(seg(t, HIT, 0.24)).toFixed(4) + ")";
+          $("#edge").style.transform = "scaleX(" + eOut3(seg(t, HIT + 0.02, 0.45)).toFixed(4) + ")";
+          $("#edge").style.opacity = (0.95 - 0.45 * seg(t, HIT + 0.6, 0.6)).toFixed(3);
+          const sh = seg(t, HIT + 0.03, 0.5);
+          $("#sheen").style.opacity = sh > 0 && sh < 1 ? Math.sin(Math.PI * sh).toFixed(3) : 0;
+          $("#sheen").style.transform = "translateX(" + lerp(-220, SW + 40, eIO2(sh)).toFixed(1) + "px) skewX(-18deg)";
+
+          // ---- row 1: ENTER CHEAT rises in; it rolls out just before the cut and CHEAT ACTIVATED rolls up on it (masked, no overlap) ----
+          const r1in = eBack(seg(t, T.in + 0.3, 0.4));
+          const outA = eIn3(seg(t, HIT - 0.11, 0.11)), inB = eRoll(seg(t, HIT, 0.32));
+          const xOut = eIn3(seg(t, T.out - 0.06, 0.2));
+          $("#r1a").style.transform = "translateY(" + ((1 - r1in) * 62 - outA * 64).toFixed(2) + "px)";
+          $("#r1b").style.transform = "translateY(" + ((1 - inB) * 64 - xOut * 64).toFixed(2) + "px)";
+          const glow = lit ? Math.min(1, heat) : 0;
+          $("#r1b").style.textShadow = "0 2px 2px rgba(0,0,0,.55), 0 0 " + (4 + 18 * glow).toFixed(1) + "px rgba(80,240,150," + (0.85 * glow).toFixed(3) + ")";
+
+          // ---- row 2: keys struck in (drop + press + release); on the cut they light green left to right; then they roll out
+          //      and the cheat name rolls up in their place (same masked window, no overlap) ----
+          keys.forEach((k, i) => {
+            const ti = T.type + i * T.step, pr = seg(t, ti + 0.02, 0.14);
+            const press = Math.sin(Math.PI * pr) * 3.2;
+            const sc = t < ti ? 0 : lerp(1.35, 1, eOut3(seg(t, ti, 0.12)));
+            const wt = HIT + i * 0.018, wv = t >= wt ? 1 : 0, wvp = Math.sin(Math.PI * seg(t, wt, 0.2));
+            const sw = seg(t, T.swap + i * 0.008, 0.12), swE = eIn3(sw);
+            k.style.visibility = t >= ti && sw < 1 ? "visible" : "hidden";
+            k.style.transform = "translateY(" + (press + 2.2 * wvp + swE * 66).toFixed(2) + "px) scale(" + (sc * (1 + 0.1 * wvp)).toFixed(4) + ")";
+            k.querySelector("i").style.opacity = wv;
+            k.querySelector("em").style.opacity = wv;
+            k.querySelector("i").style.boxShadow = "inset 0 1.5px 0 rgba(255,255,255,.7), 0 3px 0 #0E5A2B, 0 0 " + (6 + 14 * wvp).toFixed(1) + "px rgba(56,224,123," + (0.35 + 0.5 * wvp).toFixed(3) + ")";
+          });
+          const nm = eRoll(seg(t, T.swap + 0.2, 0.34)), nx = eIn3(seg(t, T.out - 0.04, 0.18));
+          $("#name").style.transform = "translateY(" + ((1 - nm) * 72 + nx * 72).toFixed(2) + "px)";
+          const ng = bump(t, T.swap + 0.36, 0.07, 0.25);
+          $("#name").style.textShadow = "0 2px 2px rgba(0,0,0,.5), 0 0 " + (4 + 16 * ng).toFixed(1) + "px rgba(80,240,150," + (0.8 * ng).toFixed(3) + ")";
+        }
+        window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+
+        const FACES = ["900 100px Inter", "800 100px 'JetBrains Mono'"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          // size the slab to its content (measured in the real faces)
+          const r1w = Math.max($("#r1a").offsetWidth, $("#r1b").offsetWidth);
+          $("#r1").style.width = (r1w + 8) + "px";
+          const r2w = Math.max($("#keys").offsetWidth, $("#name").offsetWidth);
+          $("#r2").style.width = (r2w + 46) + "px";
+          const SW = 182 + Math.max(r1w, r2w) + 34;
+          toast.style.width = SW + "px";
+          const tl = gsap.timeline({ paused: true });
+          renderAt(0);
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          if (plate) {
+            Look.push(tl, "#push", 0, T.end, { from: 1, to: 1.045 });
+            Look.impact(tl, T.act, { shake: "#shake", amp: 5, dur: 0.3, flash: 0, zoom: 1.016 });
+          }
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,1140 @@
+{
+"long": [
+{
+"slug": "38-spin-wheel",
+"name": "Spin wheel",
+"cat": "Lists",
+"a": "3D wheel",
+"b": "Vertical wheel",
+"ha": 4.6,
+"hb": 4.65
+},
+{
+"slug": "08-title-sting",
+"name": "Title sting",
+"cat": "Everyday",
+"a": "Chrome title",
+"b": "Footage in letters",
+"ha": 1.76,
+"hb": 2.53
+},
+{
+"slug": "44-map-route",
+"name": "Map route",
+"cat": "Comparison",
+"a": "Tilted 3D map",
+"b": "Game map",
+"ha": 4.5,
+"hb": 3.3
+},
+{
+"slug": "57-holo-scan",
+"name": "Holo scan",
+"cat": "Comparison",
+"a": "Point-cloud scan (3D)",
+"b": "Scan for Shorts",
+"ha": 3.48,
+"hb": 3.38
+},
+{
+"slug": "37-clip-grid-counter",
+"name": "Clip grid counter",
+"cat": "Lists",
+"a": "Tile grid (3D)",
+"b": "Vertical grid",
+"ha": 5.0,
+"hb": 4.1
+},
+{
+"slug": "56-earth-zoom",
+"name": "Earth zoom",
+"cat": "Comparison",
+"a": "Globe dive (3D)",
+"b": "Dive for Shorts",
+"ha": 5.2,
+"hb": 5.6
+},
+{
+"slug": "39-comparison-split",
+"name": "Comparison split",
+"cat": "Comparison",
+"a": "Side by side",
+"b": "Stacked",
+"ha": 4.2,
+"hb": 4.2
+},
+{
+"slug": "22-celebration-fx",
+"name": "Celebration FX",
+"cat": "Everyday",
+"a": "Money rain (3D)",
+"b": "Confetti burst",
+"ha": 2.2,
+"hb": 1.3
+},
+{
+"slug": "26-transformation-meter",
+"name": "Transformation meter",
+"cat": "Challenge",
+"a": "Badge and fill",
+"b": "Power tube",
+"ha": 5.0,
+"hb": 5.1
+},
+{
+"slug": "47-selection-wheel",
+"name": "Selection wheel",
+"cat": "Game UI",
+"a": "Character wheel",
+"b": "Radio wheel",
+"ha": 2.28,
+"hb": 2.45
+},
+{
+"slug": "71-lineage-board",
+"name": "Lineage board",
+"cat": "Comparison",
+"a": "Lineage board",
+"b": "Lineage board (Shorts)",
+"ha": 4.5,
+"hb": 4.5
+},
+{
+"slug": "20-game-title-card",
+"name": "Game title card",
+"cat": "Everyday",
+"a": "Series title",
+"b": "Corner title",
+"ha": 1.2,
+"hb": 1.0
+},
+{
+"slug": "72-three-way-split",
+"name": "Three-way split",
+"cat": "Comparison",
+"a": "Three-way split",
+"b": "Three-way split (Shorts)",
+"ha": 2.0,
+"hb": 2.0
+},
+{
+"slug": "65-scale-slider",
+"name": "Scale slider",
+"cat": "Challenge",
+"a": "Choice slider",
+"b": "Vertical slider",
+"ha": 3.3,
+"hb": 3.3
+},
+{
+"slug": "32-timer-badge",
+"name": "Timer badge",
+"cat": "Challenge",
+"a": "Countdown ring",
+"b": "Stopwatch",
+"ha": 2.23,
+"hb": 5.2
+},
+{
+"slug": "50-star-checklist",
+"name": "Star checklist",
+"cat": "Game UI",
+"a": "Star row",
+"b": "Star row for Shorts",
+"ha": 3.6,
+"hb": 3.75
+},
+{
+"slug": "07-hit-transitions",
+"name": "Hit transitions",
+"cat": "Everyday",
+"a": "Transition pack",
+"b": "Vertical pack",
+"ha": 4.2,
+"hb": 5.43
+},
+{
+"slug": "17-emoji-pop",
+"name": "Emoji pop",
+"cat": "Everyday",
+"a": "Skull pop",
+"b": "Emoji burst",
+"ha": 0.47,
+"hb": 0.4
+},
+{
+"slug": "53-freeze-intro",
+"name": "Freeze-frame intro",
+"cat": "Everyday",
+"a": "Character freeze",
+"b": "Freeze for Shorts",
+"ha": 1.2,
+"hb": 1.7
+},
+{
+"slug": "19-chapter-card",
+"name": "Chapter card",
+"cat": "Everyday",
+"a": "Full card",
+"b": "Time skip",
+"ha": 1.5,
+"hb": 0.7
+},
+{
+"slug": "28-level-counter",
+"name": "Level counter",
+"cat": "Challenge",
+"a": "Level roll",
+"b": "Level slam",
+"ha": 3.37,
+"hb": 2.4
+},
+{
+"slug": "46-evolution-timeline",
+"name": "Evolution timeline",
+"cat": "Comparison",
+"a": "3D timeline",
+"b": "Year stack",
+"ha": 5.55,
+"hb": 4.4
+},
+{
+"slug": "29-cash-counter",
+"name": "Cash counter",
+"cat": "Challenge",
+"a": "Cash HUD",
+"b": "Cash pill",
+"ha": 4.42,
+"hb": 4.7
+},
+{
+"slug": "49-status-banner",
+"name": "Status banner",
+"cat": "Game UI",
+"a": "Passed banner",
+"b": "Wasted banner",
+"ha": 1.3,
+"hb": 0.73
+},
+{
+"slug": "54-phone-call",
+"name": "Phone call",
+"cat": "Game UI",
+"a": "Incoming call",
+"b": "Call for Shorts",
+"ha": 2.98,
+"hb": 3.18
+},
+{
+"slug": "35-list-number",
+"name": "List number",
+"cat": "Lists",
+"a": "Number card",
+"b": "Number stack",
+"ha": 1.4,
+"hb": 1.4
+},
+{
+"slug": "66-time-clock",
+"name": "Time-passing clock",
+"cat": "Challenge",
+"a": "Clock face",
+"b": "Clock for Shorts",
+"ha": 3.25,
+"hb": 3.55
+},
+{
+"slug": "59-choice-branch",
+"name": "Choice branch",
+"cat": "Lists",
+"a": "Neon branches",
+"b": "Branch for Shorts",
+"ha": 3.65,
+"hb": 3.65
+},
+{
+"slug": "63-attempt-counter",
+"name": "Attempt counter",
+"cat": "Challenge",
+"a": "Death tally",
+"b": "Attempt badge",
+"ha": 2.82,
+"hb": 4.35
+},
+{
+"slug": "64-bond-meter",
+"name": "Bond meter",
+"cat": "Challenge",
+"a": "Heart meter",
+"b": "Bond for Shorts",
+"ha": 4.35,
+"hb": 4.2
+},
+{
+"slug": "62-like-goal",
+"name": "Like goal",
+"cat": "Everyday",
+"a": "Like goal counter",
+"b": "Goal for Shorts",
+"ha": 4.15,
+"hb": 4.15
+},
+{
+"slug": "74-focus-button",
+"name": "Focus button",
+"cat": "Comparison",
+"a": "Focus button",
+"b": "Focus button (Shorts)",
+"ha": 2.95,
+"hb": 2.95
+},
+{
+"slug": "77-animation-tiles",
+"name": "Animation count tiles",
+"cat": "Comparison",
+"a": "Animation count tiles",
+"b": "Animation count tiles (Shorts)",
+"ha": 3.5,
+"hb": 3.5
+},
+{
+"slug": "27-upgrade-ladder",
+"name": "Upgrade ladder",
+"cat": "Challenge",
+"a": "Right-edge ladder",
+"b": "Horizontal ladder",
+"ha": 3.85,
+"hb": 3.85
+},
+{
+"slug": "31-collectible-tracker",
+"name": "Collectible tracker",
+"cat": "Challenge",
+"a": "Found 1/8",
+"b": "Death counter",
+"ha": 2.15,
+"hb": 3.03
+},
+{
+"slug": "30-price-tag",
+"name": "Price tag",
+"cat": "Challenge",
+"a": "Pinned price",
+"b": "Giant tier",
+"ha": 0.72,
+"hb": 2.1
+},
+{
+"slug": "33-goal-checklist",
+"name": "Goal checklist",
+"cat": "Challenge",
+"a": "Side checklist",
+"b": "Top checklist",
+"ha": 5.7,
+"hb": 5.8
+},
+{
+"slug": "36-ranking-board",
+"name": "Ranking board",
+"cat": "Lists",
+"a": "Rank column",
+"b": "Rank board",
+"ha": 5.1,
+"hb": 5.1
+},
+{
+"slug": "34-stat-card",
+"name": "Stat card",
+"cat": "Challenge",
+"a": "Car stats",
+"b": "Character stats",
+"ha": 2.45,
+"hb": 2.55
+},
+{
+"slug": "75-honor-profile-slider",
+"name": "Honor to profile slider",
+"cat": "Comparison",
+"a": "Honor to profile slider",
+"b": "Honor to profile slider (Shorts)",
+"ha": 4.0,
+"hb": 4.0
+},
+{
+"slug": "76-police-report-icons",
+"name": "Police report icons",
+"cat": "Structure",
+"a": "Police report icons",
+"b": "Police report icons (Shorts)",
+"ha": 4.72,
+"hb": 4.72
+},
+{
+"slug": "52-socials-row",
+"name": "Socials row",
+"cat": "Everyday",
+"a": "THE END + socials",
+"b": "Corner handles",
+"ha": 2.65,
+"hb": 1.9
+},
+{
+"slug": "45-district-popup",
+"name": "District pop-up",
+"cat": "Comparison",
+"a": "Corner place",
+"b": "Place for Shorts",
+"ha": 1.75,
+"hb": 1.5
+},
+{
+"slug": "48-mission-hud",
+"name": "Mission HUD",
+"cat": "Game UI",
+"a": "Objective HUD",
+"b": "HUD for Shorts",
+"ha": 2.2,
+"hb": 2.22
+},
+{
+"slug": "70-hud-inset",
+"name": "HUD inset",
+"cat": "Game UI",
+"a": "Boxed meter inset",
+"b": "Inset for Shorts",
+"ha": 2.8,
+"hb": 2.8
+},
+{
+"slug": "73-chapter-counter",
+"name": "Chapter counter card",
+"cat": "Structure",
+"a": "Chapter counter card",
+"b": "Chapter counter card (Shorts)",
+"ha": 1.25,
+"hb": 1.25
+},
+{
+"slug": "67-feature-steps",
+"name": "Feature steps",
+"cat": "Lists",
+"a": "Tile row",
+"b": "Step stack",
+"ha": 4.75,
+"hb": 4.85
+},
+{
+"slug": "55-date-stamp",
+"name": "Date stamp",
+"cat": "Everyday",
+"a": "Date and time",
+"b": "Time jump",
+"ha": 2.85,
+"hb": 3.32
+},
+{
+"slug": "58-quote-card",
+"name": "Quote card",
+"cat": "Comparison",
+"a": "Pull quote",
+"b": "Quote for Shorts",
+"ha": 2.95,
+"hb": 3.25
+},
+{
+"slug": "61-disclaimer-card",
+"name": "Disclaimer card",
+"cat": "Everyday",
+"a": "Full-screen disclaimer",
+"b": "Corner disclaimer",
+"ha": 1.6,
+"hb": 0.9
+},
+{
+"slug": "60-song-credit",
+"name": "Song credit",
+"cat": "Everyday",
+"a": "Now playing",
+"b": "Track tag",
+"ha": 1.65,
+"hb": 1.85
+},
+{
+"slug": "14-callout-label",
+"name": "Callout label",
+"cat": "Everyday",
+"a": "Leader callout",
+"b": "Stacked callouts",
+"ha": 0.7,
+"hb": 1.9
+},
+{
+"slug": "13-circle-arrow",
+"name": "Circle and arrow",
+"cat": "Everyday",
+"a": "Draw-on circle",
+"b": "Arrow + label",
+"ha": 1.25,
+"hb": 0.9
+},
+{
+"slug": "16-sfx-word",
+"name": "SFX word",
+"cat": "Everyday",
+"a": "Outlined word",
+"b": "Stacked word",
+"ha": 1.58,
+"hb": 1.52
+},
+{
+"slug": "10-avatar-cutout",
+"name": "Avatar cutout",
+"cat": "Everyday",
+"a": "Presenter avatar",
+"b": "Mascot pop-up",
+"ha": 2.75,
+"hb": 2.72
+},
+{
+"slug": "15-meme-cut-in",
+"name": "Meme cut-in",
+"cat": "Everyday",
+"a": "Framed slam",
+"b": "Full cut-in",
+"ha": 1.8,
+"hb": 1.45
+},
+{
+"slug": "18-name-tag",
+"name": "Name tag",
+"cat": "Everyday",
+"a": "Player tags",
+"b": "Character intro",
+"ha": 1.85,
+"hb": 1.05
+},
+{
+"slug": "03-word-captions",
+"name": "Word captions",
+"cat": "Everyday",
+"a": "Long-form",
+"b": "Shorts",
+"ha": 5.3,
+"hb": 4.3
+},
+{
+"slug": "04-speaker-captions",
+"name": "Speaker captions",
+"cat": "Everyday",
+"a": "RP dialogue",
+"b": "Shorts dialogue",
+"ha": 5.58,
+"hb": 5.63
+},
+{
+"slug": "05-hook-title",
+"name": "Hook title",
+"cat": "Everyday",
+"a": "Meme top bar",
+"b": "Keyword headline",
+"ha": 2.35,
+"hb": 4.3
+},
+{
+"slug": "21-speed-lines",
+"name": "Speed lines",
+"cat": "Everyday",
+"a": "Radial streaks",
+"b": "Vertical streaks",
+"ha": 1.75,
+"hb": 1.65
+},
+{
+"slug": "43-alert-toast",
+"name": "Alert toast",
+"cat": "Comparison",
+"a": "Cheat toast",
+"b": "Phone notification",
+"ha": 2.6,
+"hb": 2.25
+},
+{
+"slug": "42-social-post-card",
+"name": "Social post card",
+"cat": "Comparison",
+"a": "Post card",
+"b": "Chat bubble",
+"ha": 2.55,
+"hb": 4.2
+},
+{
+"slug": "41-web-evidence-card",
+"name": "Web evidence card",
+"cat": "Comparison",
+"a": "Wiki page",
+"b": "Article card",
+"ha": 3.75,
+"hb": 4.18
+},
+{
+"slug": "40-footage-card",
+"name": "Footage card",
+"cat": "Comparison",
+"a": "Inset card",
+"b": "Inset for Shorts",
+"ha": 1.3,
+"hb": 1.3
+},
+{
+"slug": "25-sponsor-card",
+"name": "Sponsor card",
+"cat": "Everyday",
+"a": "Tiers + QR",
+"b": "Code lower third",
+"ha": 3.05,
+"hb": 3.15
+},
+{
+"slug": "09-facecam-frame",
+"name": "Facecam frame",
+"cat": "Everyday",
+"a": "Corner cam",
+"b": "Stacked cam",
+"ha": 3.0,
+"hb": 2.97
+},
+{
+"slug": "11-reaction-cutaway",
+"name": "Reaction cutaway",
+"cat": "Everyday",
+"a": "Webcam cut",
+"b": "Vertical reaction",
+"ha": 1.6,
+"hb": 1.65
+},
+{
+"slug": "12-punch-in-zoom",
+"name": "Punch-in zoom",
+"cat": "Everyday",
+"a": "Detail punch",
+"b": "Face punch",
+"ha": 1.4,
+"hb": 1.0
+},
+{
+"slug": "23-cinematic-bars",
+"name": "Cinematic bars",
+"cat": "Everyday",
+"a": "2.39 bars",
+"b": "Vertical bars",
+"ha": 1.23,
+"hb": 1.53
+},
+{
+"slug": "24-blur-fill-reframe",
+"name": "Blur-fill reframe",
+"cat": "Everyday",
+"a": "Blur fill",
+"b": "Split stack",
+"ha": 1.13,
+"hb": 0.8
+},
+{
+"slug": "51-drama-grade",
+"name": "Drama grade",
+"cat": "Everyday",
+"a": "Black-and-white beat",
+"b": "Silhouette grade",
+"ha": 3.92,
+"hb": 3.6
+},
+{
+"slug": "68-settings-label",
+"name": "Settings label",
+"cat": "Comparison",
+"a": "Graphics settings",
+"b": "Setting for Shorts",
+"ha": 2.35,
+"hb": 3.25
+},
+{
+"slug": "69-source-tag",
+"name": "Source tag",
+"cat": "Comparison",
+"a": "Source pill",
+"b": "Source for Shorts",
+"ha": 1.32,
+"hb": 1.31
+},
+{
+"slug": "06-handle-watermark",
+"name": "Handle watermark",
+"cat": "Everyday",
+"a": "Corner handle",
+"b": "Typewriter handle",
+"ha": 1.02,
+"hb": 2.1
+},
+{
+"slug": "02-end-screen",
+"name": "End screen",
+"cat": "Everyday",
+"a": "Two slots + subscribe",
+"b": "Watch this next",
+"ha": 2.08,
+"hb": 2.0
+}
+],
+"shorts": [
+{
+"slug": "27-podium-3d",
+"name": "Top 3 podium",
+"cat": "Compilation scaffolding",
+"v": [
+"Podium",
+"Winner spotlight"
+]
+},
+{
+"slug": "28-carousel-3d",
+"name": "Clip carousel",
+"cat": "Compilation scaffolding",
+"v": [
+"Ring",
+"Stack flip"
+]
+},
+{
+"slug": "02-rank-badge",
+"name": "Rank badge",
+"cat": "Compilation scaffolding",
+"v": [
+"Hero numeral \u2192 dock",
+"Corner badge"
+]
+},
+{
+"slug": "07-release-countdown",
+"name": "Release countdown",
+"cat": "Release",
+"v": [
+"Rolling digits",
+"One day left"
+]
+},
+{
+"slug": "10-mission-passed",
+"name": "Mission passed",
+"cat": "GTA moments",
+"v": [
+"Passed + payout",
+"Mission failed"
+]
+},
+{
+"slug": "09-wasted-stamp",
+"name": "Wasted stamp",
+"cat": "GTA moments",
+"v": [
+"Wasted",
+"Busted"
+]
+},
+{
+"slug": "24-versus-card",
+"name": "Versus card",
+"cat": "Comparisons",
+"v": [
+"Split",
+"Centre"
+]
+},
+{
+"slug": "26-stat-counter",
+"name": "Stat count-up",
+"cat": "News & social",
+"v": [
+"Count-up",
+"Record badge"
+]
+},
+{
+"slug": "05-labelled-split",
+"name": "GTA 5 vs GTA 6 split",
+"cat": "Comparisons",
+"v": [
+"Stacked",
+"Diagonal reveal"
+]
+},
+{
+"slug": "06-blurred-fill",
+"name": "Blurred fill frame",
+"cat": "Framing",
+"v": [
+"Title + clip",
+"Clip + caption"
+]
+},
+{
+"slug": "01-clip-counter",
+"name": "Clip counter",
+"cat": "Compilation scaffolding",
+"v": [
+"Segmented bar",
+"Numbered dots"
+]
+},
+{
+"slug": "03-hook-title",
+"name": "Hook title",
+"cat": "Hooks & captions",
+"v": [
+"Boxed lines",
+"Official caps"
+]
+},
+{
+"slug": "04-word-captions",
+"name": "Word captions",
+"cat": "Hooks & captions",
+"v": [
+"Word pop",
+"Karaoke line"
+]
+},
+{
+"slug": "48-character-intro",
+"name": "Character intro",
+"cat": "GTA moments",
+"v": [
+"Freeze + name",
+"Switch wheel"
+]
+},
+{
+"slug": "22-evolution-timeline",
+"name": "Evolution timeline",
+"cat": "Comparisons",
+"v": [
+"Year rail",
+"Year ticker"
+]
+},
+{
+"slug": "23-tier-list",
+"name": "Tier list",
+"cat": "Comparisons",
+"v": [
+"Tier rows",
+"Tier reveal"
+]
+},
+{
+"slug": "20-spec-card",
+"name": "Spec card",
+"cat": "Comparisons",
+"v": [
+"Vehicle",
+"Era"
+]
+},
+{
+"slug": "25-stat-bars",
+"name": "Trailer views race",
+"cat": "Comparisons",
+"v": [
+"Bars",
+"Big number vs"
+]
+},
+{
+"slug": "47-race-hud",
+"name": "Race HUD",
+"cat": "GTA HUD kit",
+"v": [
+"Race stack",
+"Speedometer"
+]
+},
+{
+"slug": "46-cash-counter",
+"name": "Cash payout",
+"cat": "GTA HUD kit",
+"v": [
+"HUD corner",
+"Centre card"
+]
+},
+{
+"slug": "35-sunset-wipe",
+"name": "Sunset wipe",
+"cat": "Transitions",
+"v": [
+"Diagonal bands",
+"Iris"
+]
+},
+{
+"slug": "18-slowmo-replay",
+"name": "Slow-mo replay",
+"cat": "Detail callouts",
+"v": [
+"Replay scrubber",
+"Rewind"
+]
+},
+{
+"slug": "17-freeze-detail",
+"name": "Freeze-frame detail",
+"cat": "Detail callouts",
+"v": [
+"Spotlight",
+"Scan reveal"
+]
+},
+{
+"slug": "15-magnifier",
+"name": "Magnifier zoom",
+"cat": "Detail callouts",
+"v": [
+"Round lens",
+"Inset card"
+]
+},
+{
+"slug": "14-circle-callout",
+"name": "Circle callout",
+"cat": "Detail callouts",
+"v": [
+"Ring + label",
+"Bracket + label"
+]
+},
+{
+"slug": "16-arrow-label",
+"name": "Arrow pointer",
+"cat": "Detail callouts",
+"v": [
+"Curved arrow",
+"Pointer + dot"
+]
+},
+{
+"slug": "21-before-after",
+"name": "Before/after slider",
+"cat": "Comparisons",
+"v": [
+"Vertical slider",
+"Horizontal slider"
+]
+},
+{
+"slug": "08-wanted-level",
+"name": "Wanted level",
+"cat": "GTA HUD kit",
+"v": [
+"HUD corner",
+"Centre hero"
+]
+},
+{
+"slug": "11-news-chyron",
+"name": "News chyron",
+"cat": "News & social",
+"v": [
+"Breaking bar",
+"Live + ticker"
+]
+},
+{
+"slug": "12-location-card",
+"name": "Location card",
+"cat": "GTA moments",
+"v": [
+"Official wide caps",
+"Pin pill"
+]
+},
+{
+"slug": "19-name-tag",
+"name": "Name tag",
+"cat": "Detail callouts",
+"v": [
+"Leader tag",
+"Lower third"
+]
+},
+{
+"slug": "29-poll-card",
+"name": "This or that",
+"cat": "News & social",
+"v": [
+"Bars",
+"Split tap"
+]
+},
+{
+"slug": "37-chapter-card",
+"name": "Chapter card",
+"cat": "Transitions",
+"v": [
+"Sunset card",
+"Blurred footage"
+]
+},
+{
+"slug": "44-minimap",
+"name": "Minimap route",
+"cat": "GTA HUD kit",
+"v": [
+"Corner minimap",
+"GPS card"
+]
+},
+{
+"slug": "34-time-skip",
+"name": "Time skip card",
+"cat": "GTA moments",
+"v": [
+"Time skip",
+"Date card"
+]
+},
+{
+"slug": "36-zoom-transition",
+"name": "Punch zoom transition",
+"cat": "Transitions",
+"v": [
+"Punch zoom",
+"Whip pan"
+]
+},
+{
+"slug": "40-leak-stamp",
+"name": "Rumor stamp",
+"cat": "News & social",
+"v": [
+"Unconfirmed",
+"Confirmed"
+]
+},
+{
+"slug": "39-headline-card",
+"name": "Headline card",
+"cat": "News & social",
+"v": [
+"Single card",
+"Stack of three"
+]
+},
+{
+"slug": "38-post-card",
+"name": "X post card",
+"cat": "News & social",
+"v": [
+"Light card",
+"Dark on blur"
+]
+},
+{
+"slug": "42-preload-bar",
+"name": "Pre-load progress",
+"cat": "Release",
+"v": [
+"Bar",
+"Ring"
+]
+},
+{
+"slug": "43-phone-message",
+"name": "Phone message",
+"cat": "GTA moments",
+"v": [
+"Notification",
+"Thread"
+]
+},
+{
+"slug": "41-comment-reply",
+"name": "Comment reply",
+"cat": "News & social",
+"v": [
+"Reply sticker",
+"Comment stack"
+]
+},
+{
+"slug": "45-objective-line",
+"name": "Mission objective",
+"cat": "GTA HUD kit",
+"v": [
+"Objective line",
+"Mission title"
+]
+},
+{
+"slug": "31-clip-grid",
+"name": "Clip grid",
+"cat": "Framing",
+"v": [
+"2\u00d72 grid",
+"3 stacked"
+]
+},
+{
+"slug": "30-facecam-split",
+"name": "Facecam split",
+"cat": "Framing",
+"v": [
+"Top/bottom",
+"Corner bubble"
+]
+},
+{
+"slug": "33-social-frame",
+"name": "Social video frame",
+"cat": "Framing",
+"v": [
+"Reel post",
+"Live stream"
+]
+},
+{
+"slug": "32-cinematic-bars",
+"name": "Cinematic bars",
+"cat": "Framing",
+"v": [
+"Letterbox + time",
+"CCTV stamp"
+]
+},
+{
+"slug": "13-source-tag",
+"name": "Source tag",
+"cat": "Compilation scaffolding",
+"v": [
+"Footage chip",
+"Handle tag"
+]
+},
+{
+"slug": "49-follow-cta",
+"name": "Follow CTA",
+"cat": "Calls to action",
+"v": [
+"Follow button",
+"Next part card"
+]
+},
+{
+"slug": "50-end-card",
+"name": "End card",
+"cat": "Calls to action",
+"v": [
+"Ink tile + date",
+"Sunset card"
+]
+}
+]
+}

@@ -1,0 +1,243 @@
+<!doctype html>
+<!-- 51 Drama grade, variant A (16:9 long-form): "Black-and-white beat".
+     On a hit the shot drains to a real noir grade (baked LUT: crushed blacks, bright highlights, halation) behind a lit diagonal seam,
+     letterbox bars slam in, a small look label (the look's name over a strip of the shot's palette that drains to the look) sits in the top bar, a title line rises, then colour floods back from the subject on the next beat.
+     Looks are baked plates (grade/grade.sh + grade/*.cube): pick one with CONFIG.look. Variable: bg (full-kind: footage always shows). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #000; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake { position: absolute; inset: 0; }
+      .lay { position: absolute; inset: 0; overflow: hidden; }
+      .pw { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #G { clip-path: polygon(0 0, 0 0, 0 100%, 0 100%); }
+      #C1 { -webkit-mask-image: linear-gradient(transparent, transparent); mask-image: linear-gradient(transparent, transparent); }
+      /* the lit seam on the drain edge: warm halation on the graded side, white core, a cool fringe on the colour side */
+      #seam { position: absolute; left: 0; top: -180px; width: 340px; height: 1440px; margin-left: -170px; opacity: 0; mix-blend-mode: screen;
+        pointer-events: none; transform-origin: 50% 50%;
+        background: linear-gradient(90deg, rgba(255,140,70,0) 0%, rgba(255,150,80,.16) 22%, rgba(255,186,130,.50) 38%, rgba(255,226,196,.90) 46%,
+          #fff 48.4%, #fff 51%, rgba(210,230,255,.75) 53%, rgba(120,176,255,.18) 62%, rgba(90,150,255,0) 76%); filter: blur(1.5px); }
+      /* grain + vignette live inside #shake so the grain overlays the footage itself (blacks stay black) */
+      #vig { position: absolute; inset: 0; opacity: 0; pointer-events: none;
+        background: radial-gradient(ellipse 118% 86% at 50% 46%, rgba(0,0,0,0) 48%, rgba(0,0,0,.42) 80%, rgba(0,0,0,.66) 100%); }
+      #grain { position: absolute; inset: 0; opacity: 0; pointer-events: none; background-image: url('assets/kit/look/grain.png');
+        background-repeat: repeat; background-size: 320px 320px; mix-blend-mode: overlay; }
+      #ring { position: absolute; inset: 0; mix-blend-mode: screen; pointer-events: none; opacity: 0; }
+      .bloom { position: absolute; border-radius: 50%; mix-blend-mode: screen; pointer-events: none; opacity: 0; }
+      #bLamp { left: 1380px; top: 120px; width: 480px; height: 480px; background: radial-gradient(circle, rgba(255,236,200,.85) 0%, rgba(255,200,140,.42) 26%, rgba(255,170,110,.12) 52%, rgba(255,160,100,0) 70%); }
+      #bSky { left: 820px; top: -120px; width: 820px; height: 600px; background: radial-gradient(ellipse at 50% 55%, rgba(255,170,120,.55) 0%, rgba(255,120,110,.22) 34%, rgba(255,110,120,0) 68%); }
+      #lowScrim { position: absolute; left: 0; right: 0; bottom: 0; height: 420px; opacity: 0; pointer-events: none;
+        background: linear-gradient(0deg, rgba(0,0,0,.62) 0%, rgba(0,0,0,.42) 34%, rgba(0,0,0,.14) 70%, rgba(0,0,0,0) 100%); }
+      .bar { position: absolute; left: -20px; right: -20px; height: 138px; background: #000; }
+      #barT { top: 0; box-shadow: 0 14px 28px -10px rgba(0,0,0,.65); }
+      #barB { bottom: 0; box-shadow: 0 -14px 28px -10px rgba(0,0,0,.65); }
+      /* look label, small, in the top bar: the look's name and number over a thin strip of the shot's palette that drains to the look */
+      #lab { position: absolute; left: 96px; top: 50px; display: flex; flex-direction: column; gap: 9px; }
+      #labRow { display: flex; align-items: center; gap: 16px; }
+      .cw { overflow: hidden; height: 36px; display: flex; align-items: center; }
+      .cw > span { display: block; }
+      #labN { font: 800 28px/1 "Archivo"; font-stretch: 116%; letter-spacing: .2em; color: #F5F1EA; text-shadow: 0 0 18px rgba(255,236,214,.16); }
+      #labK { font: 600 16px/1 "Archivo"; font-stretch: 116%; letter-spacing: .26em; color: rgba(236,232,224,.55); }
+      #sw { display: flex; gap: 4px; }
+      .sw { position: relative; height: 4px; border-radius: 1px; overflow: hidden; transform-origin: 0% 50%; }
+      .sw i { position: absolute; inset: 0; }
+      .sw .g { clip-path: inset(0% 100% 0% 0%); }
+      /* title line */
+      #title { position: absolute; left: 0; right: 0; top: 796px; height: 106px; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+      #tIn { display: block; white-space: pre; font: 700 76px/1 "Archivo"; font-stretch: 116%; letter-spacing: .12em; padding-left: .12em; color: #F4F0E9;
+        text-shadow: 0 2px 3px rgba(0,0,0,.55), 0 4px 22px rgba(0,0,0,.55), 0 0 30px rgba(255,234,210,.20); }
+      #rule { position: absolute; left: 960px; top: 908px; width: 560px; height: 3px; margin-left: -280px; transform: scaleX(0); border-radius: 2px;
+        background: linear-gradient(90deg, rgba(244,240,233,0) 0%, rgba(244,240,233,.85) 50%, rgba(244,240,233,0) 100%); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.4" data-width="1920" data-height="1080">
+      <div id="shake">
+        <!-- before: the untouched shot -->
+        <div class="lay" id="L0"><div class="pw">
+          <video id="v0" class="clip shot" src="assets/shots/v35-penthouse-dusk-h.mp4" muted playsinline data-start="0" data-duration="6.4" data-media-start="1.4" data-track-index="0"></video>
+        </div></div>
+        <!-- after: the same frames, baked grade (one per look; CONFIG.look shows one) -->
+        <div class="lay" id="G"><div class="pw">
+          <video id="gNoir" class="clip shot look" data-look="noir" src="media/v35-noir.mp4" muted playsinline data-start="0" data-duration="6.4" data-media-start="1.4" data-track-index="1"></video>
+          <video id="gBleach" class="clip shot look" data-look="bleach" src="media/v35-bleach.mp4" muted playsinline data-start="0" data-duration="6.4" data-media-start="1.4" data-track-index="2"></video>
+          <video id="gTeal" class="clip shot look" data-look="tealorange" src="media/v35-tealorange.mp4" muted playsinline data-start="0" data-duration="6.4" data-media-start="1.4" data-track-index="3"></video>
+        </div></div>
+        <!-- colour returning from the subject -->
+        <div class="lay" id="C1"><div class="pw" id="c1pw">
+          <video id="v1" class="clip shot" src="assets/shots/v35-penthouse-dusk-h.mp4" muted playsinline data-start="0" data-duration="6.4" data-media-start="1.4" data-track-index="4"></video>
+        </div></div>
+        <div id="seam"></div>
+        <div id="ring"></div>
+        <div class="bloom" id="bSky"></div>
+        <div class="bloom" id="bLamp"></div>
+        <div id="vig"></div>
+        <div id="grain"></div>
+      </div>
+      <div id="ov" class="clip" data-start="0" data-duration="6.4" data-track-index="5">
+        <div id="lowScrim"></div>
+        <div class="bar" id="barT"></div>
+        <div class="bar" id="barB"></div>
+        <div id="title" data-layout-allow-overflow><div id="tIn"></div></div>
+        <div id="rule"></div>
+        <div id="lab">
+          <div id="labRow">
+            <div class="cw" data-layout-allow-overflow><span id="labN">NOIR</span></div>
+            <div class="cw" data-layout-allow-overflow><span id="labK">01</span></div>
+          </div>
+          <div id="sw"></div>
+        </div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        look: "noir",                         // "noir" | "bleach" | "tealorange" (baked plates in media/, see grade/grade.sh)
+        looks: {   // swatches: what the shot's palette becomes under the look (computed from grade/*.cube)
+          noir:       { label: "NOIR",        num: "01", seam: "warm", grain: 0.26, vignette: 0.55, swatches: ["#BDBBB7", "#DEDDDB", "#87847E", "#FEFEFE", "#6E6B65", "#A5A29D"] },
+          bleach:     { label: "BLEACH",      num: "02", seam: "cool", grain: 0.22, vignette: 0.50, swatches: ["#CE9271", "#E7BBD1", "#7D73A5", "#FFFDF3", "#547B8E", "#A88E81"] },
+          tealorange: { label: "TEAL/ORANGE", num: "03", seam: "warm", grain: 0.20, vignette: 0.45, swatches: ["#F4711F", "#FF8781", "#5678B0", "#FFF0AC", "#307C90", "#AF7A55"] }
+        },
+        palette: ["#D2642E", "#E07A9E", "#6E5A9E", "#F3D7A6", "#3B6F84", "#9A6B52"],   // the shot's own colours (jacket, sky, dusk, lamp, glass, skin)
+        label: true,                          // the look label in the top bar (name + palette strip)
+        bloom: { lamp: true, sky: true },     // light coming back into the shot on the return
+        title: "HE NEVER CAME BACK",
+        letterbox: true,                      // 2.39:1 bars slam in with the grade
+        iris: { x: 800, y: 560 },             // where colour floods back from (canvas px): the subject
+        timing: { hit: 1.0, drain: 0.24, label: 1.24, title: 1.62, back: 4.5, flood: 0.72, titleOut: 5.62, barsOut: 5.9, end: 6.4 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const T = CONFIG.timing, $ = (s) => document.querySelector(s), K = CONFIG.looks[CONFIG.look] || CONFIG.looks.noir;
+        const W = 1920, H = 1080, FR = 1 / 30;
+        document.querySelectorAll("video.look").forEach((v) => { if (v.dataset.look !== CONFIG.look) v.style.display = "none"; });
+        $("#labN").textContent = K.label; $("#labK").textContent = K.num;
+        const swBox = $("#sw");
+        CONFIG.palette.forEach((c, i) => {
+          const d = document.createElement("div"); d.className = "sw";
+          const gc = K.swatches[i] || "#888";
+          d.innerHTML = `<i class="c" style="background:${c}"></i><i class="g" style="background:${gc}"></i>`;
+          swBox.appendChild(d);
+        });
+        if (!CONFIG.label) $("#lab").style.display = "none";
+        const tIn = $("#tIn");
+        tIn.textContent = CONFIG.title;
+        if (!CONFIG.letterbox) { $("#barT").style.display = $("#barB").style.display = "none"; $("#lab").style.top = "64px"; }
+
+        const FACES = ["700 76px Archivo", "800 28px Archivo", "600 16px Archivo"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          // the strip is exactly as wide as the name + number
+          const segW = Math.max(14, ($("#labRow").getBoundingClientRect().width - 5 * 4) / 6);
+          document.querySelectorAll("#sw .sw").forEach((d) => { d.style.width = segW.toFixed(1) + "px"; });
+          const tl = gsap.timeline({ paused: true });
+          // slow push on every footage layer (identical, so the layers stay registered)
+          Look.push(tl, ".pw", 0, T.end, { from: 1.0, to: 1.065, origin: "42% 52%" });
+
+          // ---- one per-frame renderer for both wipes (a pure function of time, so any seek order lands on the right state) ----
+          // the drain: a leaning lit seam sweeps left -> right, graded frames behind it (7 frames);
+          // the return: colour floods back from the subject behind a feathered edge with a soft warm light front.
+          const G = $("#G"), seam = $("#seam"), lean = 112, ang = Math.atan2(2 * lean, H) * 180 / Math.PI, ease = gsap.parseEase("power2.inOut");
+          const C1 = $("#C1"), ring = $("#ring"), ix = CONFIG.iris.x, iy = CONFIG.iris.y, fe = gsap.parseEase("power2.out");
+          const Rmax = Math.hypot(Math.max(ix, W - ix), Math.max(iy, H - iy)) + 170;
+          const grain = $("#grain");
+          const render = (t) => {
+            const f = Math.round(t * 30);
+            grain.style.backgroundPosition = Math.floor(Look.hash(f * 2 + 1) * 320) + "px " + Math.floor(Look.hash(f * 2 + 7919) * 320) + "px";
+            const d = t - T.hit, q = d <= 0 ? 0 : d >= T.drain ? 1 : ease(d / T.drain), X = -lean - 40 + (W + 2 * lean + 80) * q;
+            G.style.clipPath = q <= 0 ? "polygon(0 0, 0 0, 0 100%, 0 100%)" : q >= 1 ? "none" :
+              `polygon(-10px -10px, ${(X + lean).toFixed(1)}px -10px, ${(X - lean).toFixed(1)}px ${H + 10}px, -10px ${H + 10}px)`;
+            seam.style.transform = `translateX(${X.toFixed(1)}px) rotate(${ang.toFixed(2)}deg) scaleX(${(1 + 1.6 * Math.sin(Math.PI * q)).toFixed(3)})`;
+            seam.style.opacity = (q > 0 && q < 1) ? "1" : "0";
+            const e = t - T.back, r = e <= 0 ? 0 : e >= T.flood ? 1 : fe(e / T.flood), R = Rmax * r;
+            // feathered return (no cut on this layer, so a mask is safe): solid colour inside R - F, feathering out to R
+            const F = 150, px = (v) => Math.max(0, v).toFixed(1) + "px";
+            const m = r <= 0 ? "linear-gradient(transparent, transparent)" : r >= 1 ? "none" :
+              `radial-gradient(circle at ${ix}px ${iy}px, #000 ${px(R - F)}, rgba(0,0,0,.55) ${px(R - F * 0.45)}, rgba(0,0,0,0) ${px(R)})`;
+            C1.style.webkitMaskImage = m; C1.style.maskImage = m;
+            if (r <= 0 || r >= 1) { ring.style.opacity = "0"; return; }
+            // a soft warm light front riding the feather: light coming back into the shot, no hot white line
+            ring.style.background = `radial-gradient(circle at ${ix}px ${iy}px, rgba(255,150,90,0) ${px(R - F - 40)}, rgba(255,170,110,.16) ${px(R - F * 0.6)}, ` +
+              `rgba(255,196,140,.30) ${px(R - F * 0.25)}, rgba(255,170,110,.14) ${px(R + 20)}, rgba(255,150,90,0) ${px(R + 110)})`;
+            ring.style.opacity = (1 - Math.pow(r, 2) * 0.8).toFixed(3);
+          };
+          Look.drive(tl, 0, T.end, (p) => render(p * T.end));
+          if (K.seam === "cool") seam.style.filter = "blur(1.2px) hue-rotate(185deg) saturate(.6)";
+          Look.impact(tl, T.hit + 0.05, { shake: "#shake", amp: 9, dur: 0.34, zoom: 1.028, flash: 0 });
+
+          // ---- finishing stack comes up with the grade ----
+          tl.fromTo("#grain", { opacity: 0 }, { opacity: K.grain, duration: 0.2, ease: "power2.out", immediateRender: false }, T.hit);
+          tl.fromTo("#vig", { opacity: 0 }, { opacity: K.vignette, duration: 0.3, ease: "power2.out", immediateRender: false }, T.hit);
+          tl.to("#grain", { opacity: K.grain * 0.35, duration: 0.5, ease: "power2.out" }, T.back + 0.1);
+          tl.to("#vig", { opacity: K.vignette * 0.45, duration: 0.6, ease: "power2.out" }, T.back + 0.1);
+          tl.fromTo("#lowScrim", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power2.out", immediateRender: false }, T.hit + 0.1);
+          tl.to("#lowScrim", { opacity: 0.55, duration: 0.6, ease: "power2.out" }, T.back + 0.2);
+          tl.to("#lowScrim", { opacity: 0, duration: 0.4, ease: "power2.in" }, T.titleOut);
+
+          // ---- letterbox slams in on the hit ----
+          gsap.set("#barT", { yPercent: -101 }); gsap.set("#barB", { yPercent: 101 });
+          if (CONFIG.letterbox) {
+            tl.fromTo("#barT", { yPercent: -101 }, { yPercent: 0, duration: 0.34, ease: "expo.out", immediateRender: false }, T.hit);
+            tl.fromTo("#barB", { yPercent: 101 }, { yPercent: 0, duration: 0.34, ease: "expo.out", immediateRender: false }, T.hit);
+            tl.to("#barT", { yPercent: -101, duration: 0.32, ease: "power3.in" }, T.barsOut);
+            tl.to("#barB", { yPercent: 101, duration: 0.32, ease: "power3.in" }, T.barsOut);
+          }
+
+          // ---- look label: name and number rise out of their windows, the palette strip draws under them, then drains to the look left to right ----
+          // (windows are 36 px tall and the type rolls 40 px, so nothing shows outside its entrance and exit)
+          const sws = Array.from(document.querySelectorAll("#sw .sw")), gs = sws.map((d) => d.querySelector(".g"));
+          gsap.set(sws, { scaleX: 0 }); gsap.set(["#labN", "#labK"], { y: 40 });
+          tl.fromTo(["#labN", "#labK"], { y: 40 }, { y: 0, duration: 0.45, ease: "expo.out", stagger: 0.07, immediateRender: false }, T.label);
+          sws.forEach((d, i) => {
+            tl.fromTo(d, { scaleX: 0 }, { scaleX: 1, duration: 0.3, ease: "expo.out", immediateRender: false }, T.label + 0.08 + i * 0.03);
+            tl.fromTo(gs[i], { clipPath: "inset(0% 100% 0% 0%)" }, { clipPath: "inset(0% 0% 0% 0%)", duration: 0.12, ease: "power2.inOut", immediateRender: false }, T.label + 0.36 + i * 0.045);
+          });
+          // with the colour: name and number roll out at once, the strip floods back to colour from the middle out, then retracts
+          tl.to(["#labN", "#labK"], { y: -40, duration: 0.2, ease: "power3.in", stagger: 0.03 }, T.back);
+          sws.forEach((d, i) => {
+            const k = Math.abs(i - 2.5);
+            tl.to(gs[i], { clipPath: "inset(0% 0% 0% 100%)", duration: 0.12, ease: "power2.inOut" }, T.back + 0.05 + k * 0.04);
+            tl.to(d, { scaleX: 0, transformOrigin: "100% 50%", duration: 0.22, ease: "power3.in" }, T.back + 0.42 + i * 0.025);
+          });
+
+          // ---- light comes back into the shot with the colour: lamp and sunset bloom, 1-frame attack, 3-frame peak ----
+          const bl = (sel, at, peak) => {
+            tl.fromTo(sel, { opacity: 0 }, { opacity: peak, duration: FR, ease: "none", immediateRender: false }, at);
+            tl.to(sel, { opacity: 0, duration: 0.45, ease: "power2.out" }, at + FR * 4);
+          };
+          if (CONFIG.bloom.sky) bl("#bSky", T.back + 0.16, 0.85);      // as the colour front reaches the sunset
+          if (CONFIG.bloom.lamp) bl("#bLamp", T.back + 0.27, 0.9);    // ... and the lamp
+
+          // ---- title line: the whole line rises through its window, de-blurring as it lands; the rule draws out from the centre ----
+          gsap.set("#tIn", { y: 110 });
+          tl.fromTo("#tIn", { y: 110 }, { y: 0, duration: 0.5, ease: "expo.out", immediateRender: false }, T.title);
+          tl.fromTo("#tIn", { filter: "blur(7px)" }, { filter: "blur(0px)", duration: 0.32, ease: "power2.out", immediateRender: false }, T.title);
+          tl.fromTo("#rule", { scaleX: 0 }, { scaleX: 1, duration: 0.35, ease: "power3.out", immediateRender: false }, T.title + 0.22);
+          // title exit: the line drops out of its window, motion-blurred
+          tl.to("#tIn", { yPercent: 170, duration: 0.3, ease: "power3.in" }, T.titleOut);
+          tl.to("#tIn", { filter: "blur(5px)", duration: 0.3, ease: "power2.in" }, T.titleOut);
+          tl.to("#rule", { scaleX: 0, duration: 0.3, ease: "power3.in" }, T.titleOut);
+
+          // the returning colour arrives hot, then settles to the real shot
+          tl.fromTo("#c1pw", { filter: "saturate(1.4) brightness(1.08)" }, { filter: "saturate(1) brightness(1)", duration: 0.9, ease: "power2.out", immediateRender: false }, T.back);
+          Look.impact(tl, T.back, { shake: "#shake", amp: 5, dur: 0.3, zoom: 1.018, flash: 0 });
+
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

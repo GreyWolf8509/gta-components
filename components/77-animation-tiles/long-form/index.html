@@ -1,0 +1,295 @@
+<!doctype html>
+<!-- GTA-niche 77 Animation count tiles, variant A (16:9, 1920x1080, 30 fps, 6.15 s).
+     Same-scale tiles (one tile = 55,000 animations) fill in per game: GTA V one tile, RDR2 five and a half, GTA VI eleven.
+     Three socket rails (Three.js extruded slabs with 11 recessed sockets each) slide in one per game; bevelled clearcoat tiles in
+     the identity colour drop into the sockets with real contact shadows, a rake light travels the row that is filling, and the
+     eleventh GTA VI tile landing is the beat (deeper drop, rail dip, elastic count, 3-frame localised expose). Names, counts,
+     legend and source pill are DOM (Oswald). Content structure in CONFIG (rows: game/label/value/count/at/step), same shape
+     as the film kit's `tiles` object. Full-kind component over the official GTA VI footage. Variable bg: "plate" / "none". -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Sample footage"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="media/fonts/oswald.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0B0E1C; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #0B0E1C; font-family: "Oswald", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; color: #ECEBFA; }
+      #grade, #push, #stage, #ui, #scrim { position: absolute; inset: 0; }
+      .shot { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; }
+      #gl { position: absolute; left: 0; top: 0; }
+      .o { position: absolute; white-space: nowrap; line-height: 1; }
+      .row { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+      .lab { position: absolute; display: flex; align-items: flex-end; white-space: nowrap; line-height: 1; }
+      .name { font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #C9C7E6; }
+      .win { position: relative; overflow: hidden; display: inline-block; vertical-align: baseline; }
+      .count { font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0.01em; white-space: nowrap; line-height: 1; display: inline-block; }
+      .stroked { paint-order: stroke fill; -webkit-text-stroke: 5px rgba(8, 10, 24, 0.9); text-shadow: 0 4px 14px rgba(0, 0, 0, 0.55); }
+      .pill { display: flex; align-items: center; height: 56px; padding: 0 18px 0 14px; gap: 12px; border-radius: 10px; background: rgba(14, 18, 38, 0.92);
+        border: 1px solid rgba(255, 255, 255, 0.10); font-weight: 500; font-size: 36px; color: rgba(236, 235, 250, 0.9); letter-spacing: 0.03em; }
+      .pill .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+      .pill .sep { color: rgba(236, 235, 250, 0.4); }
+      .pill i.sw { display: block; width: 22px; height: 22px; border-radius: 5px; background: linear-gradient(180deg, #F6F5FF 0%, #C9C7E6 100%);
+        box-shadow: inset 0 1px 0 #fff, inset 0 -3px 0 rgba(0, 0, 0, 0.35), 0 3px 5px rgba(0, 0, 0, 0.45); flex: none; }
+      .pill.legend { letter-spacing: 0.08em; text-transform: uppercase; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.15" data-width="1920" data-height="1080" data-layout-allow-overflow data-layout-allow-overlap>
+      <div id="grade"><div id="push">
+        <video id="s0" class="clip shot" src="assets/clips/gta6-t1-010_0.00_1.55.mp4" muted playsinline data-start="0" data-duration="1.5" data-track-index="0" style="z-index:4"></video>
+        <video id="s1" class="clip shot" src="assets/clips/gta6-t2-031_0.00_4.81.mp4" muted playsinline data-start="1.43" data-duration="1.87" data-track-index="0" style="z-index:3"></video>
+        <video id="s2" class="clip shot" src="assets/clips/gta6-t2-012_0.00_3.30.mp4" muted playsinline data-start="3.23" data-duration="2.42" data-track-index="0" style="z-index:2"></video>
+        <video id="s3" class="clip shot" src="assets/clips/gta6-t2-030_0.00_2.20.mp4" muted playsinline data-start="5.58" data-duration="0.57" data-track-index="0" style="z-index:1"></video>
+      </div></div>
+      <div id="stage" class="clip" data-start="0" data-duration="6.15" data-track-index="1">
+        <div id="scrim"></div>
+        <canvas id="gl"></canvas>
+        <div id="ui"></div>
+      </div>
+    </div>
+    <script>
+      // ---- content: same shape as the film kit's `tiles` object (rows: game / label / count / at / step) plus the source pill ----
+      const CONFIG = {
+        unit: 55000,
+        legend: "1 tile = 55,000 animations",
+        games: { g5: { name: "GTA V", c: "#46B64F", ink: "#5CCB64" }, rdr: { name: "RED DEAD 2", c: "#A3262F", ink: "#E0505B" }, g6: { name: "GTA VI", c: "#F2558E", ink: "#F2558E" } },
+        rows: [
+          { game: "g5",  label: "55,000",   value: 55000,  count: 1,   at: 0.34, step: 0.10 },
+          { game: "rdr", label: "≈300,000", value: 300000, count: 5.5, at: 1.25, step: 0.08 },
+          { game: "g6",  label: "≈600,000", value: 600000, count: 11,  at: 2.4,  step: 0.06 }
+        ],
+        pill: { parts: ["The New York Times, via TechRadar", "animations per game"], game: "g6" },
+        timing: { drop: 0.2, lead: 0.3, sweep: 0.45, hold: 1.3, end: 6.15 },
+        grade: { brightness: 0.7, contrast: 1.2, saturate: 1.1 },
+        layouts: {
+          // 16:9: one rail per row spanning the safe width, name + count inline on the rail left of the run
+          "1920": { w: 1920, h: 1080, stack: false, rail: { x: 96, w: 1680, r: 14, pad: 12 }, tile: 80, gap: 12, tilesX: 760, rowTops: [348, 500, 652],
+            lab: { x: 128, name: 48, count: 80, gap: 18 }, legend: { right: 1776, y: 258 }, pill: { x: 96, y: 912 }, scrim: { cx: 960, cy: 540, rx: 1100, ry: 420 } },
+          // 9:16, phone-first: three stacked rails ~80% of the frame width, name + 84 px count on one line over each rail
+          "1080": { w: 1080, h: 1920, stack: true, rail: { x: 72, w: 864, r: 12, pad: 10 }, tile: 64, gap: 12, tilesX: 92, rowTops: [754, 938, 1122],
+            lab: { name: 44, count: 84, lift: 100 }, legend: { x: 72, y: 556 }, pill: { x: 72, y: 1300 }, scrim: { cx: 540, cy: 960, rx: 760, ry: 560 } }
+        }
+      };
+      (function () {
+        const $ = (s) => document.querySelector(s), root = $("#root");
+        const L = CONFIG.layouts[root.getAttribute("data-width")], T = CONFIG.timing, G = CONFIG.games, W = L.w, H = L.h;
+        const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), lerp = (a, b, k) => a + (b - a) * k, E = (n) => gsap.parseEase(n);
+        const eOut = E("expo.out"), eIn = E("power3.in"), pOut = E("power2.out"), sIO = E("sine.inOut"), elastic = E("elastic.out(1,0.5)"), back = E("back.out(2.2)");
+        const S = L.tile, GAP = L.gap, RL = L.rail, NR = CONFIG.rows.length, LAST = NR - 1;
+        const SOCK = Math.max.apply(null, CONFIG.rows.map((r) => Math.ceil(r.count)));
+        const RH = S + 2 * RL.pad;                                   // rail height
+
+        // ---- pieces: every tile with its row, centre, land time, exit time ----
+        const pieces = [];
+        CONFIG.rows.forEach((r, ri) => {
+          const n = Math.ceil(r.count), top = L.rowTops[ri];
+          r.railTop = top - RL.pad; r.railY = r.railTop + RH / 2; r.railX = RL.x + RL.w / 2;
+          for (let i = 0; i < n; i++) {
+            const frac = i < Math.floor(r.count) ? 1 : r.count - Math.floor(r.count);
+            pieces.push({ ri, i, frac, x: L.tilesX + i * (S + GAP) + S / 2, y: top + S / 2, land: r.at + T.lead + i * r.step, c: new THREE.Color(G[r.game].c).multiplyScalar(0.9), hero: ri === LAST && i === n - 1 });
+          }
+          r.landLast = r.at + T.lead + (n - 1) * r.step; r.landFirst = r.at + T.lead; r.x0 = L.tilesX; r.x1 = L.tilesX + n * (S + GAP) - GAP; r.yc = top + S / 2;
+          r.in = r.at - 0.22;                                        // the rail arrives just before its label
+        });
+        T.pay = CONFIG.rows[LAST].landLast;
+        T.exit = T.pay + T.sweep + T.hold;                           // tiles sink, labels wipe
+        T.out = T.exit + 0.2;                                        // rails leave
+        pieces.forEach((p) => { p.exit = T.exit + p.i * 0.012 + p.ri * 0.02; });
+
+        // ---- DOM: scrim, per-row labels, legend, pill ----
+        const ui = $("#ui"), scrim = $("#scrim"), sc = L.scrim;
+        scrim.style.background = "radial-gradient(" + sc.rx + "px " + sc.ry + "px at " + sc.cx + "px " + sc.cy + "px, rgba(6,8,20,0.5) 0%, rgba(6,8,20,0.34) 55%, rgba(6,8,20,0) 100%)";
+        const el = (cls, html, parent) => { const d = document.createElement("div"); d.className = cls; if (html != null) d.innerHTML = html; (parent || ui).appendChild(d); return d; };
+        const rowsDom = CONFIG.rows.map((r, ri) => {
+          const top = L.rowTops[ri], g = G[r.game], rowEl = el("row");
+          rowEl.style.transformOrigin = (W / 2) + "px " + (H / 2) + "px";
+          const lab = el("lab", null, rowEl);
+          const nwin = el("win", null, lab); nwin.style.top = (-Math.round(0.21 * (L.lab.count - L.lab.name))) + "px"; // baselines meet: same face, descender scales with size
+          const name = el("o name", g.name, nwin); name.style.position = "relative"; name.style.fontSize = L.lab.name + "px"; nwin.style.paddingTop = Math.round(L.lab.name * 0.25) + "px";
+          const win = el("win", null, lab); const count = document.createElement("div"); count.className = "count"; win.appendChild(count);
+          count.style.fontSize = L.lab.count + "px"; count.style.color = g.ink; count.textContent = r.label;
+          const ch = Math.round(L.lab.count * 1.25), padT = Math.round(L.lab.count * 0.25);
+          const padX = Math.round(L.lab.count * 0.8); win.style.height = ch + "px"; win.style.paddingTop = padT + "px"; win.style.paddingLeft = padX + "px"; win.style.paddingRight = padX + "px"; win.style.marginLeft = (-padX) + "px"; win.style.marginRight = (-padX) + "px";
+          if (L.stack) { // name left, count right, on one line above the rail; ink edges on the first tile and the end of the run
+            lab.style.left = r.x0 + "px"; lab.style.width = (L.tilesX + SOCK * (S + GAP) - GAP - r.x0) + "px"; lab.style.justifyContent = "space-between";
+            lab.style.top = (r.railTop - L.lab.lift) + "px"; lab.style.height = (L.lab.lift - 12) + "px";
+            name.classList.add("stroked"); count.classList.add("stroked"); win.style.textAlign = "right";
+          } else {       // name then count inline, count ink-bottom on the tile bottom
+            lab.style.left = L.lab.x + "px"; lab.style.top = (top + S - ch + Math.round(L.lab.count * 0.08)) + "px"; lab.style.gap = L.lab.gap + "px";
+          }
+          return { rowEl, lab, name, nwin, win, count, r };
+        });
+        const legend = el("o pill legend", '<i class="sw"></i><span>' + CONFIG.legend + "</span>");
+        if (L.legend.right != null) legend.style.right = (W - L.legend.right) + "px"; else legend.style.left = L.legend.x + "px";
+        legend.style.top = L.legend.y + "px";
+        const pill = el("o pill", '<i class="dot"></i>' + CONFIG.pill.parts.map((t, i) => (i ? '<span class="sep">·</span>' : "") + "<span>" + t + "</span>").join(""));
+        pill.style.left = L.pill.x + "px"; pill.style.top = L.pill.y + "px"; pill.querySelector(".dot").style.background = G[CONFIG.pill.game].c;
+
+        // ---- Three.js: socket rails + instanced bevelled tiles, key with shadows, rim, rake, PMREM env ----
+        const canvas = $("#gl"); canvas.width = W; canvas.height = H; canvas.style.width = W + "px"; canvas.style.height = H + "px";
+        const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true });
+        renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 0);
+        renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.92;
+        renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        const FOV = 22, D = (H / 2) / Math.tan((FOV / 2) * Math.PI / 180);   // units = canvas px on the z=0 plane
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(FOV, W / H, 100, 12000); camera.position.set(W / 2, -H / 2, D); camera.lookAt(W / 2, -H / 2, 0);
+        const pmrem = new THREE.PMREMGenerator(renderer), env = new THREE.Scene();
+        env.add(new THREE.Mesh(new THREE.SphereGeometry(60, 24, 16), new THREE.MeshBasicMaterial({ color: 0x1a1e30, side: THREE.BackSide })));
+        const box = (col, w, h, px, py, pz) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide })); m.position.set(px, py, pz); m.lookAt(0, 0, 0); env.add(m); };
+        box(0xfff4e4, 34, 22, -22, 26, 20); box(0x9fbcff, 16, 30, 34, 4, 8); box(0x6d7390, 60, 60, 0, -40, 0); box(0xffffff, 10, 6, 6, 30, 30);
+        scene.environment = pmrem.fromScene(env, 0.04).texture;
+        const cx = W / 2, cy = H / 2;
+        const key = new THREE.DirectionalLight(0xfff1dc, 3.0); key.position.set(cx - 700, -cy + 900, 1500); key.target.position.set(cx, -cy, 0); scene.add(key); scene.add(key.target);
+        key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -0.0003; key.shadow.normalBias = 2.5;
+        const shc = key.shadow.camera; shc.left = -W * 0.6; shc.right = W * 0.6; shc.top = H * 0.6; shc.bottom = -H * 0.6; shc.near = 200; shc.far = 4000;
+        const rim = new THREE.DirectionalLight(0xbcd0ff, 0.7); rim.position.set(cx + 1200, -cy + 300, 700); rim.target.position.set(cx, -cy, 0); scene.add(rim); scene.add(rim.target);
+        scene.add(new THREE.HemisphereLight(0xc9d4ff, 0x14121a, 0.6));
+        const rake = new THREE.PointLight(0xfff2dc, 0, 1400, 2); scene.add(rake);
+        const rrect = (w, h, r) => { const s = new THREE.Shape(); s.moveTo(-w / 2 + r, -h / 2); s.lineTo(w / 2 - r, -h / 2); s.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + r); s.lineTo(w / 2, h / 2 - r); s.quadraticCurveTo(w / 2, h / 2, w / 2 - r, h / 2); s.lineTo(-w / 2 + r, h / 2); s.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r); s.lineTo(-w / 2, -h / 2 + r); s.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2); return s; };
+        // tile: rounded bevelled slab, bottom at z = 0 (one geometry per width: full, and the cut tile)
+        const tBev = S * 0.09, tDepth = S * 0.12, TH = tDepth + 2 * tBev;
+        const tileGeo = (w) => { const g = new THREE.ExtrudeGeometry(rrect(w, S, Math.min(w, S) * 0.11), { depth: tDepth, bevelEnabled: true, bevelThickness: tBev, bevelSize: tBev * 0.9, bevelSegments: 5, curveSegments: 6 }); g.translate(0, 0, tBev); return g; };
+        const fullGeo = tileGeo(S);
+        const tileMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.26, envMapIntensity: 0.9 });
+        const railMat = new THREE.MeshPhysicalMaterial({ color: 0x1a2150, roughness: 0.48, metalness: 0.1, clearcoat: 0.5, clearcoatRoughness: 0.28, envMapIntensity: 0.7 });
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0x06091a, roughness: 0.94, metalness: 0 });
+        const bDepth = 20, bBev = 4, SD = Math.round(S * 0.14);
+        const catcher = new THREE.Mesh(new THREE.PlaneGeometry(W * 1.2, H * 1.2), new THREE.ShadowMaterial({ opacity: 0.5 })); catcher.position.set(cx, -cy, -(bDepth + bBev) - 1); catcher.receiveShadow = true; scene.add(catcher); // the rails' shadow lands on the footage
+        // rails: one group per row holding its slab (11 sockets), socket floor and tiles, so a rail can dip and leave as one object
+        const rails = CONFIG.rows.map((r, ri) => {
+          const grp = new THREE.Group(); scene.add(grp); grp.position.set(r.railX, -r.railY, 0);
+          const shape = rrect(RL.w, RH, RL.r);
+          for (let i = 0; i < SOCK; i++) {
+            const hx = L.tilesX + i * (S + GAP) + S / 2 - r.railX, hy = 0;
+            const pts = rrect(S + 6, S + 6, S * 0.11 + 3).getPoints(6).map((q) => new THREE.Vector2(q.x + hx, q.y + hy)); const hp = new THREE.Path(pts); hp.closePath(); shape.holes.push(hp);
+          }
+          const geo = new THREE.ExtrudeGeometry(shape, { depth: bDepth, bevelEnabled: true, bevelThickness: bBev, bevelSize: bBev, bevelSegments: 3, curveSegments: 8 }); geo.translate(0, 0, -(bDepth + bBev));
+          const slab = new THREE.Mesh(geo, railMat); slab.receiveShadow = true; slab.castShadow = true; grp.add(slab);
+          const floor = new THREE.Mesh(new THREE.PlaneGeometry(RL.w - 6, RH - 6), floorMat); floor.position.set(0, 0, -SD); floor.receiveShadow = true; grp.add(floor);
+          const mine = pieces.filter((p) => p.ri === ri), full = mine.filter((p) => p.frac >= 1), halves = mine.filter((p) => p.frac < 1);
+          const inst = new THREE.InstancedMesh(fullGeo, tileMat, full.length); inst.castShadow = true; inst.receiveShadow = true; inst.frustumCulled = false; grp.add(inst);
+          full.forEach((p, k) => { p.k = k; p.inst = inst; inst.setColorAt(k, p.c); });
+          halves.forEach((p) => { // the cut tile: a bevelled slab of the fraction's width, sitting at the socket's left edge
+            const w = S * p.frac, m = tileMat.clone(); m.color.copy(p.c); p.mat = m; p.mesh = new THREE.Mesh(tileGeo(w), m); p.mesh.castShadow = true; p.mesh.receiveShadow = true; p.dx = -(S - w) / 2; grp.add(p.mesh);
+          });
+          return { grp, slab, inst, full, halves, r };
+        });
+        const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new THREE.Vector3(), SCL = new THREE.Vector3(), EU = new THREE.Euler(), TMP = new THREE.Color(), WHITE = new THREE.Color(0xffffff);
+
+        // ---- motion, all as functions of time ----
+        function pieceState(p, t) {   // -> {z, rx, vis, flash}; z is the tile bottom, relative to the rail top (sockets are SD deep)
+          const drop = p.hero ? 0.28 : T.drop, h0 = p.hero ? 240 : 150, t0 = p.land - drop;
+          if (t < t0) return { vis: false };
+          if (t >= p.exit) { const q = clamp((t - p.exit) / 0.2, 0, 1); if (q >= 1) return { vis: false }; return { vis: true, z: -SD - (TH + 4) * eIn(q), rx: 0, flash: 0 }; }
+          if (t < p.land) { const q = (t - t0) / drop; return { vis: true, z: -SD + h0 * (1 - q * q), rx: -0.3 * (1 - q), flash: 0 }; }
+          const q = clamp((t - p.land) / 0.1, 0, 1);
+          return { vis: true, z: -SD - 3 * Math.sin(Math.PI * q), rx: 0, flash: t < p.land + 1 / 30 + 1e-4 ? 0.32 : 0 };
+        }
+        function payEnv(t) { const a = T.pay + 0.03; if (t < a) return 0; if (t < a + 3 / 30) return 1; return 1 - pOut(clamp((t - a - 3 / 30) / 0.3, 0, 1)); }
+        function railState(r, ri, t) {  // -> {x, y, z, vis, blur}: slides in from the left before its row, dips on the hero landing, leaves left
+          let x = 0, y = 0, z = 0, vis = true, blur = 0;
+          if (t < r.in) vis = false;
+          else if (t < r.in + 0.32) { const e = eOut((t - r.in) / 0.32); x = -140 * (1 - e); z = -220 * (1 - e); }
+          if (ri === LAST && t >= T.pay) { const q = clamp((t - T.pay) / 0.4, 0, 1); y = 10 * Math.sin(Math.PI * Math.pow(q, 0.6)); }
+          const o = T.out + ri * 0.05;
+          if (t >= o) { const q = clamp((t - o) / 0.3, 0, 1); if (q >= 1) vis = false; const e = eIn(q); x = -(RL.x + RL.w + 80) * e; blur = 10 * e; }
+          return { x, y, z, vis, blur, s: D / (D - z) };
+        }
+        function wipeIn(n, t, at, dur, dir) { // mask wipe + 24 px slide (film kit vernacular), fully opaque on every frame it shows
+          const p = eOut(clamp((t - at) / (dur || 0.24), 0, 1));
+          if (dir === "d") { n.style.clipPath = "inset(" + ((1 - p) * 100).toFixed(2) + "% 0 0 0)"; n.style.transform = "translate(0," + (-24 * (1 - p)).toFixed(2) + "px)"; }
+          else { n.style.clipPath = "inset(0 " + ((1 - p) * 100).toFixed(2) + "% 0 0)"; n.style.transform = "translate(" + (-24 * (1 - p)).toFixed(2) + "px,0)"; }
+        }
+        function wipeOut(n, t, at, dur, dir) {
+          const p = eIn(clamp((t - at) / (dur || 0.22), 0, 1));
+          if (dir === "d") { n.style.clipPath = "inset(0 0 " + (p * 100).toFixed(2) + "% 0)"; n.style.transform = "translate(0," + (30 * p).toFixed(2) + "px)"; }
+          else { n.style.clipPath = "inset(0 " + (p * 100).toFixed(2) + "% 0 0)"; n.style.transform = "translate(" + (-40 * p).toFixed(2) + "px,0)"; }
+        }
+        const fmt = (v) => Math.round(v).toLocaleString("en-US");
+        function renderAt(t) {
+          t = clamp(t, 0, T.end);
+          // footage grade: dims as the first rail arrives, clears as the rails leave (blacks kept, lesson 17)
+          const gIn = pOut(clamp((t - CONFIG.rows[0].in) / 0.35, 0, 1)), gOut = sIO(clamp((t - T.out) / 0.4, 0, 1)), g = gIn * (1 - gOut), gr = CONFIG.grade;
+          $("#grade").style.filter = g > 0.001 ? "brightness(" + lerp(1, gr.brightness, g).toFixed(3) + ") contrast(" + lerp(1, gr.contrast, g).toFixed(3) + ") saturate(" + lerp(1, gr.saturate, g).toFixed(3) + ")" : "";
+          scrim.style.opacity = g.toFixed(3);
+          const pe = payEnv(t);
+          let blurMax = 0;
+          rails.forEach((R, ri) => {
+            const r = R.r, st = railState(r, ri, t), d = rowsDom[ri];
+            R.grp.visible = st.vis; R.grp.position.set(r.railX + st.x, -(r.railY + st.y), st.z); blurMax = Math.max(blurMax, st.blur);
+            d.rowEl.style.opacity = st.vis ? "1" : "0";
+            d.rowEl.style.transform = "translate(" + st.x.toFixed(2) + "px," + st.y.toFixed(2) + "px) scale(" + st.s.toFixed(5) + ")";
+            d.rowEl.style.filter = st.blur > 0.2 ? "blur(" + st.blur.toFixed(2) + "px)" : "";
+            // labels: name wipes at the row start, count rises on the first landing, ticks per landing, leaves with the tiles
+            const nIn = eOut(clamp((t - r.at) / 0.24, 0, 1)), nOut = t >= T.exit ? eIn(clamp((t - T.exit - ri * 0.03) / 0.22, 0, 1)) : 0;
+            d.name.style.transform = "translate(0," + ((1 - nIn) * 130 + nOut * 130).toFixed(2) + "%)";
+            const landed = pieces.filter((p) => p.ri === ri && t >= p.land), n = landed.length;
+            let v = 0, last = r.landFirst; landed.forEach((p) => { v += p.frac; last = Math.max(last, p.land); });
+            const atEnd = v >= r.count - 1e-6;
+            d.count.textContent = atEnd ? r.label : (r.label.charAt(0) === "≈" ? "≈" : "") + fmt(Math.round(r.value * v / r.count / 1000) * 1000);
+            const ri1 = eOut(clamp((t - r.landFirst) / 0.22, 0, 1));
+            const heroBeat = ri === LAST && atEnd;
+            const punch = !n ? 1 : heroBeat ? 1 + 0.18 * (1 - elastic(clamp((t - last) / 0.5, 0, 1))) : 1 + 0.06 * (1 - pOut(clamp((t - last) / 0.13, 0, 1)));
+            const cOut = t >= T.exit ? eIn(clamp((t - T.exit - ri * 0.03 - 0.04) / 0.22, 0, 1)) : 0;
+            d.count.style.transform = "translate(0," + ((1 - ri1) * 130 + cOut * 130).toFixed(2) + "%) scale(" + punch.toFixed(4) + ")";
+            d.count.style.transformOrigin = L.stack ? "100% 100%" : "0% 100%";
+            const lit = ri === LAST ? pe : 0;
+            d.count.style.filter = lit > 0.01 ? "brightness(" + (1 + 0.5 * lit).toFixed(3) + ")" : ""; d.name.style.filter = d.count.style.filter;
+            // tiles
+            R.full.forEach((p) => {
+              const s = pieceState(p, t);
+              if (!s.vis) { P.set(p.x - r.railX, 0, 9000); SCL.set(0.001, 0.001, 0.001); Q.identity(); }
+              else { P.set(p.x - r.railX, 0, s.z); SCL.set(1, 1, 1); EU.set(s.rx, 0, 0); Q.setFromEuler(EU); }
+              M.compose(P, Q, SCL); R.inst.setMatrixAt(p.k, M);
+              const k = Math.max(s.flash || 0, ri === LAST ? 0.16 * pe : 0);
+              TMP.copy(p.c); if (k > 0) TMP.multiplyScalar(1 + 2.2 * k); R.inst.setColorAt(p.k, TMP);
+            });
+            R.inst.instanceMatrix.needsUpdate = true; if (R.inst.instanceColor) R.inst.instanceColor.needsUpdate = true;
+            R.halves.forEach((p) => {
+              const s = pieceState(p, t); p.mesh.visible = !!s.vis;
+              if (s.vis) { p.mesh.position.set(p.x - r.railX + p.dx, 0, s.z); p.mesh.rotation.set(s.rx, 0, 0); TMP.copy(p.c); if (s.flash) TMP.multiplyScalar(1 + 2.2 * s.flash); p.mat.color.copy(TMP); }
+            });
+          });
+          canvas.style.filter = blurMax > 0.2 ? "blur(" + blurMax.toFixed(2) + "px)" : "";
+          wipeIn(legend, t, CONFIG.rows[0].in + 0.1, 0.26); if (t >= T.exit) wipeOut(legend, t, T.exit, 0.22);
+          wipeIn(pill, t, CONFIG.rows[0].in + 0.2, 0.24); if (t >= T.out) wipeOut(pill, t, T.out, 0.2, "d");
+          // the rake: a low warm light travels along the row that is filling; on the payoff it sweeps the GTA VI row at 2x
+          let rx = 0, ry = 0, rI = 0;
+          CONFIG.rows.forEach((r, i) => {
+            const a = r.landFirst - 0.12, bEnd = r.landLast;
+            if (t >= a && t <= bEnd + 0.08) { const q = clamp((t - a) / (bEnd - a), 0, 1); rx = lerp(r.x0 - 60, r.x1 + 60, q); ry = r.yc; rI = (i === LAST ? 1 : 0.6) * sIO(clamp(Math.min(t - a, bEnd + 0.08 - t) / 0.12, 0, 1)); }
+          });
+          const lastRow = CONFIG.rows[LAST], sp = clamp((t - T.pay) / T.sweep, 0, 1);
+          if (sp > 0 && sp < 1) { rx = lerp(lastRow.x0 - 160, lastRow.x1 + 160, sIO(sp)); ry = lastRow.yc; rI = 1.5 * Math.sin(Math.PI * sp); }
+          const Icand = S * S * 1.2;              // candela scaled to the tile size (irradiance ~ I / d^2 at ~3.2 S above the row)
+          rake.intensity = rI * Icand; rake.position.set(rx, -ry, S * 4); rake.visible = rI > 0.001;
+          renderer.render(scene, camera);
+        }
+        window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+        renderAt(0);
+
+        window.__hf = window.__hf || {}; window.__hf.buildReady = window.__hf.buildReady || {};
+        window.__hf.buildReady["tiles"] = Promise.all(["500 36px Oswald", "600 48px Oswald", "700 84px Oswald"].map((f) => document.fonts.load(f).catch(() => null))).then(() => document.fonts.ready).then(() => {
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          Look.push(tl, "#push", 0, T.end, { from: 1.0, to: 1.05 });
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+          renderAt(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

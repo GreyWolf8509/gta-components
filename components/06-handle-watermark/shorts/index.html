@@ -1,0 +1,205 @@
+<!doctype html>
+<!-- 06 Handle watermark, variant B: "Typewriter handle" (9:16, 1080x1920, 30 fps, 6.75 s).
+     @handle typed letter by letter in the lower-middle with a caret. The caret is the avatar coin seen edge-on (a gold bar);
+     on "enter" it spins open into the 3D avatar medallion, a light runs along the handle into it, then the mark settles to a
+     semi-transparent hold. Variable: bg "plate" (sample footage) / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/coin3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      #wm { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; }
+      .coin { position: absolute; left: 0; top: 0; z-index: 3; will-change: transform; }
+      .coin canvas { filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.55)) drop-shadow(0 6px 10px rgba(0,0,0,.42)); }
+      .tx { position: absolute; z-index: 2; white-space: nowrap; font-weight: 800; line-height: 1; }
+      .tx .layer { position: absolute; left: 0; top: 0; white-space: nowrap; }
+      .tx .ch { display: inline-block; transform-origin: 50% 75%; will-change: transform, opacity; }
+      .tx .back { color: #07090d; paint-order: stroke fill; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.75" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <video id="shot1" class="clip shot" src="assets/shots/v17-deluxo-sunset-v.mp4" muted playsinline data-start="0" data-duration="1.58" data-media-start="0" data-track-index="0"></video>
+        <video id="shot2" class="clip shot" src="assets/shots/v36-hills-city-view-v.mp4" muted playsinline data-start="1.58" data-duration="1.9" data-media-start="0" data-track-index="0"></video>
+        <video id="shot3" class="clip shot" src="assets/shots/v44-bridge-skyline-v.mp4" muted playsinline data-start="3.48" data-duration="1.7" data-media-start="0" data-track-index="0"></video>
+        <video id="shot4" class="clip shot" src="assets/shots/v12-heli-city-dusk-v.mp4" muted playsinline data-start="5.18" data-duration="1.57" data-media-start="0" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="6.75" data-track-index="1">
+        <div id="wm" data-layout-allow-occlusion data-layout-allow-overflow></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        handle: "@everestchris6",
+        avatar: "media/avatar.jpg",          // square image; the coin shows its inscribed circle
+        mark: "@",                           // struck on the coin's gold back
+        centre: { x: 520, y: 1415 },         // centre of the finished lockup: under the 1050-1400 caption lane, inside the 1480 safe line
+        text: 72,                            // handle size while typing (px)
+        coin: 88,                            // coin diameter = caret height (px)
+        grow: 1.4,                           // the coin opens to coin x grow
+        gap: 20, caretGap: 12,
+        holdScale: 0.84,
+        hold: 0.74,                          // semi-transparent hold opacity
+        colors: {
+          face: "linear-gradient(180deg, #FFFFFF 0%, #FFFFFF 40%, #E9EDF3 62%, #C8D0DB 100%)",
+          at: "linear-gradient(180deg, #FFE7A1 0%, #F6C453 46%, #E59A1C 100%)",
+          band: "rgba(255,196,84,.92)",          // warm gold specular, white-hot core
+          stroke: "rgba(7,9,13,.92)",
+          glow: "rgba(255,214,128,.9)"
+        },
+        timing: { caret: 0.15, type: 0.3, open: 1.58, settle: 2.72, out: 5.9, end: 6.75 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const C = CONFIG, T = C.timing, $ = (s) => document.querySelector(s), PI = Math.PI;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const Ez = (n) => gsap.parseEase(n);
+        const seg = (t, a, b, e) => { const p = t <= a ? 0 : t >= b ? 1 : (t - a) / (b - a); return e ? Ez(e)(p) : p; };
+        const wob = (t, t0, amp, f, k) => (t < t0 ? 0 : amp * Math.exp(-k * (t - t0)) * Math.sin(2 * PI * f * (t - t0)));
+
+        const R = C.coin / 2, HC = 0.125, THK = 2 * HC * R, G = C.grow, RF = R * G, SZ = Math.round(C.coin * G * 1.55);
+        const wm = $("#wm");
+        gsap.set(wm, { transformOrigin: C.centre.x + "px " + C.centre.y + "px" });
+
+        const img = new Image(); img.src = C.avatar;
+        const FACES = ["800 100px Inter", "900 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f)).concat([img.decode().catch(() => {})])).then(() => document.fonts.ready).then(() => {
+          // ---------- text: ink outline + contact-shadow layer under a satin face layer, split into characters ----------
+          const el = document.createElement("div"); el.className = "tx"; el.style.fontSize = C.text + "px"; el.style.letterSpacing = "-0.012em";
+          const back = document.createElement("div"), front = document.createElement("div");
+          back.className = "layer back"; front.className = "layer front";
+          back.style.webkitTextStroke = (C.text * 0.14).toFixed(1) + "px " + C.colors.stroke;
+          back.style.textShadow = "0 3px 3px rgba(0,0,0,.35), 0 8px 24px rgba(0,0,0,.42)";
+          Array.from(C.handle).forEach((ch, i) => [back, front].forEach((L) => {
+            const s = document.createElement("span"); s.className = "ch" + (i === 0 && ch === "@" ? " at" : ""); s.textContent = ch; L.appendChild(s);
+          }));
+          el.appendChild(back); el.appendChild(front); wm.appendChild(el);
+          const tw = front.offsetWidth, th = front.offsetHeight;
+          const LW = tw + C.gap + 2 * RF, X0 = C.centre.x - LW / 2, CF = X0 + tw + C.gap + RF, CY = C.centre.y;
+          el.style.width = tw + "px"; el.style.height = th + "px";
+          el.style.left = X0 + "px"; el.style.top = (CY - th / 2 - C.text * 0.04) + "px";
+          const fr = Array.from(front.children), bk = Array.from(back.children), n = fr.length;
+          fr.forEach((nd) => {
+            const x = nd.offsetLeft, at = nd.classList.contains("at");
+            nd.style.backgroundImage = (at ? "" : "linear-gradient(105deg, rgba(255,190,70,0) 32%, " + C.colors.band + " 45%, rgba(255,248,226,1) 50%, " + C.colors.band + " 55%, rgba(255,190,70,0) 68%), ") + (at ? C.colors.at : C.colors.face);
+            nd.style.backgroundRepeat = "no-repeat";
+            nd.style.backgroundSize = at ? nd.offsetWidth + "px " + th + "px" : (tw * 1.2) + "px " + th + "px, " + tw + "px " + th + "px";
+            nd.style.backgroundPosition = at ? "0px 0px" : (-tw * 2 - x) + "px 0px, " + (-x) + "px 0px";
+            nd.style.webkitBackgroundClip = "text"; nd.style.backgroundClip = "text";
+            nd.style.color = "transparent"; nd.style.webkitTextFillColor = "transparent";
+            nd.__x = x; nd.__at = at;
+          });
+          const pairs = fr.map((f, i) => [bk[i], f]);
+          const frac = fr.map((nd) => (nd.offsetLeft + nd.offsetWidth / 2) / tw);
+          // caret (= the coin edge-on) sits just after the last typed character
+          const caretAt = (k) => X0 + (k === 0 ? 0 : fr[k - 1].offsetLeft + fr[k - 1].offsetWidth) + C.caretGap + THK / 2;
+          // human typing rhythm: deterministic jitter, a beat after the "@"
+          const tk = []; let tt = T.type;
+          for (let i = 0; i < n; i++) { tk.push(tt); tt += 0.05 + 0.022 * (Look.hash(i * 7 + 3) - 0.5) + (C.handle[i] === "@" ? 0.05 : 0); }
+          const typedEnd = tk[n - 1];
+          const del = []; for (let j = 0; j < n; j++) del.push(T.out + 0.22 + j * 0.024);   // backspace times (last char first)
+
+          // ---------- coin ----------
+          const wrap = document.createElement("div"); wrap.className = "coin"; wrap.style.width = wrap.style.height = SZ + "px";
+          wm.appendChild(wrap);
+          const coin = Coin3D({ size: SZ, ss: 2, R, h: HC, ri: 0.78, avatar: img, mark: C.mark, rakeI: 4.5, exposure: 1.0 });
+          wrap.appendChild(coin.canvas);
+
+          const S0 = T.open, S1 = S0 + 0.54, Q0 = T.out, Q1 = T.out + 0.2, Z0 = del[n - 1] + 0.05, Z1 = Z0 + 0.08;
+          function caretX(t) {
+            if (t >= Q0) {                                        // exit: back to a caret, then backspace leftwards
+              let x = CF + (caretAt(n) - CF) * seg(t, Q0, Q1, "power2.inOut");
+              for (let j = 0; j < n; j++) if (t >= del[j]) x = caretAt(n - j) + (caretAt(n - 1 - j) - caretAt(n - j)) * seg(t, del[j], del[j] + 0.05, "power3.out");
+              return x;
+            }
+            if (t >= S0) return caretAt(n) + (CF - caretAt(n)) * seg(t, S0, S0 + 0.14, "power2.out");
+            let x = caretAt(0);
+            for (let k = 0; k < n; k++) if (t >= tk[k]) x = caretAt(k) + (caretAt(k + 1) - caretAt(k)) * seg(t, tk[k], tk[k] + 0.06, "power3.out");
+            return x;
+          }
+          function coinAt(t) {
+            const st = {};
+            st.s = 0.2 + 0.8 * seg(t, T.caret, T.caret + 0.16, "back.out(2)");
+            st.s *= 1 + (G - 1) * (seg(t, S0, S0 + 0.42, "back.out(1.5)") - seg(t, Q0, Q1, "power2.inOut"));   // opens up to avatar size
+            // edge-on (a caret) until enter; then it spins open three quarters of a turn into the avatar and settles
+            st.ry = PI / 2 + 1.5 * PI * seg(t, S0, S1, "power3.out") + wob(t, S1, 0.14, 2.3, 6);
+            const tilt = Math.sin(PI * seg(t, S1 - 0.06, S1 + 0.56, "sine.inOut"));
+            st.rx = -0.28 * tilt; st.ry += 0.36 * tilt;
+            st.s *= 1 - (t > S1 - 0.02 ? 0.07 * Math.exp(-9 * (t - S1 + 0.02)) * Math.sin(2 * PI * 2.6 * (t - S1 + 0.02)) : 0);
+            st.lx = -1.5 + 3.0 * seg(t, S1 - 0.08, S1 + 0.34, "power1.inOut");
+            st.spec = seg(t, S1 - 0.08, S1 + 0.04) * (1 - seg(t, S1 + 0.14, S1 + 0.46, "power2.out"));
+            st.band = -1.7 + 3.4 * seg(t, S1 - 0.06, S1 + 0.26, "power1.inOut");      // specular band across bevel and glass
+            st.bandAmp = seg(t, S1 - 0.08, S1 - 0.01) * (1 - seg(t, S1 + 0.2, S1 + 0.3));
+            st.expo = seg(t, S1 - 0.04, S1) * (1 - seg(t, S1 + 0.1, S1 + 0.36, "power2.out"));
+            st.ry += wob(t, T.settle + 0.46, 0.07, 2.2, 7);
+            st.ry += 0.5 * PI * seg(t, Q0, Q1, "power2.in");     // exit: closes back to edge-on
+            st.s *= 1 - 0.85 * seg(t, Z0, Z1, "power2.in");
+            return st;
+          }
+          const on = (t) => (t >= T.caret && t < typedEnd + 0.14) || (t >= typedEnd + 0.3 && t < Z1);
+          function renderAt(t) {
+            wrap.style.transform = "translate(" + (caretX(t) - SZ / 2).toFixed(2) + "px," + (CY - SZ / 2).toFixed(2) + "px)";
+            const v = on(t); wrap.style.opacity = v ? "1" : "0";
+            if (v) coin.render(coinAt(t));
+          }
+
+          // layered type, the coin over the handle's root and the bloom are intentional overlaps
+          [wm].concat(Array.from(wm.querySelectorAll("*"))).forEach((nd) => ["occlusion", "overlap", "overflow"].forEach((k) => nd.setAttribute("data-layout-allow-" + k, "")));
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+
+          // ---------- typing: each key lands with a spring and a small warm flash ----------
+          pairs.forEach((pr) => gsap.set(pr, { opacity: 0, scale: 1.28, y: 8 }));
+          pairs.forEach((pr, i) => {
+            const t = tk[i];
+            tl.fromTo(pr, { opacity: 0 }, { opacity: 1, duration: 0.034, ease: "none", immediateRender: false }, t);
+            tl.fromTo(pr, { scale: 1.28, y: 8 }, { scale: 1, y: 0, duration: 0.24, ease: "back.out(2.4)", immediateRender: false }, t);
+            tl.fromTo(fr[i], { filter: "drop-shadow(0 0 0px rgba(255,214,128,0))" }, { filter: "drop-shadow(0 0 9px rgba(255,214,128,.7))", duration: 0.04, immediateRender: false }, t);
+            tl.to(fr[i], { filter: "drop-shadow(0 0 0px rgba(255,214,128,0))", duration: 0.16, ease: "power2.in" }, t + 0.05);
+            tl.set(fr[i], { filter: "none" }, t + 0.22);
+          });
+          // ---------- enter: a light runs along the handle (each glyph lifts and blooms as it passes) into the opening coin ----------
+          const LP = S0 + 0.02, LD = 0.58;
+          Look.drive(tl, LP, LD, (p) => {
+            const k = Ez("power1.inOut")(p), c = (-0.45 + 1.9 * k) * tw;
+            fr.forEach((nd) => { if (!nd.__at) nd.style.backgroundPosition = (c - 0.6 * tw - nd.__x) + "px 0px, " + (-nd.__x) + "px 0px"; });
+          });
+          fr.forEach((nd, i) => {
+            const t = LP + LD * (0.12 + 0.72 * frac[i]);
+            tl.fromTo(nd, { filter: "drop-shadow(0 0 0px rgba(255,214,128,0))" }, { filter: "drop-shadow(0 0 " + (C.text * 0.24).toFixed(1) + "px " + C.colors.glow + ")", duration: 0.08, ease: "power2.out", immediateRender: false }, t);
+            tl.to(nd, { filter: "drop-shadow(0 0 0px rgba(255,214,128,0))", duration: 0.3, ease: "power2.in" }, t + 0.1);
+            tl.set(nd, { filter: "none" }, t + 0.41);
+            tl.to(pairs[i], { y: -7, duration: 0.1, ease: "sine.out" }, t - 0.03);
+            tl.to(pairs[i], { y: 0, duration: 0.2, ease: "sine.inOut" }, t + 0.07);
+          });
+          // ---------- settle to the semi-transparent hold ----------
+          tl.fromTo(wm, { scale: 1, opacity: 1 }, { scale: C.holdScale, opacity: C.hold, duration: 0.46, ease: "expo.inOut", immediateRender: false }, T.settle);
+          // ---------- exit: the coin closes back to a caret and backspaces the handle away ----------
+          for (let j = 0; j < n; j++) tl.to(pairs[n - 1 - j], { opacity: 0, scale: 0.5, duration: 0.05, ease: "power2.in" }, del[j]);
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,227 @@
+<!doctype html>
+<!-- GTA-niche 11 Reaction cutaway, variant B "Vertical reaction" (9:16, 1080x1920, 30 fps, 5.2 s).
+     The Shorts layout creators use: a 16:9 gameplay band in the centre over a graded blurred fill, the facecam inset in the
+     band. On the impact the band hard-cuts to the webcam (with a webcam fill), then springs open to a 1080 square: the webcam
+     takes over at native 1:1 with a punch and shake, and the reaction word slams in as real Three.js geometry (extruded,
+     bevelled Archivo) that ignites from white enamel to caption gold. A whip-pan returns to gameplay as the band collapses.
+     Full-kind component: the footage always shows (bg:none keeps it). See ../DECISIONS.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <script src="media/payoff3d.js"></script>
+    <style>
+      @font-face { font-family: "Archivo"; font-style: normal; font-weight: 100 900; font-stretch: 62% 125%; font-display: block; src: url("assets/fonts/Archivo.ttf") format("truetype"); }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #000; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: "Archivo", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      .layer { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; overflow: hidden; }
+      .fill { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+      .shot { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; }
+      /* the blurred fill above and below the band: graded so the blacks hold (DESIGN 11.17) */
+      .blur { position: absolute; left: -90px; top: -90px; width: 1260px; height: 2100px; filter: blur(40px) brightness(.7) contrast(1.12) saturate(1.25); }
+      #gBox { position: absolute; left: 0; top: 656px; width: 1080px; height: 608px; overflow: hidden; }
+      #gPush { position: absolute; left: 0; top: 0; width: 1080px; height: 608px; }
+      #cScale { position: absolute; left: -420px; top: 420px; width: 1920px; height: 1080px; }
+      #camShake, #camPunch, #camGrade { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+      /* the facecam inset, top-right of the band inside the safe x: lit metal ring, ink keyline, glass sheen, contact shadow */
+      #box { position: absolute; left: 584px; top: 18px; width: 340px; height: 192px; border-radius: 18px;
+        background: linear-gradient(180deg, #FFFFFF 0%, #F1F3F7 34%, #CBD1DB 78%, #AEB6C3 100%);
+        box-shadow: inset 0 1.5px 0 #FFFFFF, inset 0 -1.5px 0 rgba(84,92,108,.85), 0 3px 8px rgba(0,0,0,.38), 0 16px 36px rgba(0,0,0,.46); }
+      #boxFace { position: absolute; left: 5px; top: 5px; width: 330px; height: 182px; border-radius: 13px; overflow: hidden; background: #000;
+        box-shadow: 0 0 0 1.5px #0B0D12; }
+      #boxGlass { position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-radius: 13px;
+        background: linear-gradient(176deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,.04) 26%, rgba(255,255,255,0) 40%);
+        box-shadow: inset 0 0 18px rgba(0,0,0,.42), inset 0 0 0 1px rgba(255,255,255,.10); }
+      #camVig { position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+        background: radial-gradient(ellipse 70% 32% at 50% 48%, rgba(0,0,0,0) 62%, rgba(0,0,0,.28) 100%); }
+      /* the band floats over the fill: soft shadows cast up and down from its edges */
+      .edge { position: absolute; left: 0; width: 1080px; height: 90px; }
+      #edgeT { background: linear-gradient(0deg, rgba(0,0,0,.46) 0%, rgba(0,0,0,.18) 40%, rgba(0,0,0,0) 100%); }
+      #edgeB { background: linear-gradient(180deg, rgba(0,0,0,.46) 0%, rgba(0,0,0,.18) 40%, rgba(0,0,0,0) 100%); }
+      #word { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; opacity: 0; }
+      #wordBump { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; }
+      #wordShade { position: absolute; }
+      .fx { position: absolute; width: 0; height: 0; overflow: hidden; }
+    </style>
+  </head>
+  <body>
+    <svg class="fx" aria-hidden="true">
+      <filter id="whipF" x="0%" y="0%" width="100%" height="100%" color-interpolation-filters="sRGB">
+        <feGaussianBlur id="whipB" in="SourceGraphic" stdDeviation="0 0" edgeMode="duplicate" result="bl" />
+        <feComponentTransfer in="bl"><feFuncA type="table" tableValues="0 1 1 1 1 1 1 1 1 1 1" /></feComponentTransfer>
+      </filter>
+    </svg>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5.2" data-width="1080" data-height="1920">
+      <div id="whip" class="layer">
+      <!-- gameplay screen: blurred fill + the 16:9 band with the facecam inset (they whip in together) -->
+      <div id="game" class="layer">
+        <div class="blur">
+          <video id="gf1" class="clip shot" src="assets/shots/v56-gp-truck-crash-v.mp4" muted playsinline data-start="0" data-duration="1.3" data-media-start="0.3" data-track-index="1"></video>
+          <video id="gf2" class="clip shot" src="assets/shots/v17-deluxo-sunset-v.mp4" muted playsinline data-start="3.6" data-duration="1.6" data-media-start="0" data-track-index="1"></video>
+        </div>
+        <div id="gBand" class="fill">
+          <div id="gBox">
+            <div id="gPush">
+              <video id="g1" class="clip shot" src="assets/shots/v56-gp-truck-crash-h.mp4" muted playsinline data-start="0" data-duration="1.3" data-media-start="0.3" data-track-index="0"></video>
+              <video id="g2" class="clip shot" src="assets/shots/v17-deluxo-sunset-h.mp4" muted playsinline data-start="3.6" data-duration="1.6" data-media-start="0" data-track-index="0"></video>
+            </div>
+            <div id="box">
+              <div id="boxFace">
+                <video id="boxCam" class="clip shot" src="assets/plates/facecam-sample.mp4" muted playsinline data-start="0" data-duration="5.2" data-media-start="0" data-track-index="2"></video>
+                <div id="boxGlass"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- the cutaway: the same webcam (same media time), its own blurred fill, then the band opens to a 1:1 square -->
+      <div id="cam" class="layer">
+        <div class="blur">
+          <video id="camFill" class="clip shot" src="assets/plates/facecam-sample.mp4" muted playsinline data-start="1.3" data-duration="2.55" data-media-start="1.3" data-track-index="4"></video>
+        </div>
+        <div id="cBand" class="fill">
+          <div id="cScale">
+            <div id="camShake"><div id="camPunch"><div id="camGrade">
+              <video id="camFull" class="clip shot" src="assets/plates/facecam-sample.mp4" muted playsinline data-start="1.3" data-duration="2.6" data-media-start="1.3" data-track-index="3"></video>
+            </div></div></div>
+          </div>
+          <div id="camVig"></div>
+        </div>
+        <div id="word"><div id="wordBump"><div id="wordShade"></div></div></div>
+      </div>
+      </div>
+      <div id="edgeT" class="edge"></div>
+      <div id="edgeB" class="edge"></div>
+    </div>
+    <script>
+      const CONFIG = {
+        word: "NO WAY!",                 // the reaction word (A-Z, 0-9, space . , ' ! ? -), real 3D geometry
+        type: { size: 260, maxInk: 760, tracking: -0.005, cx: 510, cy: 1320 },   // px; ink kept inside the Shorts safe x 72-936
+        word3d: { depth: 32, bevel: 7.5, tilt: 0.3, edge: 7, ink: "#07080B", shade: 0.32 },
+        colors: {                        // white enamel -> caption gold
+          whiteFace: ["#FFFFFF", "#E4E9F0"], whiteSide: ["#2A2F3A", "#07080B"],
+          goldFace: ["#FFF1A0", "#FFC21E", "#E07F0A"], goldLip: "#F7B23A", goldSide: ["#C46A00", "#3A1400"], hot: "#FFF6D0"
+        },
+        band: { h: 608, open: 1280 },    // the 16:9 band height, and the tall window it opens to (webcam at 1.19x, inside the 1.2x sharpness limit)
+        face: { x: 945, y: 150 },        // punch origin on the webcam (source px): the creator's head
+        punch: { peak: 1.10, settle: 1.07, drift: 1.09, shake: 12 },
+        timing: {
+          cut: 1.30,                     // hard cut: the band switches to the webcam (on the impact)
+          open: 1.42, openDur: 0.40,     // the band springs open to the square
+          land: 1.62,                    // shake + punch + word slam as the square lands
+          ignite: 1.85,                  // the word turns gold
+          whip: 3.60, whipDur: 0.32,     // whip-pan back to gameplay, the band collapses with it
+          end: 5.2
+        }
+      };
+
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        // full-kind component: the footage IS the component, so bg:none keeps it (DESIGN 3)
+        const $ = (s) => document.querySelector(s), C = CONFIG, T = C.timing, FR = 1 / 30, W = 1080, H = 1920;
+        document.querySelectorAll("#root *").forEach((n) => { n.setAttribute("data-layout-allow-overlap", ""); n.setAttribute("data-layout-allow-occlusion", ""); n.setAttribute("data-layout-allow-overflow", ""); });
+
+        Promise.all(["900 100px Archivo", "800 100px Inter"].map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          // ---------- the reaction word: real geometry ----------
+          const K = C.colors, Y = C.type, D3 = C.word3d;
+          const P = Payoff3D({
+            W: W, H: H, glyphs: window.PAYOFF_GLYPHS, text: C.word, size: Y.size, tracking: Y.tracking, maxInk: Y.maxInk,
+            cx: Y.cx, cy: Y.cy, depth: D3.depth, bevel: D3.bevel, tilt: D3.tilt, inkPx: D3.edge, inkColor: D3.ink, shadow: 0.6, shadowOff: 10,
+            colors: { whiteFace: K.whiteFace, whiteSide: K.whiteSide, goldFace: K.goldFace, goldLip: K.goldLip, goldSide: K.goldSide, hot: K.hot },
+            timing: { ignite: T.ignite, frontDur: 0.18, specAt: T.ignite + 0.06, specDur: 0.45, rakeDur: 0.6, holdEnd: T.whip }
+          });
+          const bump = $("#wordBump"), shade = $("#wordShade");
+          bump.appendChild(P.canvas);
+          const sw = P.inkW * 1.3, shH = P.cap * 2.5;
+          shade.style.cssText = "left:" + (Y.cx - sw / 2) + "px;top:" + (Y.cy - shH / 2 + 12) + "px;width:" + sw + "px;height:" + shH + "px;" +
+            "background:radial-gradient(closest-side, rgba(0,0,0," + D3.shade + ") 0%, rgba(0,0,0," + (D3.shade * 0.55).toFixed(3) + ") 55%, rgba(0,0,0,0) 100%)";
+          ["data-layout-allow-overlap", "data-layout-allow-occlusion", "data-layout-allow-overflow"].forEach((a) => P.canvas.setAttribute(a, ""));
+          const baseY = Y.cy + P.cap / 2;
+
+          const tl = gsap.timeline({ paused: true });
+
+          // ---------- the band: one height curve for the whole piece (cut -> spring open -> hold -> collapse on the whip) ----------
+          const B = C.band, eOpen = gsap.parseEase("back.out(1.5)"), eClose = gsap.parseEase("power3.inOut");
+          const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+          function bandAt(t) {
+            if (t < T.open) return B.h;
+            if (t < T.whip) return B.h + (B.open - B.h) * eOpen(clamp((t - T.open) / T.openDur, 0, 1));
+            return B.open + (B.h - B.open) * eClose(clamp((t - T.whip) / T.whipDur, 0, 1));
+          }
+          const gBand = $("#gBand"), cBand = $("#cBand"), gBox = $("#gBox"), cScale = $("#cScale"), eT = $("#edgeT"), eB = $("#edgeB");
+          gsap.set(gBox, { transformOrigin: "50% 50%" }); gsap.set(cScale, { transformOrigin: "50% 50%" });
+          function setBand(h) {
+            const top = 960 - h / 2, bot = H - top - h, clip = "inset(" + top.toFixed(1) + "px 0px " + bot.toFixed(1) + "px 0px)";
+            gBand.style.clipPath = clip; cBand.style.clipPath = clip;
+            gsap.set(gBox, { scale: Math.max(1, h / B.h) });                   // gameplay covers the band
+            gsap.set(cScale, { scale: Math.max(1080 / 1920, h / 1080) });       // webcam covers the band: 0.5625 in the strip, 1.19x when open
+            gsap.set(eT, { y: top - 90 }); gsap.set(eB, { y: top + h });
+          }
+          Look.drive(tl, 0, T.end, (p) => setBand(bandAt(p * T.end)));
+
+          // ---------- gameplay ----------
+          Look.push(tl, "#gPush", 0, T.cut, { from: 1, to: 1.035, origin: "50% 45%" });
+          tl.fromTo("#gPush", { scale: 1.02 }, { scale: 1, duration: 1.6, ease: "power2.out", immediateRender: false }, T.whip + 0.1);
+
+          // ---------- the cut: hard, on the frame the wall bursts ----------
+          gsap.set("#cam", { autoAlpha: 0 });
+          tl.set("#cam", { autoAlpha: 1 }, T.cut);
+
+          // ---------- the takeover lands: punch on the face, shake, exposure lift ----------
+          const Pn = C.punch;
+          gsap.set("#camPunch", { transformOrigin: C.face.x + "px " + C.face.y + "px", scale: 1 });
+          tl.fromTo("#camPunch", { scale: 1 }, { scale: Pn.peak, duration: 3 * FR, ease: "power3.out", immediateRender: false }, T.land);
+          tl.to("#camPunch", { scale: Pn.settle, duration: 0.32, ease: "back.out(1.7)" }, T.land + 3 * FR);
+          tl.to("#camPunch", { scale: Pn.drift, duration: T.whip - (T.land + 3 * FR + 0.32), ease: "none" }, T.land + 3 * FR + 0.32);
+          tl.fromTo("#camShake", { filter: "blur(0px)" }, { filter: "blur(3px)", duration: FR, ease: "none", immediateRender: false }, T.land);
+          tl.to("#camShake", { filter: "blur(0px)", duration: 2 * FR, ease: "power2.out" }, T.land + FR);
+          tl.set("#camShake", { filter: "none" }, T.land + 3 * FR);
+          Look.impact(tl, T.land, { shake: "#camShake", amp: Pn.shake, dur: 0.38, zoom: 1.02, flash: 0 });
+          Look.expose(tl, T.land, { target: "#camGrade", peak: 1.12, hold: 2 / 30, dur: 0.36, saturate: 1.1 });
+          Look.chroma(tl, "#camPunch", T.land, 0.12, { px: 4 });
+
+          // ---------- the word: slams in as the square lands (big -> squash -> spring), ignites to gold ----------
+          gsap.set("#word", { opacity: 0, transformOrigin: Y.cx + "px " + baseY.toFixed(1) + "px" });
+          gsap.set(bump, { transformOrigin: Y.cx + "px " + baseY.toFixed(1) + "px" });
+          tl.set("#word", { opacity: 1 }, T.land);
+          tl.fromTo("#word", { scaleX: 1.3, scaleY: 1.3, y: -20, rotation: -4 }, { scaleX: 1.07, scaleY: 0.93, y: 6, rotation: -0.8, duration: 2 * FR, ease: "power2.in", immediateRender: false }, T.land);
+          tl.to("#word", { scaleX: 1, scaleY: 1, y: 0, rotation: 0, duration: 8 * FR, ease: "back.out(2.2)" }, T.land + 2 * FR);
+          Look.mblur(tl, "#word", T.land, 2 * FR, { x: 0, y: 6, ease: "none" });
+          tl.to(bump, { scale: 1.05, duration: 0.07, ease: "power2.out" }, T.ignite);
+          tl.to(bump, { scale: 1, duration: 0.24, ease: "back.out(2.2)" }, T.ignite + 0.07);
+
+          // ---------- the whip-pan back: both screens on one strip, blur peaks at the seam ----------
+          const Ew = gsap.parseEase("power3.inOut"), camEl = $("#cam"), gameEl = $("#game"), whipEl = $("#whip"), wB = $("#whipB");
+          Look.drive(tl, T.whip, T.whipDur, (p) => {
+            if (p <= 0 || p >= 1) { gsap.set(camEl, { x: p >= 1 ? -W : 0 }); gsap.set(gameEl, { x: 0 }); whipEl.style.filter = ""; return; }
+            const k = Ew(p), s = Math.sin(Math.PI * p);
+            gsap.set(camEl, { x: -W * k }); gsap.set(gameEl, { x: W * (1 - k) });
+            const b = 60 * Math.pow(s, 1.25);   // blur follows the pan speed; a touch of vertical so horizontal edges never streak
+            wB.setAttribute("stdDeviation", b.toFixed(1) + " " + (b * 0.07).toFixed(1));
+            whipEl.style.filter = "url(#whipF)";
+          });
+          tl.set("#cam", { autoAlpha: 0 }, T.whip + T.whipDur);
+
+          // ---------- the 3D word renders from timeline time ----------
+          Look.drive(tl, 0, T.end, (p) => P.renderAt(p * T.end));
+          P.renderAt(0);
+
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

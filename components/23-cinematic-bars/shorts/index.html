@@ -1,0 +1,267 @@
+<!doctype html>
+<!-- 23 Cinematic bars, variant B (9:16, 1080x1920, 30 fps): always-on vertical bars that slam into a chapter card on a cut, title in the black, then relax back.
+     Variable: bg "plate" (sample GTA V footage) / "none" (transparent bars + type only, to drop on your own clip). See gta/DESIGN.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push, #exp, #grade { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      /* the picture area inside the always-on bars: 16:9 shots mapped at 1.43x (sharper than the 1.8x-upscaled 9:16 crops) */
+      #band { position: absolute; left: 0; right: 0; overflow: hidden; }
+      #ov { position: absolute; inset: 0; pointer-events: none; }
+      /* side vignette that comes with the grade (the bars cover top and bottom) */
+      #vig { position: absolute; inset: 0; opacity: 0;
+        background: radial-gradient(ellipse 92% 52% at 50% 49%, rgba(0,0,0,0) 56%, rgba(0,0,0,.30) 84%, rgba(0,0,0,.5) 100%); }
+      /* the matte: pure black, hard edge, oversized past the frame edge so the overshoot never shows a gap */
+      .bar { position: absolute; left: -20px; right: -20px; background: #000; will-change: transform; }
+      .bar .shade { position: absolute; left: 0; right: 0; height: 44px; pointer-events: none; }
+      #barT .shade { top: 100%; background: linear-gradient(180deg, rgba(0,0,0,.38), rgba(0,0,0,.12) 45%, rgba(0,0,0,0)); }
+      #barB .shade { bottom: 100%; background: linear-gradient(0deg, rgba(0,0,0,.38), rgba(0,0,0,.12) 45%, rgba(0,0,0,0)); }
+      /* a type line = a full-width mask (overflow hidden) holding a shrink-wrapped ink run of per-glyph spans */
+      .line { position: absolute; left: 0; right: 0; text-align: center; white-space: nowrap; overflow: hidden;
+        line-height: 1; padding: .12em 0 .14em; }
+      .ink { display: inline-block; position: relative; }
+      .g { display: inline-block; will-change: transform; }
+      .title { font-family: "Archivo", "Inter", sans-serif; font-stretch: 125%; font-weight: 800; text-transform: uppercase; color: #fff; }
+      .kick { font-family: "Inter", sans-serif; font-weight: 800; text-transform: uppercase; color: #F6C453; }
+      .glow { position: absolute; left: 50%; width: 1060px; height: 200px; margin-left: -530px; opacity: 0; pointer-events: none;
+        background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(255,214,160,.34), rgba(255,190,120,.12) 55%, rgba(255,190,120,0) 100%); }
+      /* anamorphic streak behind the title: a warm core line with a soft halo, fired when the title locks */
+      .streak { position: absolute; left: 50%; height: 44px; opacity: 0; pointer-events: none; mix-blend-mode: screen;
+        /* two light spikes that leave the title's outer edges (the title spans 25-75% of the streak), never a line through the type */
+        background:
+          linear-gradient(90deg, rgba(255,242,222,0) 0%, rgba(255,242,222,.95) 24%, rgba(255,242,222,0) 25.5%, rgba(255,242,222,0) 74.5%, rgba(255,242,222,.95) 76%, rgba(255,242,222,0) 100%) center / 100% 4px no-repeat,
+          linear-gradient(90deg, rgba(255,214,168,0) 3%, rgba(255,214,168,.42) 24%, rgba(255,214,168,0) 26.5%, rgba(255,214,168,0) 73.5%, rgba(255,214,168,.42) 76%, rgba(255,214,168,0) 97%) center / 100% 14px no-repeat; }
+    </style>
+  </head>
+  <body>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <filter id="cine" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+        <feComponentTransfer>
+          <feFuncR id="gR" type="table" tableValues="0 0.25 0.5 0.75 1" />
+          <feFuncG id="gG" type="table" tableValues="0 0.25 0.5 0.75 1" />
+          <feFuncB id="gB" type="table" tableValues="0 0.25 0.5 0.75 1" />
+        </feComponentTransfer>
+        <feColorMatrix id="gS" type="saturate" values="1" />
+      </filter>
+      <filter id="mbT" x="-5%" y="-40%" width="110%" height="180%"><feGaussianBlur id="mbTg" stdDeviation="0 0" /></filter>
+      <filter id="mbB" x="-5%" y="-40%" width="110%" height="180%"><feGaussianBlur id="mbBg" stdDeviation="0 0" /></filter>
+    </svg>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5.2" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push"><div id="exp"><div id="grade">
+        <div id="band">
+          <video id="s1" class="clip shot" src="assets/shots/v39-lowriders-downtown-h.mp4" style="object-position: 50% 50%" muted playsinline data-start="0" data-duration="1" data-media-start="0.1" data-track-index="0"></video>
+          <video id="s2" class="clip shot" src="assets/shots/v17-deluxo-sunset-h.mp4" style="object-position: 76% 50%" muted playsinline data-start="1" data-duration="1.6" data-media-start="0" data-track-index="1"></video>
+          <video id="s3" class="clip shot" src="assets/shots/v44-bridge-skyline-h.mp4" style="object-position: 72% 50%" muted playsinline data-start="2.6" data-duration="1.6" data-media-start="0.1" data-track-index="0"></video>
+          <video id="s4" class="clip shot" src="assets/shots/v11-yacht-h.mp4" style="object-position: 38% 50%" muted playsinline data-start="4.2" data-duration="1" data-media-start="0.3" data-track-index="1"></video>
+        </div>
+      </div></div></div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="5.2" data-track-index="2">
+        <div id="vig"></div>
+        <div id="barT" class="bar"><div class="shade"></div>
+          <div class="glow" id="glow"></div>
+          <div class="line kick" id="kickLine"><span class="ink" id="kick"></span></div>
+          <div class="streak" id="streak"></div>
+          <div class="line title" id="titleLine"><span class="ink" id="title"></span></div>
+        </div>
+        <div id="barB" class="bar"><div class="shade"></div></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        kicker: "Chapter 03",            // gold line above the title ("" to hide)
+        title: "The Getaway",            // the title in the top bar; auto-fits to maxWidth
+        thin: 190,                       // always-on bar depth (px): the Shorts look, about 10% of the frame each
+        chapter: 380,                    // bar depth in chapter-card mode: deep enough to carry the type inside the 9:16 safe zone (y >= 230)
+        titleSize: 86, maxWidth: 780, kickerSize: 40,   // px
+        tracking: { from: 0.32, to: 0.10, drift: 0.125 }, kickerTracking: 0.30,   // em
+        accent: "#F6C453",
+        grade: { amount: 1, sat: 1.08, vignette: 1 },               // 0 = no grade shift
+        overshoot: 7,                                                // px past the line when the bars slam into chapter mode
+        timing: { barsIn: 0.6, cut: 1.0, titleIn: 1.03, flare: 1.42, titleOut: 3.7, barsOut: 4.2, end: 5.2 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, $ = (s) => document.querySelector(s);
+        const W = 1080, H = 1920, OVER = 60, GAP = 26;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+
+        // ---- bar geometry: always-on thin bars that deepen into a chapter card ----
+        const BAR = CONFIG.chapter, THIN = CONFIG.thin;
+        const barT = $("#barT"), barB = $("#barB"), band = $("#band");
+        barT.style.top = -OVER + "px"; barT.style.height = BAR + OVER + "px";
+        barB.style.bottom = -OVER + "px"; barB.style.height = BAR + OVER + "px";
+        band.style.top = THIN + "px"; band.style.height = (H - 2 * THIN) + "px";
+        const travel = BAR - THIN;                                         // thin state = bars pulled back by this much
+
+        const kick = $("#kick"), title = $("#title"), kickLine = $("#kickLine"), titleLine = $("#titleLine"), glow = $("#glow"), streak = $("#streak");
+        kickLine.style.fontSize = CONFIG.kickerSize + "px"; titleLine.style.fontSize = CONFIG.titleSize + "px";
+        kickLine.style.color = CONFIG.accent;
+        // tracking adds a trailing gap after the last glyph: pad the lead by the same amount so the run centres optically
+        kick.style.letterSpacing = CONFIG.kickerTracking + "em"; kick.style.paddingLeft = CONFIG.kickerTracking + "em";
+        title.style.letterSpacing = CONFIG.tracking.to + "em"; title.style.paddingLeft = CONFIG.tracking.to + "em";
+
+        function glyphs(el, text) {
+          el.textContent = ""; const out = [];
+          for (const ch of text) { const s = document.createElement("span"); s.className = "g"; if (ch === " ") s.innerHTML = "&nbsp;"; else s.textContent = ch; el.appendChild(s); out.push(s); }
+          return out;
+        }
+
+        const FACES = ["800 100px Inter", "800 100px Archivo"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const tl = gsap.timeline({ paused: true });
+          const tg = glyphs(title, CONFIG.title), kg = glyphs(kick, CONFIG.kicker);
+          // auto-fit the title run to the safe width at its settled tracking
+          let TS = CONFIG.titleSize;
+          while (title.offsetWidth > CONFIG.maxWidth && TS > 40) { TS -= 2; titleLine.style.fontSize = TS + "px"; }
+          const ink = tg.filter((g) => g.textContent.trim());
+
+          // ---- place the type by INK: title baseline GAP above the picture edge, kicker baseline 22 px above the title's cap top ----
+          const cv = document.createElement("canvas").getContext("2d");
+          const metrics = (font) => { cv.font = font; const m = cv.measureText("H"); return { cap: m.actualBoundingBoxAscent, fa: m.fontBoundingBoxAscent, fd: m.fontBoundingBoxDescent }; };
+          const offY = (n, host) => { let y = 0; while (n && n !== host) { y += n.offsetTop; n = n.offsetParent; } return y; };
+          const inBox = (size, m) => (size - (m.fa + m.fd)) / 2 + m.fa;              // baseline inside a line-height:1 glyph box
+          const mT = metrics("800 " + TS + "px Archivo"), mK = metrics("800 " + CONFIG.kickerSize + "px Inter");
+          titleLine.style.top = "0px"; kickLine.style.top = "0px";
+          const edge = OVER + BAR, tBase = edge - GAP, tCapTop = tBase - mT.cap;
+          if (tg.length) titleLine.style.top = (tBase - (offY(tg[0], barT) + inBox(TS, mT))) + "px";
+          if (kg.length) kickLine.style.top = (tCapTop - 22 - (offY(kg[0], barT) + inBox(CONFIG.kickerSize, mK))) + "px";
+          const capMid = tBase - mT.cap / 2;                                          // title cap centre, bar coords
+          glow.style.top = (capMid - 100) + "px";
+          const SW = Math.round(title.offsetWidth * 2);
+          streak.style.width = SW + "px"; streak.style.marginLeft = (-SW / 2) + "px"; streak.style.top = (capMid - 22) + "px";
+
+          // ---- chrome on the glyphs: lit top, a cool steel horizon just under half height, warm rim at the baseline ----
+          const IW = title.offsetWidth, IH = title.offsetHeight;
+          const gy = tg.length ? tg[0].offsetTop : 0, base = gy + inBox(TS, mT), cTop = base - mT.cap, cap = mT.cap;
+          const at = (f) => (cTop + cap * f).toFixed(1) + "px";
+          const CHROME = `linear-gradient(180deg, #FFFFFF ${at(0)}, #F5F3EF ${at(0.38)}, #BEC2C9 ${at(0.53)}, #D7DADF ${at(0.74)}, #FFF8EC ${at(1)})`;
+          const SPEC = "linear-gradient(100deg, rgba(255,255,255,0) 46.5%, rgba(255,255,255,.96) 50%, rgba(255,255,255,0) 53.5%)";
+          ink.forEach((g) => {
+            const x = g.offsetLeft, y = g.offsetTop;
+            g.__x = x; g.__y = y;
+            g.style.backgroundImage = SPEC + ", " + CHROME; g.style.backgroundRepeat = "no-repeat";
+            g.style.backgroundSize = (IW * 4) + "px " + IH + "px, " + IW + "px " + IH + "px";
+            g.style.webkitBackgroundClip = "text"; g.style.backgroundClip = "text";
+            g.style.color = "transparent"; g.style.webkitTextFillColor = "transparent";
+          });
+          const setSpec = (c) => ink.forEach((g) => { g.style.backgroundPosition = (c - 2 * IW - g.__x).toFixed(1) + "px " + (-g.__y) + "px, " + (-g.__x) + "px " + (-g.__y) + "px"; });
+          setSpec(-0.4 * IW);
+          titleLine.style.filter = "drop-shadow(0 0 10px rgba(255,226,190,0))";
+
+          // ---- title in: glyphs rise out of the mask while the tracking settles (per-glyph x spread, no reflow) ----
+          const spread = (gl, d) => { const c = (gl.length - 1) / 2; return gl.map((_, i) => (i - c) * d); };
+          const txIn = spread(tg, (CONFIG.tracking.from - CONFIG.tracking.to) * TS);
+          const txOut = spread(tg, (CONFIG.tracking.drift - CONFIG.tracking.to) * TS);
+          tg.forEach((g, i) => {
+            gsap.set(g, { yPercent: 135, x: txIn[i] });
+            tl.fromTo(g, { yPercent: 135 }, { yPercent: 0, duration: 0.5, ease: "expo.out", immediateRender: false }, T.titleIn + i * 0.025);
+            tl.fromTo(g, { x: txIn[i] }, { x: 0, duration: 0.8, ease: "expo.out", immediateRender: false }, T.titleIn);
+            // the hold breathes: a slow film-title track-out
+            tl.fromTo(g, { x: 0 }, { x: txOut[i], duration: T.titleOut - (T.titleIn + 0.82), ease: "none", immediateRender: false }, T.titleIn + 0.82);
+          });
+          tl.fromTo(title, { scale: 1 }, { scale: 1.022, duration: T.titleOut - T.flare, ease: "none", immediateRender: false }, T.flare);
+          kg.forEach((g, i) => {
+            gsap.set(g, { yPercent: -135 });
+            tl.fromTo(g, { yPercent: -135 }, { yPercent: 0, duration: 0.5, ease: "expo.out", immediateRender: false }, T.titleIn + 0.08 + i * 0.022);
+          });
+
+          // ---- payoff light when the title locks: specular band across the chrome + anamorphic streak + warm bloom ----
+          const sp = gsap.parseEase("power2.inOut");
+          Look.drive(tl, T.flare - 0.12, 0.5, (p) => setSpec((-0.4 + 1.8 * sp(p)) * IW));
+          const F = T.flare, f1 = 1 / 30;
+          tl.fromTo(streak, { opacity: 0, scaleX: 0.35 }, { opacity: 1, scaleX: 1, duration: 2 * f1, ease: "power2.out", immediateRender: false }, F);
+          tl.fromTo(streak, { opacity: 1, scaleX: 1 }, { opacity: 0, scaleX: 1.25, duration: 0.4, ease: "power2.in", immediateRender: false }, F + 5 * f1);
+          tl.fromTo(glow, { opacity: 0, scaleX: 0.7 }, { opacity: 1, scaleX: 1, duration: 0.12, ease: "power2.out", immediateRender: false }, F);
+          tl.fromTo(glow, { opacity: 1 }, { opacity: 0.38, duration: 0.8, ease: "sine.inOut", immediateRender: false }, F + 0.2);
+          tl.fromTo(titleLine, { filter: "drop-shadow(0 0 10px rgba(255,226,190,0))" }, { filter: "drop-shadow(0 0 14px rgba(255,226,190,0.55))", duration: 0.1, ease: "power2.out", immediateRender: false }, F);
+          tl.fromTo(titleLine, { filter: "drop-shadow(0 0 14px rgba(255,226,190,0.55))" }, { filter: "drop-shadow(0 0 10px rgba(255,226,190,0.16))", duration: 0.8, ease: "sine.inOut", immediateRender: false }, F + 0.2);
+
+          // ---- bars slam from the thin always-on depth into chapter mode ON the cut: accelerate, cross the line at full speed, overshoot, settle ----
+          const blurT = $("#mbTg"), blurB = $("#mbBg");
+          const setBlur = (s) => { const v = s > 0.05 ? "0 " + s.toFixed(2) : "0 0"; blurT.setAttribute("stdDeviation", v); blurB.setAttribute("stdDeviation", v);
+            barT.style.filter = s > 0.05 ? "url(#mbT)" : "none"; barB.style.filter = s > 0.05 ? "url(#mbB)" : "none"; };
+          const dIn = T.cut - T.barsIn;
+          tl.fromTo(barT, { y: -travel }, { y: 0, duration: dIn, ease: "power2.in", immediateRender: false }, T.barsIn);
+          tl.fromTo(barB, { y: travel }, { y: 0, duration: dIn, ease: "power2.in", immediateRender: false }, T.barsIn);
+          Look.drive(tl, T.barsIn, dIn, (p) => setBlur(p > 0 && p < 1 ? 12 * p : 0));
+          // damped overshoot after the hit: continues the travel direction, peaks ~CONFIG.overshoot px at +0.05 s, settles by +0.26 s
+          const AMP = CONFIG.overshoot / 0.40;
+          Look.drive(tl, T.cut, 0.26, (p) => {
+            if (p <= 0) return;
+            const y = p >= 1 ? 0 : AMP * Math.exp(-4.5 * p) * Math.sin(2.2 * Math.PI * p);
+            gsap.set(barT, { y: y }); gsap.set(barB, { y: -y });
+          });
+
+          // ---- title + kicker out: back into their masks ----
+          tl.fromTo(tg, { yPercent: 0 }, { yPercent: 135, duration: 0.3, ease: "power3.in", stagger: 0.014, immediateRender: false }, T.titleOut);
+          tl.fromTo(kg, { yPercent: 0 }, { yPercent: -135, duration: 0.26, ease: "power3.in", stagger: 0.012, immediateRender: false }, T.titleOut + 0.02);
+          tl.fromTo(glow, { opacity: 0.38 }, { opacity: 0, duration: 0.2, ease: "power2.in", immediateRender: false }, T.titleOut);
+
+          // ---- bars relax back to the thin always-on depth on the cut: bottom first, then top, with blur (they stay on, as in the evidence) ----
+          tl.fromTo(barB, { y: 0 }, { y: travel, duration: 0.4, ease: "power3.inOut", immediateRender: false }, T.barsOut);
+          tl.fromTo(barT, { y: 0 }, { y: -travel, duration: 0.4, ease: "power3.inOut", immediateRender: false }, T.barsOut + 0.07);
+          Look.drive(tl, T.barsOut, 0.47, (p) => {
+            if (p <= 0 || p >= 1) { if (p >= 1) setBlur(0); return; }
+            const t = p * 0.47, pb = Math.min(1, t / 0.4), pt = Math.max(0, Math.min(1, (t - 0.07) / 0.4));
+            const sb = 10 * Math.sin(Math.PI * pb), st = 10 * Math.sin(Math.PI * pt);
+            blurB.setAttribute("stdDeviation", "0 " + sb.toFixed(2)); blurT.setAttribute("stdDeviation", "0 " + st.toFixed(2));
+            barB.style.filter = sb > 0.05 ? "url(#mbB)" : "none"; barT.style.filter = st > 0.05 ? "url(#mbT)" : "none";
+          });
+
+          if (plate) {
+            // ---- grade shift with the bars (S-curve, warm highs, cool shadows, blacks held). The filter stays applied for the
+            //      whole piece, starting from exact identity, so switching it on never pops the picture. ----
+            const ID = [0, 0.25, 0.5, 0.75, 1];
+            const GR = { R: [0, 0.215, 0.505, 0.80, 1.0], G: [0, 0.225, 0.50, 0.775, 0.985], B: [0.012, 0.255, 0.485, 0.725, 0.94] };
+            const fR = $("#gR"), fG = $("#gG"), fB = $("#gB"), fS = $("#gS"), grade = $("#grade"), vig = $("#vig");
+            const A = CONFIG.grade.amount;
+            const setGrade = (p) => {
+              const k = p * A;
+              const lerp = (arr) => arr.map((v, i) => (ID[i] + (v - ID[i]) * k).toFixed(4)).join(" ");
+              fR.setAttribute("tableValues", lerp(GR.R)); fG.setAttribute("tableValues", lerp(GR.G)); fB.setAttribute("tableValues", lerp(GR.B));
+              fS.setAttribute("values", (1 + (CONFIG.grade.sat - 1) * k).toFixed(4));
+              vig.style.opacity = (k * CONFIG.grade.vignette).toFixed(3);
+            };
+            grade.style.filter = "url(#cine)";
+            const io = gsap.parseEase("power2.inOut");
+            Look.drive(tl, T.barsIn, T.cut - T.barsIn, (p) => setGrade(io(p)));
+            Look.drive(tl, T.barsOut, 0.45, (p) => setGrade(1 - io(p)));
+            setGrade(0);
+
+            // ---- the lock: camera clunk + exposure lift on the cut; the plate pushes in as the bars close (lens change feel) ----
+            Look.impact(tl, T.cut, { shake: "#shake", amp: 3, dur: 0.24, flash: 0, zoom: 1.016 });
+            Look.expose(tl, T.cut, { target: "#exp", peak: 1.15, hold: 2 / 30, dur: 0.3, saturate: 1.06 });
+            const pushEl = $("#push");
+            gsap.set(pushEl, { scale: 1, transformOrigin: "50% 48%" });
+            tl.fromTo(pushEl, { scale: 1 }, { scale: 1.04, duration: dIn, ease: "power2.in", immediateRender: false }, T.barsIn);
+            tl.fromTo(pushEl, { scale: 1.04 }, { scale: 1.06, duration: T.barsOut - T.cut, ease: "none", immediateRender: false }, T.cut);
+            tl.fromTo(pushEl, { scale: 1.06 }, { scale: 1.02, duration: 0.45, ease: "power3.inOut", immediateRender: false }, T.barsOut);
+          } else {
+            document.querySelectorAll(".shade").forEach((n) => (n.style.display = "none"));
+          }
+
+          // initial state (after the drives' build-time calls): the thin always-on bars
+          gsap.set(barT, { y: -travel }); gsap.set(barB, { y: travel }); setBlur(0);
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

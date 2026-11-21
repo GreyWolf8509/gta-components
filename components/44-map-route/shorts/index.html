@@ -1,0 +1,455 @@
+<!doctype html>
+<!-- 44 Map route, variant B (9:16, 1080x1920): "Game-map route". A textured paper game map (our own drawing:
+     shaded relief, hachures, forest stipple, teal water, paper grain), a dotted bead route that steps on, a big
+     tapered cyan arrow, a bevelled red block arrow that slams onto the target, a ring lock-on + destination label,
+     then a push-in on the target while the ring opens into an 860 px window onto footage of the place (a sharp -h
+     shot at 1.0x) over the dimmed map, and it ends there. Kind: full. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #000; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Archivo", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; background: #000; }
+      #port { position: absolute; inset: 0; visibility: hidden; }
+      #portshade { position: absolute; inset: 0; }
+      #sbloom { position: absolute; left: 0; top: 0; width: 520px; height: 520px; margin: -260px 0 0 -260px; border-radius: 50%; opacity: 0;
+        background: radial-gradient(circle, rgba(255,226,168,1) 0%, rgba(255,226,168,.55) 30%, rgba(255,226,168,0) 70%); mix-blend-mode: screen; pointer-events: none; }
+      #port video { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 50% 50%; filter: brightness(1.0) contrast(1.14) saturate(1.16); }
+      #ov { position: absolute; inset: 0; }
+      #mapshake, #mapdrift { position: absolute; inset: 0; }
+      #mapgrp { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; }
+      #mapflash { position: absolute; inset: 0; }
+      #map { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; display: block; }
+      #ovsvg { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; overflow: visible; }
+      .ml { position: absolute; left: 0; top: 0; white-space: nowrap; transform: translate(-50%, -50%);
+        font-family: "Archivo"; font-weight: 700; font-stretch: 108%; font-size: 34px; letter-spacing: .06em; text-transform: uppercase;
+        color: #33281B; paint-order: stroke fill; -webkit-text-stroke: 7px rgba(244,226,190,.92); }
+      .ml.water { font-size: 38px; font-weight: 600; font-stretch: 110%; letter-spacing: .08em; color: #234F4A;
+        -webkit-text-stroke: 8px rgba(160,212,204,.75); }
+      #dest { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; pointer-events: none; }
+      #ringsvg { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; overflow: visible; }
+      #dlabel { position: absolute; left: 0; top: 0; }
+      #dlabel .in { display: block; white-space: nowrap; font-family: "Archivo"; font-weight: 900; font-stretch: 100%; font-size: 80px;
+        line-height: 1; letter-spacing: -0.005em; word-spacing: .14em; color: #FFFFFF; text-transform: uppercase;
+        paint-order: stroke fill; -webkit-text-stroke: 12px #1A130B; filter: drop-shadow(0 8px 14px rgba(20,12,4,.55)); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5.67" data-width="1080" data-height="1920">
+      <div id="ov" class="clip" data-start="0" data-duration="5.67" data-track-index="1">
+        <div id="mapshake"><div id="mapdrift"><div id="mapgrp">
+          <div id="mapflash"><canvas id="map" width="2160" height="3840" data-layout-allow-overflow></canvas></div>
+          <div id="sbloom"></div>
+          <div id="labels"></div>
+          <svg id="ovsvg" viewBox="0 0 1080 1920">
+            <defs>
+              <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="5" /></filter>
+              <filter id="glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="12" /></filter>
+              <linearGradient id="redg" x1="0" y1="-62" x2="0" y2="62" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#FF6B5A" /><stop offset=".42" stop-color="#EE3428" /><stop offset="1" stop-color="#B31A14" /></linearGradient>
+              <linearGradient id="cyang" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#22C6E6" /><stop offset="1" stop-color="#46E6FF" /></linearGradient>
+              <radialGradient id="beadg" cx=".38" cy=".32" r=".75"><stop offset="0" stop-color="#FFFFFF" /><stop offset=".55" stop-color="#F3F5F9" /><stop offset="1" stop-color="#C9D1DE" /></radialGradient>
+              <linearGradient id="sheen" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0" /><stop offset=".5" stop-color="#fff" stop-opacity=".75" /><stop offset="1" stop-color="#fff" stop-opacity="0" /></linearGradient>
+              <linearGradient id="ringg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF7A66" /><stop offset=".45" stop-color="#E8302A" /><stop offset="1" stop-color="#9A1610" /></linearGradient>
+              <clipPath id="redclip"><path id="redclipPath" /></clipPath>
+            </defs>
+            <g id="routeShadow" opacity=".35" filter="url(#soft)" transform="translate(4,7)"></g>
+            <g id="route"></g>
+            <g id="flag"></g>
+            <g id="cyanArrow"></g>
+            <g id="redArrow"></g>
+          </svg>
+        </div></div></div>
+      </div>
+      <!-- the window: destination footage, an -h shot at <= 1.0x inside the ring (never upscaled to fill 9:16) -->
+      <div id="port">
+        <video id="pv1" class="clip" src="assets/shots/v02-mountain-hikers-h.mp4" muted playsinline data-start="4.35" data-duration="1.32" data-media-start="0" data-track-index="2"></video>
+        <div id="portshade"></div>
+      </div>
+      <div id="dest">
+        <svg id="ringsvg" viewBox="0 0 1080 1920"><g id="ring"></g></svg>
+        <div id="dlabel" data-layout-allow-overflow><span class="in"></span></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        target: { name: "Mount Chiliad", at: [430, 700] },          // the destination (frame px at scale 1)
+        start: [600, 1291],                                          // blue flag: where the route starts
+        route: [[600,1291],[586,1214],[530,1152],[470,1086],[512,1022],[560,976],[506,930],[452,890],[500,840],[530,792],[470,752],[430,700]],
+        cyan: [[110,1404],[350,1462],[560,1404],[598,1316]],         // cubic bezier: tail -> tip
+        red: { tip: [552, 684], angleDeg: 166, length: 330 },
+        places: [
+          { t: "Paleto Bay", at: [440, 300] }, { t: "Grapeseed", at: [760, 760] }, { t: "Cassidy Creek", at: [292, 1196] },
+          { t: "Sandy Shores", at: [700, 1425] }, { t: "Alamo Sea", at: [760, 1180], water: true }
+        ],
+        colors: { cyan: "#2ED8F0", red: "#E8302A", navy: "#1B2B6E", flag: "#2F6BFF" },
+        timing: { open: 0.0, labels: 0.18, flag: 0.36, beads: 0.62, beadStep: 0.066, cyan: 1.66, cyanDur: 0.62, red: 2.36, ring: 2.58,
+          lock: 2.76, push: 3.5, pushEnd: 4.6, port: 4.35, portDur: 0.46, end: 5.67 },
+        porthole: { center: [504, 900], radius: 418 }                // the window the ring opens to (frame px); ring + rim stay inside x 72-936
+      };
+
+      (function () {
+        const W = 1080, H = 1920, K = 2, T = CONFIG.timing, $ = (s) => document.querySelector(s);
+        const NS = "http://www.w3.org/2000/svg";
+        const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), lerp = (a, b, k) => a + (b - a) * k;
+        const sstep = (a, b, x) => { const k = clamp((x - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
+        function hash2(i, j) { let n = (Math.imul(i, 374761393) + Math.imul(j, 668265263)) | 0;
+          n = Math.imul(n ^ (n >>> 13), 1274126177); n = n ^ (n >>> 16); return (n >>> 0) / 4294967296; }
+        function vnoise(x, z) { const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j;
+          const u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz);
+          const a = hash2(i, j), b = hash2(i + 1, j), c = hash2(i, j + 1), d = hash2(i + 1, j + 1);
+          return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; }
+        // each octave is rotated ~37 deg and offset, so the value-noise lattice never lines up into square "pixel" bumps
+        const RC = Math.cos(0.6458), RS = Math.sin(0.6458), R0C = Math.cos(0.38), R0S = Math.sin(0.38);
+        function fbm(x, z) { let s = 0, a = 0.5, X = R0C * x - R0S * z, Z = R0S * x + R0C * z;
+          for (let o = 0; o < 5; o++) { s += a * vnoise(X, Z); const nx = (RC * X - RS * Z) * 2.03 + 17.3, nz = (RS * X + RC * Z) * 2.03 + 5.1; X = nx; Z = nz; a *= 0.5; } return s; }
+        function ridged(x, z) { let s = 0, a = 0.55, X = R0C * x - R0S * z, Z = R0S * x + R0C * z;
+          for (let o = 0; o < 5; o++) { const n = 1 - Math.abs(vnoise(X, Z) * 2 - 1); s += a * n * n; const nx = (RC * X - RS * Z) * 2.07 + 9.7, nz = (RS * X + RC * Z) * 2.07 + 13.3; X = nx; Z = nz; a *= 0.5; } return s; }
+        function catmull(pts, closed, per) { const out = [], n = pts.length; const P = (i) => closed ? pts[(i + n) % n] : pts[clamp(i, 0, n - 1)];
+          const segs = closed ? n : n - 1;
+          for (let i = 0; i < segs; i++) { const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2);
+            for (let k = 0; k < per; k++) { const t = k / per, t2 = t * t, t3 = t2 * t;
+              out.push([0, 1].map((c) => 0.5 * ((2 * p1[c]) + (-p0[c] + p2[c]) * t + (2 * p0[c] - 5 * p1[c] + 4 * p2[c] - p3[c]) * t2 + (-p0[c] + 3 * p1[c] - 3 * p2[c] + p3[c]) * t3))); } }
+          if (!closed) out.push(pts[n - 1].slice()); return out; }
+        function arcLen(pl) { const cum = [0]; for (let i = 1; i < pl.length; i++) cum.push(cum[i - 1] + Math.hypot(pl[i][0] - pl[i - 1][0], pl[i][1] - pl[i - 1][1])); return cum; }
+        function at(pl, cum, s) { s = clamp(s, 0, cum[cum.length - 1]); let i = 1; while (i < cum.length - 1 && cum[i] < s) i++;
+          const k = (s - cum[i - 1]) / ((cum[i] - cum[i - 1]) || 1); return [lerp(pl[i - 1][0], pl[i][0], k), lerp(pl[i - 1][1], pl[i][1], k), i]; }
+        const el = (tag, attrs, parent) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (parent) parent.appendChild(n); return n; };
+        const dpath = (pl) => pl.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join("");
+
+        // ---------- geography (our own drawing) ----------
+        const coastCtl = [[560,-60],[480,70],[400,122],[336,150],[286,232],[226,262],[196,342],[150,420],[138,520],[110,640],[130,760],[92,880],
+          [70,1000],[108,1080],[80,1180],[60,1300],[92,1420],[60,1560],[40,1700],[60,1990]];
+        let coast = catmull(coastCtl, false, 10).map((p, i) => [p[0] + (vnoise(i * 0.21, 1.7) - 0.5) * 22 + (vnoise(i * 0.8, 4.2) - 0.5) * 7, p[1]]);
+        const land = coast.concat([[1200, 1990], [1200, -60]]);
+        const lakeCtl = []; for (let a = 0; a < 20; a++) { const t = a / 20 * Math.PI * 2, w = 0.84 + 0.26 * vnoise(a * 0.7, 9.1);
+          lakeCtl.push([840 + Math.cos(t) * 320 * w, 1168 + Math.sin(t) * 118 * w * (Math.cos(t) < -0.5 ? 0.8 : 1)]); }
+        const lake = catmull(lakeCtl, true, 8);
+        const river = catmull([[536,1176],[470,1150],[400,1170],[330,1140],[262,1170],[200,1120],[140,1104],[96,1090]], false, 8);
+        const islets = [[190,175,26,16],[232,128,14,10],[52,820,18,26]];
+        const inPoly = (pl, x, y) => { let c = false; for (let i = 0, j = pl.length - 1; i < pl.length; j = i++) { const a = pl[i], b = pl[j];
+          if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+        const TG = CONFIG.target.at;
+        // drainage: 8 gullies that start below the summit, wander downhill and pick up tributaries. They are drawn as
+        // tapered strokes into a small mask canvas (blurred into a soft V), then carved out of the height field.
+        const GS = 2, GW = W / GS + 1, GH = H / GS + 1;
+        const vm = document.createElement("canvas"); vm.width = GW; vm.height = GH; const vx = vm.getContext("2d");
+        vx.lineCap = "round"; vx.strokeStyle = "#fff";
+        function gully(x, y, hd, len, w0, w1, dep, seed, depth) {
+          let px = x, py = y, s = 0; const steps = Math.ceil(len / 10);
+          for (let k = 1; k <= steps; k++) { const u = k / steps;
+            const out = Math.atan2(py - TG[1], px - TG[0]); let d = out - hd; d = Math.atan2(Math.sin(d), Math.cos(d));
+            hd += (vnoise(k * 0.23 + seed * 3.1, seed * 1.7) - 0.5) * 0.55 + d * 0.12;
+            const nx = px + Math.cos(hd) * 10, ny = py + Math.sin(hd) * 10;
+            vx.globalAlpha = dep * sstep(0, 0.22, u) * (1 - 0.45 * sstep(0.7, 1, u)); vx.lineWidth = lerp(w0, w1, u) / GS;
+            vx.beginPath(); vx.moveTo(px / GS, py / GS); vx.lineTo(nx / GS, ny / GS); vx.stroke();
+            if (depth === 0 && (k === Math.round(steps * (0.38 + 0.1 * hash2(seed, 3))) || k === Math.round(steps * (0.62 + 0.12 * hash2(seed, 4)))))
+              gully(nx, ny, hd + (hash2(seed, k) > 0.5 ? 1 : -1) * (0.55 + 0.35 * hash2(k, seed)), len * (0.3 + 0.2 * hash2(seed + k, 9)), 4, 10, dep * 0.75, seed * 7 + k, 1);
+            px = nx; py = ny; } }
+        for (let g = 0; g < 8; g++) { const th = g * Math.PI / 4 + 0.3 + (hash2(g, 71) - 0.5) * 0.6, r0 = 46 + 62 * hash2(g, 13);
+          gully(TG[0] + Math.cos(th) * r0, TG[1] + Math.sin(th) * r0 / 1.1, th, 210 + 170 * hash2(g, 5), 4, 15 + 7 * hash2(g, 2), 0.7 + 0.3 * hash2(g, 8), g + 1, 0); }
+        const vm2 = document.createElement("canvas"); vm2.width = GW; vm2.height = GH; const vx2 = vm2.getContext("2d");
+        vx2.filter = "blur(2.5px)"; vx2.drawImage(vm, 0, 0); const VM = vx2.getImageData(0, 0, GW, GH).data;
+        const valley = (x, y) => { const i = clamp(Math.round(x / GS), 0, GW - 1), j = clamp(Math.round(y / GS), 0, GH - 1); return VM[(j * GW + i) * 4 + 3] / 255; };
+        function height(x0, y0) {
+          // domain warp at 0.35x the base frequency (~40 px), so ridges meander instead of following the noise grid
+          const x = x0 + (fbm(x0 / 271 + 3.1, y0 / 271 + 8.7) - 0.48) * 84, y = y0 + (fbm(x0 / 271 + 12.4, y0 / 271 + 1.9) - 0.48) * 84;
+          const dm = Math.hypot(x - TG[0], (y - TG[1]) * 1.1) / 330;
+          let h = Math.exp(-dm * dm * 2.1) * (0.95 + 0.55 * ridged(x / 95 + 2.1, y / 95 + 5.3));
+          const d2 = Math.hypot(x - 690, y - 420) / 230; if (d2 < 2.4) h += Math.exp(-d2 * d2 * 2.0) * 0.5 * (0.3 + ridged(x / 85 + 7, y / 85 + 1));
+          const d3 = Math.hypot(x - 1000, y - 600) / 210; if (d3 < 2.4) h += Math.exp(-d3 * d3 * 2.0) * 0.36 * (0.3 + ridged(x / 80 + 3, y / 80 + 9));
+          const d4 = Math.hypot(x - 430, y - 1650) / 280; if (d4 < 2.4) h += Math.exp(-d4 * d4 * 1.8) * 0.3 * (0.3 + ridged(x / 90 + 5, y / 90 + 2));
+          h += 0.045 * fbm(x / 60, y / 60);
+          h *= 1 - 0.25 * valley(x0, y0);
+          const ld = Math.hypot((x0 - 840) / 360, (y0 - 1168) / 160); h *= sstep(0.85, 1.5, ld) * 0.85 + 0.15;
+          return h;
+        }
+
+        // ---------- the map canvas (2x) ----------
+        const cv = $("#map"), c = cv.getContext("2d");
+        const P = (pl, closed) => { c.beginPath(); pl.forEach((p, i) => i ? c.lineTo(p[0] * K, p[1] * K) : c.moveTo(p[0] * K, p[1] * K)); if (closed) c.closePath(); };
+        const stroke = (pl, w, col, dash) => { P(pl); c.lineWidth = w * K; c.strokeStyle = col; c.lineCap = "round"; c.lineJoin = "round"; c.setLineDash(dash ? dash.map((d) => d * K) : []); c.stroke(); c.setLineDash([]); };
+        // sea
+        const sg = c.createLinearGradient(0, 0, 600 * K, 0); sg.addColorStop(0, "#4C948E"); sg.addColorStop(1, "#5FA8A0");
+        c.fillStyle = sg; c.fillRect(0, 0, W * K, H * K);
+        P(coast); c.lineJoin = "round"; c.strokeStyle = "#6CB3A9"; c.lineWidth = 46 * K; c.stroke(); c.strokeStyle = "#7DBFB3"; c.lineWidth = 20 * K; c.stroke();
+        // terrain image (grid at 4 px, shaded relief lit from the north-west)
+        const HG = new Float32Array(GW * GH);
+        for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) HG[j * GW + i] = height(i * GS, j * GS);
+        const tc = document.createElement("canvas"); tc.width = GW; tc.height = GH; const tx = tc.getContext("2d"), im = tx.createImageData(GW, GH);
+        const ramp = [[0, [228, 194, 136]], [0.1, [224, 184, 120]], [0.3, [217, 168, 102]], [0.6, [203, 150, 84]], [0.95, [184, 130, 70]], [1.5, [160, 112, 60]]];
+        const colAt = (h) => { for (let i = 1; i < ramp.length; i++) if (h <= ramp[i][0] || i === ramp.length - 1) { const k = clamp((h - ramp[i - 1][0]) / (ramp[i][0] - ramp[i - 1][0]), 0, 1);
+          return ramp[i - 1][1].map((v, q) => lerp(v, ramp[i][1][q], k)); } };
+        const SL = [];
+        for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) {
+          const k = j * GW + i, h = HG[k];
+          const hx = (HG[j * GW + Math.min(GW - 1, i + 1)] - HG[j * GW + Math.max(0, i - 1)]) / (2 * GS), hy = (HG[Math.min(GH - 1, j + 1) * GW + i] - HG[Math.max(0, j - 1) * GW + i]) / (2 * GS);
+          const nx = -hx * 150, ny = -hy * 150, nz = 1, nl = Math.hypot(nx, ny, nz);
+          const lit = (nx * -0.62 + ny * -0.62 + nz * 0.48) / nl; const sh = clamp(0.9 + 0.34 * (lit - 0.48) / 0.52, 0.66, 1.1);
+          const cc = colAt(h); im.data[k * 4] = clamp(cc[0] * sh, 0, 255); im.data[k * 4 + 1] = clamp(cc[1] * sh, 0, 255); im.data[k * 4 + 2] = clamp(cc[2] * sh * 0.98, 0, 255); im.data[k * 4 + 3] = 255;
+          SL[k] = [Math.hypot(hx, hy), hx, hy];
+        }
+        tx.putImageData(im, 0, 0);
+        c.save(); P(land, true); c.clip();
+        c.imageSmoothingEnabled = true; c.imageSmoothingQuality = "high"; c.drawImage(tc, 0, 0, GW, GH, 0, 0, GW * GS * K, GH * GS * K);
+        // hachures: short strokes down the fall line, density by slope (the dark terrain texture of a paper game map)
+        c.lineCap = "round";
+        for (let y = 6; y < H; y += 7) for (let x = 6; x < W; x += 7) {
+          const jx = x + (hash2(x, y) - 0.5) * 6, jy = y + (hash2(y, x) - 0.5) * 6;
+          const i = Math.round(jx / GS), j = Math.round(jy / GS); if (i < 0 || j < 0 || i >= GW || j >= GH) continue;
+          const s = SL[j * GW + i]; const sl = s[0] * 120; if (sl < 0.9) continue;
+          if (hash2(x * 3 + 1, y * 7 + 2) > clamp((sl - 0.9) * 0.4, 0, 0.7)) continue;
+          if (Math.hypot((jx - 840) / 330, (jy - 1168) / 128) < 1.02) continue;
+          const len = clamp(4 + sl * 2.2, 5, 15), dx = -s[1] / (s[0] || 1), dy = -s[2] / (s[0] || 1);
+          const lit = (-s[1] * -0.7 + -s[2] * -0.7) > 0;
+          c.strokeStyle = lit ? "rgba(255,238,204,.18)" : "rgba(84,56,26," + clamp(0.14 + sl * 0.05, 0.16, 0.42).toFixed(3) + ")";
+          c.lineWidth = (lit ? 1.1 : 1.5) * K; c.beginPath(); c.moveTo((jx - dx * len / 2) * K, (jy - dy * len / 2) * K); c.lineTo((jx + dx * len / 2) * K, (jy + dy * len / 2) * K); c.stroke();
+        }
+        // contour lines (marching squares on the height grid)
+        [0.22, 0.42, 0.62, 0.82, 1.02, 1.22].forEach((lv, li) => {
+          c.strokeStyle = li % 2 ? "rgba(96,64,30,.22)" : "rgba(96,64,30,.36)"; c.lineWidth = (li % 2 ? 1.0 : 1.4) * K; c.beginPath();
+          for (let j = 0; j < GH - 1; j++) for (let i = 0; i < GW - 1; i++) {
+            const a = HG[j * GW + i], b = HG[j * GW + i + 1], d = HG[(j + 1) * GW + i], e = HG[(j + 1) * GW + i + 1];
+            const code = (a > lv ? 8 : 0) | (b > lv ? 4 : 0) | (e > lv ? 2 : 0) | (d > lv ? 1 : 0); if (code === 0 || code === 15) continue;
+            const x0 = i * GS, y0 = j * GS, f = (p, q) => (lv - p) / ((q - p) || 1e-6);
+            const top = [x0 + f(a, b) * GS, y0], rgt = [x0 + GS, y0 + f(b, e) * GS], bot = [x0 + f(d, e) * GS, y0 + GS], lft = [x0, y0 + f(a, d) * GS];
+            const segs = { 1: [lft, bot], 2: [bot, rgt], 3: [lft, rgt], 4: [top, rgt], 5: [lft, top, bot, rgt], 6: [top, bot], 7: [lft, top], 8: [lft, top], 9: [top, bot], 10: [lft, bot, top, rgt], 11: [top, rgt], 12: [lft, rgt], 13: [bot, rgt], 14: [lft, bot] }[code];
+            for (let q = 0; q < segs.length; q += 2) { c.moveTo(segs[q][0] * K, segs[q][1] * K); c.lineTo(segs[q + 1][0] * K, segs[q + 1][1] * K); }
+          }
+          c.stroke(); });
+        // forest stipple on the mid slopes of the mountain
+        for (let n = 0; n < 5200; n++) { const x = hash2(n, 77) * W, y = hash2(n, 191) * H; const i = Math.round(x / GS), j = Math.round(y / GS);
+          const h = HG[j * GW + i]; if (h < 0.28 || h > 0.9) continue; if (vnoise(x / 60, y / 60) < 0.58) continue;
+          c.fillStyle = "rgba(92,88,44," + (0.35 + 0.3 * hash2(n, 5)).toFixed(3) + ")"; c.beginPath(); c.arc(x * K, y * K, (1.3 + 1.4 * hash2(n, 9)) * K, 0, Math.PI * 2); c.fill(); }
+        // beach rim
+        P(coast); c.strokeStyle = "rgba(240,214,160,.9)"; c.lineWidth = 9 * K; c.stroke();
+        // lake + creek
+        P(lake, true); c.fillStyle = "#5FA8A0"; c.fill(); c.save(); P(lake, true); c.clip();
+        c.strokeStyle = "#7DBFB3"; c.lineWidth = 26 * K; c.stroke(); c.strokeStyle = "#6CB3A9"; c.lineWidth = 12 * K; P(lake, true); c.stroke(); c.restore();
+        P(lake, true); c.strokeStyle = "rgba(48,96,90,.75)"; c.lineWidth = 2.2 * K; c.stroke();
+        stroke(river, 12, "#6CB3A9"); stroke(river, 6, "#5FA8A0");
+        // towns: block grids
+        const town = (cx, cy, w, h, ang, sp, seed) => { c.save(); c.translate(cx * K, cy * K); c.rotate(ang);
+          for (let x = -w / 2; x < w / 2; x += sp) for (let y = -h / 2; y < h / 2; y += sp) { if (hash2(seed + Math.round(x), Math.round(y)) < 0.28) continue;
+            const r = hash2(Math.round(x) * 3, seed + Math.round(y)); c.fillStyle = r > 0.5 ? "rgba(120,84,46,.62)" : "rgba(140,100,58,.5)";
+            c.fillRect(x * K, y * K, sp * 0.62 * K, sp * 0.62 * K); } c.restore(); };
+        town(800, 1398, 230, 62, -0.05, 14, 11); town(470, 200, 140, 70, 0.5, 13, 23); town(905, 840, 110, 60, 0.1, 13, 37);
+        // airstrip
+        c.save(); c.translate(1010 * K, 1488 * K); c.rotate(-0.16); c.fillStyle = "#BCA27F"; c.fillRect(-120 * K, -9 * K, 240 * K, 18 * K);
+        c.strokeStyle = "rgba(255,248,230,.85)"; c.lineWidth = 1.6 * K; c.setLineDash([9 * K, 7 * K]); c.beginPath(); c.moveTo(-112 * K, 0); c.lineTo(112 * K, 0); c.stroke(); c.setLineDash([]); c.restore();
+        // roads
+        const S = (pl) => catmull(pl, false, 10);
+        const HWY = [S([[560,-20],[500,110],[390,200],[300,300],[240,420],[210,560],[200,700],[190,840],[160,980],[170,1090],[150,1250],[160,1450],[130,1700],[120,1990]]),
+          S([[150,1250],[330,1290],[520,1300],[640,1262],[760,1330],[880,1360],[1120,1352]])];
+        const RDS = [S([[520,1300],[540,1180],[560,1080],[700,1012],[850,980],[1000,940],[1120,930]]), S([[1000,940],[980,800],[1010,650],[1120,560]]),
+          S([[850,980],[800,800],[760,600],[700,400],[640,200],[620,-20]]), S([[160,1450],[330,1560],[520,1640],[700,1700],[1120,1720]]),
+          S([[210,560],[300,560],[380,520],[470,480],[560,500]])];
+        HWY.forEach((r) => stroke(r, 9, "rgba(248,234,204,.9)")); HWY.forEach((r) => stroke(r, 3.6, "#33271A"));
+        RDS.forEach((r) => stroke(r, 6, "rgba(248,234,204,.7)")); RDS.forEach((r) => stroke(r, 2.2, "#45352A"));
+        const trail = catmull(CONFIG.route, false, 12); stroke(trail, 1.8, "rgba(60,42,24,.85)", [5, 5]);
+        c.restore();
+        // islets
+        islets.forEach((r) => { c.beginPath(); c.ellipse(r[0] * K, r[1] * K, r[2] * K, r[3] * K, 0.4, 0, Math.PI * 2); c.fillStyle = "#D6AC70"; c.fill();
+          c.strokeStyle = "rgba(48,96,90,.7)"; c.lineWidth = 1.6 * K; c.stroke(); });
+        P(coast); c.strokeStyle = "rgba(48,96,90,.8)"; c.lineWidth = 2.2 * K; c.stroke();
+        // paper grain (deterministic noise tile, overlay)
+        const gt = document.createElement("canvas"); gt.width = gt.height = 256; const gx = gt.getContext("2d"), gd = gx.createImageData(256, 256);
+        for (let i = 0; i < 256 * 256; i++) { const v = 128 + (hash2(i, 4242) - 0.5) * 120 + (vnoise((i % 256) / 3, Math.floor(i / 256) / 41) - 0.5) * 60;
+          gd.data[i * 4] = gd.data[i * 4 + 1] = gd.data[i * 4 + 2] = clamp(v, 0, 255); gd.data[i * 4 + 3] = 255; }
+        gx.putImageData(gd, 0, 0);
+        c.save(); c.globalCompositeOperation = "overlay"; c.globalAlpha = 0.16; c.fillStyle = c.createPattern(gt, "repeat"); c.fillRect(0, 0, W * K, H * K); c.restore();
+        // printed-map edge falloff
+        const vg = c.createRadialGradient(W * K / 2, H * K * 0.45, H * K * 0.3, W * K / 2, H * K * 0.45, H * K * 0.75);
+        vg.addColorStop(0, "rgba(60,36,12,0)"); vg.addColorStop(1, "rgba(60,36,12,.22)"); c.fillStyle = vg; c.fillRect(0, 0, W * K, H * K);
+
+        // ---------- place labels (DOM, sharp) ----------
+        const labHost = $("#labels"), placeEls = [];
+        CONFIG.places.forEach((p) => { const d = document.createElement("div"); d.className = "ml" + (p.water ? " water" : ""); d.textContent = p.t;
+          d.style.left = p.at[0] + "px"; d.style.top = p.at[1] + "px"; labHost.appendChild(d); placeEls.push(d); });
+
+        // ---------- overlay SVG: bead route, flag, cyan arrow, red arrow ----------
+        const routePl = catmull(CONFIG.route, false, 14), rcum = arcLen(routePl), RL = rcum[rcum.length - 1];
+        const NB = Math.round(RL / 34), beads = [];
+        const gR = $("#route"), gRS = $("#routeShadow");
+        const casing = el("path", { d: dpath(routePl), fill: "none", stroke: "#F7EBD0", "stroke-width": 16, "stroke-linecap": "round", "stroke-linejoin": "round" }, gR);
+        const line = el("path", { d: dpath(routePl), fill: "none", stroke: CONFIG.colors.navy, "stroke-width": 9, "stroke-linecap": "round", "stroke-linejoin": "round" }, gR);
+        const lineSh = el("path", { d: dpath(routePl), fill: "none", stroke: "#20140A", "stroke-width": 14, "stroke-linecap": "round", "stroke-linejoin": "round" }, gRS);
+        [casing, line, lineSh].forEach((p) => { p.setAttribute("stroke-dasharray", RL + " " + (RL + 10)); p.setAttribute("stroke-dashoffset", RL); });
+        for (let i = 0; i <= NB; i++) { const p = at(routePl, rcum, RL * i / NB);
+          const sh = el("circle", { cx: p[0], cy: p[1], r: 12, fill: "#20140A" }, gRS);
+          const g = el("g", { transform: "translate(" + p[0].toFixed(1) + "," + p[1].toFixed(1) + ")" }, gR);
+          const inner = el("g", {}, g); el("circle", { r: 12.5, fill: "url(#beadg)", stroke: CONFIG.colors.navy, "stroke-width": 4 }, inner);
+          el("circle", { r: 3.2, cx: -3.6, cy: -4.2, fill: "#fff", opacity: 0.95 }, inner);
+          beads.push({ inner, sh, s: RL * i / NB }); }
+        // start flag
+        const fl = $("#flag"), S0 = CONFIG.start;
+        const flagG = el("g", { transform: "translate(" + (S0[0] - 22) + "," + (S0[1] + 2) + ")" }, fl);
+        const flagIn = el("g", {}, flagG);
+        el("ellipse", { cx: 8, cy: 3, rx: 22, ry: 8, fill: "rgba(32,20,10,.4)", filter: "url(#soft)" }, flagIn);
+        el("rect", { x: -3.5, y: -92, width: 7, height: 95, rx: 3.5, fill: "#1E1A16" }, flagIn);
+        const flagCloth = el("path", { d: "M-3 -92 C -22 -99, -36 -84, -62 -90 L -62 -50 C -36 -44, -22 -60, -3 -53 Z", fill: CONFIG.colors.flag, stroke: "#123A9C", "stroke-width": 2.5 }, flagIn);
+        el("path", { d: "M-6 -88 C -22 -94, -36 -80, -58 -85", fill: "none", stroke: "rgba(255,255,255,.55)", "stroke-width": 4, "stroke-linecap": "round" }, flagIn);
+        el("circle", { cx: 0, cy: -93, r: 6, fill: "#F2F2F2", stroke: "#1E1A16", "stroke-width": 2 }, flagIn);
+
+        // cyan arrow: tapered body + head riding the tip, glow + specular core + shadow
+        const cb = CONFIG.cyan; const bez = (t) => { const u = 1 - t; return [0, 1].map((q) => u * u * u * cb[0][q] + 3 * u * u * t * cb[1][q] + 3 * u * t * t * cb[2][q] + t * t * t * cb[3][q]); };
+        const cpl = []; for (let i = 0; i <= 120; i++) cpl.push(bez(i / 120)); const ccum = arcLen(cpl), CL = ccum[ccum.length - 1];
+        const ca = $("#cyanArrow");
+        const cSh = el("path", { fill: "#1E1408", opacity: 0.38, filter: "url(#soft)", transform: "translate(7,12)" }, ca);
+        const cGlow = el("path", { fill: CONFIG.colors.cyan, opacity: 0.75, filter: "url(#glow)" }, ca);
+        const cBody = el("path", { fill: "url(#cyang)", stroke: "#0E8FB0", "stroke-width": 2.2, "stroke-linejoin": "round" }, ca);
+        const cCore = el("path", { fill: "none", stroke: "#F2FDFF", "stroke-width": 6, "stroke-linecap": "round", opacity: 0.85 }, ca);
+        function cyanShape(p) {
+          const sEnd = Math.max(1, CL * p), HEADL = 92, HEADW = 118, sNeck = Math.max(0, sEnd - HEADL), N = 48, L = [], R = [], core = [];
+          for (let i = 0; i <= N; i++) { const s = sNeck * i / N, a = at(cpl, ccum, s), b = at(cpl, ccum, Math.min(CL, s + 2));
+            let tx = b[0] - a[0], ty = b[1] - a[1]; const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+            const w = lerp(16, 50, Math.pow(s / Math.max(1, CL - HEADL), 0.8)) * (0.65 + 0.35 * sstep(0, 0.25, p)) / 2;
+            L.push([a[0] - ty * w, a[1] + tx * w]); R.push([a[0] + ty * w, a[1] - tx * w]); if (i > 2 && i < N - 1) core.push([a[0] - ty * w * 0.25, a[1] + tx * w * 0.25]); }
+          const tip = at(cpl, ccum, sEnd), nk = at(cpl, ccum, sNeck), bb = at(cpl, ccum, Math.max(0, sNeck - 2));
+          let tx = tip[0] - nk[0], ty = tip[1] - nk[1]; const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+          if (sNeck <= 0) { tx = cb[1][0] - cb[0][0]; ty = cb[1][1] - cb[0][1]; const q = Math.hypot(tx, ty); tx /= q; ty /= q; }
+          const hw = HEADW / 2 * (0.6 + 0.4 * sstep(0, 0.3, p));
+          const hl = [nk[0] - ty * hw, nk[1] + tx * hw], hr = [nk[0] + ty * hw, nk[1] - tx * hw], tp = [nk[0] + tx * HEADL, nk[1] + ty * HEADL];
+          const poly = L.concat([hl, tp, hr], R.reverse());
+          return { d: dpath(poly) + "Z", core: core.length > 1 ? dpath(core) : "M0 0" };
+        }
+        function setCyan(p) { const vis = p > 0.001; ca.style.visibility = vis ? "visible" : "hidden"; if (!vis) return; const s = cyanShape(p);
+          cSh.setAttribute("d", s.d); cGlow.setAttribute("d", s.d); cBody.setAttribute("d", s.d); cCore.setAttribute("d", s.core); }
+
+        // red block arrow (local +x points at the target; tip at origin)
+        const RA = CONFIG.red, ra = $("#redArrow");
+        const redPos = el("g", { transform: "translate(" + RA.tip[0] + "," + RA.tip[1] + ") rotate(" + RA.angleDeg + ")" }, ra);
+        const redSlide = el("g", {}, redPos); const redSq = el("g", {}, redSlide);
+        const Lr = RA.length, bodyH = 27, headH = 64, headL = 128;
+        const rpoly = [[-Lr, -bodyH], [-headL, -bodyH], [-headL, -headH], [0, 0], [-headL, headH], [-headL, bodyH], [-Lr, bodyH]];
+        const rd = dpath(rpoly) + "Z";
+        el("path", { d: rd, fill: "#1E1408", opacity: 0.42, filter: "url(#soft)", transform: "translate(9,13)" }, redSq);
+        el("path", { d: rd, fill: "url(#redg)", stroke: "#8E1410", "stroke-width": 3, "stroke-linejoin": "round" }, redSq);
+        el("path", { d: "M" + (-Lr + 6) + " " + (-bodyH + 5) + "L" + (-headL - 2) + " " + (-bodyH + 5) + "M" + (-headL + 5) + " " + (-headH + 12) + "L-14 -4", fill: "none", stroke: "rgba(255,214,200,.75)", "stroke-width": 3.5, "stroke-linecap": "round" }, redSq);
+        $("#redclipPath").setAttribute("d", rd);
+        const sheenClip = el("g", { "clip-path": "url(#redclip)" }, redSq);
+        const sheenR = el("rect", { x: -60, y: -80, width: 70, height: 160, fill: "url(#sheen)" }, sheenClip);
+
+        // destination: ring lock-on + label (screen-fixed on the target)
+        const rg = $("#ring");
+        const ringG = el("g", { transform: "translate(" + TG[0] + "," + TG[1] + ")" }, rg);
+        const ripple = el("circle", { r: 86, fill: "none", stroke: "#FFFFFF", "stroke-width": 5, opacity: 0 }, ringG);
+        const ripple2 = el("circle", { r: 86, fill: "none", stroke: CONFIG.colors.red, "stroke-width": 4, opacity: 0 }, ringG);
+        const ringIn = el("g", {}, ringG);
+        // the ring is a lit bevelled band: drop shadow, white rim, red band with a top-left to bottom-right gradient, a specular arc
+        const rShadow = el("circle", { r: 86, fill: "none", stroke: "rgba(26,16,6,.5)", "stroke-width": 24, filter: "url(#soft)", transform: "translate(4,8)" }, ringIn);
+        const rWhite = el("circle", { r: 86, fill: "none", stroke: "#FFFFFF", "stroke-width": 24 }, ringIn);
+        const rRed = el("circle", { r: 86, fill: "none", stroke: "url(#ringg)", "stroke-width": 15 }, ringIn);
+        const rSpec = el("circle", { r: 88, fill: "none", stroke: "#FFFFFF", "stroke-width": 3.5, "stroke-linecap": "round", opacity: 0.9, "stroke-dasharray": "90 450", transform: "rotate(-150)" }, ringIn);
+        const rEdge = el("circle", { r: 98, fill: "none", stroke: "rgba(90,20,12,.55)", "stroke-width": 1.6 }, ringIn);
+        const rDot = el("circle", { r: 9, fill: CONFIG.colors.red, stroke: "#fff", "stroke-width": 4, opacity: 1 }, ringIn);
+        const dl = $("#dlabel"); dl.querySelector(".in").textContent = CONFIG.target.name;
+        dl.style.left = "504px"; dl.style.top = (TG[1] - 116) + "px";   // centred on the safe column (72-936), so even the slam frame fits
+        gsap.set(dl.querySelector(".in"), { xPercent: -50, yPercent: -100 });
+        // the push centres on the target; the slow drift centres low in the frame so edge labels move least
+        const DO = [520, 1040];
+        gsap.set("#mapgrp", { transformOrigin: TG[0] + "px " + TG[1] + "px" });
+        gsap.set(["#mapdrift", "#ovsvg"], { transformOrigin: DO[0] + "px " + DO[1] + "px" });
+        const port = $("#port"), pshade = $("#portshade"), pvs = [$("#pv1")], mapshake = $("#mapshake"), ringsvg = $("#ringsvg");
+
+        // ---------- timeline ----------
+        Promise.all(["700 34px Archivo", "600 38px Archivo", "900 80px Archivo"].map((f) => document.fonts.load(f)))
+          .then(() => document.fonts.ready).then(() => {
+          const tl = gsap.timeline({ paused: true });
+          // map opens: fast settle (scale + blur), slow drift continues
+          tl.fromTo("#mapgrp", { scale: 1.16, rotation: -1.2, filter: "blur(12px)" }, { scale: 1.0, rotation: 0, filter: "blur(0px)", duration: 0.62, ease: "expo.out", immediateRender: true }, T.open);
+          tl.set("#mapgrp", { filter: "none" }, T.open + 0.63);
+          // the map never freezes: a slow 1.00 -> 1.04 drift with a 12 px rise; the overlay rides 1.25x that (1.05, 15 px)
+          // for parallax. ovsvg sits inside the map drift, so its own extra is 1.05/1.04 and -15+12 (divided by 1.04).
+          const DRIFT = T.push + 0.4, SM = 1.04, SO = 1.05, DX = (TG[0] - DO[0]) * (SO - 1), DY = (TG[1] - DO[1]) * (SO - 1) - 15;
+          tl.fromTo("#mapdrift", { scale: 1, y: 0 }, { scale: SM, y: -12, duration: DRIFT, ease: "sine.inOut", immediateRender: true }, 0);
+          tl.fromTo("#ovsvg", { scale: 1, y: 0 }, { scale: SO / SM, y: -3 / SM, duration: DRIFT, ease: "sine.inOut", immediateRender: true }, 0);
+          tl.fromTo("#dest", { x: 0, y: 0 }, { x: DX, y: DY, duration: DRIFT, ease: "sine.inOut", immediateRender: true }, 0);
+          // place names arrive with a spring; opacity is fully on within 2 frames (lesson 23: no ghost frames)
+          gsap.set(placeEls, { opacity: 0 });
+          placeEls.forEach((e, i) => { tl.set(e, { opacity: 1 }, T.labels + i * 0.06);
+            tl.fromTo(e, { y: 18, scale: 0.55 }, { y: 0, scale: 1, duration: 0.5, ease: "back.out(2.6)", immediateRender: true }, T.labels + i * 0.06); });
+          // start flag plants
+          tl.fromTo(flagIn, { scale: 0, transformOrigin: "0px 0px" }, { scale: 1, duration: 0.5, ease: "back.out(2.6)", immediateRender: true }, T.flag);
+          tl.fromTo(flagCloth, { skewY: 14, transformOrigin: "-3px -72px" }, { skewY: 0, duration: 0.9, ease: "elastic.out(1,0.35)", immediateRender: true }, T.flag + 0.1);
+          // beads step on, the line follows bead to bead
+          const lineEls = [casing, line, lineSh];
+          beads.forEach((b, i) => { const t0 = T.beads + i * T.beadStep;
+            tl.fromTo(b.inner, { scale: 0, transformOrigin: "0px 0px" }, { scale: 1, duration: 0.3, ease: "back.out(3.4)", immediateRender: true }, t0);
+            tl.fromTo(b.sh, { opacity: 0 }, { opacity: 1, duration: 0.2, immediateRender: true }, t0 + 0.04); });
+          const beadEnd = T.beads + NB * T.beadStep;
+          tl.fromTo(lineEls, { attr: { "stroke-dashoffset": RL } }, { attr: { "stroke-dashoffset": 0 }, duration: beadEnd - T.beads, ease: "none", immediateRender: true }, T.beads);
+          // cyan arrow sweeps in
+          const ce = gsap.parseEase("power3.out");
+          Look.drive(tl, T.cyan, T.cyanDur, (p) => setCyan(ce(p)));
+          tl.fromTo(cGlow, { opacity: 0.95 }, { opacity: 0.55, duration: 0.6, ease: "power2.out", immediateRender: true }, T.cyan + T.cyanDur);
+          // red arrow slams in along its axis, squashes on contact, sheen sweeps
+          // fully opaque the whole way: it starts off-frame (tip at x > 1150) and slams in, so no see-through frames (lesson 23)
+          tl.fromTo(redSlide, { x: -660 }, { x: 0, duration: 0.24, ease: "power2.in", immediateRender: true }, T.red - 0.24);
+          tl.fromTo(redSq, { scaleX: 0.84, scaleY: 1.14, transformOrigin: "0px 0px" }, { scaleX: 1, scaleY: 1, duration: 0.42, ease: "elastic.out(1.2,0.4)", immediateRender: true }, T.red);
+          tl.fromTo(sheenR, { x: -Lr - 40 }, { x: 60, duration: 0.55, ease: "power2.inOut", immediateRender: true }, T.red + 0.06);
+          Look.impact(tl, T.red, { shake: "#mapshake", amp: 7, dur: 0.26, flash: 0, zoom: 1.012 });
+          // destination ring locks on, label pops, light hit on the map
+          tl.fromTo(ringIn, { opacity: 0 }, { opacity: 1, duration: 0.06, ease: "none", immediateRender: true }, T.ring);
+          tl.fromTo(ringIn, { scale: 2.4, rotation: -40, transformOrigin: "0px 0px" }, { scale: 1, rotation: 0, duration: 0.42, ease: "back.out(1.9)", immediateRender: true }, T.ring);
+          tl.fromTo(ripple, { attr: { r: 86 }, opacity: 0.9 }, { attr: { r: 210 }, opacity: 0, duration: 0.55, ease: "power2.out", immediateRender: true }, T.ring + 0.24);
+          tl.fromTo(ripple2, { attr: { r: 86 }, opacity: 0.8 }, { attr: { r: 160 }, opacity: 0, duration: 0.5, ease: "power2.out", immediateRender: true }, T.ring + 0.34);
+          tl.set([ripple, ripple2], { opacity: 0 }, 0);
+          const lin = dl.querySelector(".in");
+          // the lock: the title slams on (opacity on in 0.05 s, scale 1.35 -> 1), an impact, and a warm summit bloom held 3 frames
+          gsap.set(lin, { opacity: 0 }); tl.set(lin, { opacity: 1 }, T.lock);   // on in a single frame: no see-through type
+          tl.fromTo(lin, { scale: 1.2, transformOrigin: "50% 100%" }, { scale: 1, duration: 0.42, ease: "back.out(2.6)", immediateRender: true }, T.lock);
+          Look.impact(tl, T.lock, { shake: "#mapshake", amp: 6, dur: 0.24, flash: 0, zoom: 1.01 });
+          gsap.set("#sbloom", { left: TG[0], top: TG[1] });
+          tl.fromTo("#sbloom", { opacity: 0, scale: 0.6 }, { opacity: 0.8, scale: 1, duration: 0.05, ease: "power2.out", immediateRender: true }, T.lock);
+          tl.to("#sbloom", { opacity: 0, scale: 1.15, duration: 0.4, ease: "power2.out" }, T.lock + 0.05 + 3 / 30);
+          // push in on the target; the other place names clear first so nothing gets cropped by the frame edge
+          tl.to("#mapgrp", { scale: 1.75, duration: T.pushEnd - T.push, ease: "power2.inOut" }, T.push);
+          tl.to(placeEls, { opacity: 0, filter: "blur(4px)", duration: 0.25, ease: "power2.in", stagger: 0.02 }, T.push);
+          // the arrows have done their job: as the window opens they pull back out of frame along their own axes, leaving title, window and route
+          tl.fromTo(redSlide, { x: 0 }, { x: -720, duration: 0.3, ease: "power3.in", immediateRender: false }, T.port);
+          tl.fromTo("#cyanArrow", { x: 0, y: 0 }, { x: -720, y: 130, duration: 0.32, ease: "power3.in", immediateRender: false }, T.port);
+          // the ring opens into an 860 px window onto the place over a graded map bed, and the piece ends on it
+          const PC = CONFIG.porthole.center, PR = CONFIG.porthole.radius;
+          const portE = gsap.parseEase("back.out(1.3)"), moveE = gsap.parseEase("power3.out");
+          Look.drive(tl, T.port, T.end - T.port, (p) => {
+            const t = T.port + p * (T.end - T.port), a = clamp((t - T.port) / T.portDur, 0, 1);
+            const ea = portE(a), ma = moveE(a), R = lerp(86, PR, ea);
+            const cx = lerp(TG[0] + DX, PC[0], ma), cy = lerp(TG[1] + DY, PC[1], ma);
+            // ring (lives in #dest, which carries the DY drift)
+            ringG.setAttribute("transform", "translate(" + (cx - DX).toFixed(1) + "," + (cy - DY).toFixed(1) + ")");
+            [rShadow, rWhite, rRed].forEach((c) => c.setAttribute("r", R.toFixed(1)));
+            rSpec.setAttribute("r", (R + 2).toFixed(1)); rSpec.setAttribute("stroke-dasharray", (90 * R / 86).toFixed(1) + " " + (450 * R / 86).toFixed(1));
+            rEdge.setAttribute("r", (R + 12).toFixed(1));
+            rDot.setAttribute("opacity", (1 - sstep(0, 0.3, a)).toFixed(3));
+            // label rides above the window
+            dl.style.left = lerp(504, PC[0] - DX, ma).toFixed(1) + "px"; dl.style.top = (cy - R - 30 - DY).toFixed(1) + "px";
+            // footage: the -h shot at <= 1.0x (0.94 -> 1.0 settle), never upscaled
+            const on = a > 0; port.style.visibility = on ? "visible" : "hidden";
+            port.style.clipPath = "circle(" + Math.max(0, R - 3).toFixed(1) + "px at " + cx.toFixed(1) + "px " + cy.toFixed(1) + "px)";
+            const vs = lerp(0.94, 1.0, ma);
+            pvs.forEach((v) => { v.style.left = (cx - 960).toFixed(1) + "px"; v.style.top = (cy - 540).toFixed(1) + "px"; v.style.transform = "scale(" + vs.toFixed(4) + ")"; });
+            // lens depth: inner shadow at the rim and a soft top-left glint
+            pshade.style.background = on ? "radial-gradient(circle " + R.toFixed(1) + "px at " + cx.toFixed(1) + "px " + cy.toFixed(1) + "px, rgba(12,8,4,0) " + (R * 0.74).toFixed(1) + "px, rgba(12,8,4,.4) " + R.toFixed(1) + "px), radial-gradient(ellipse " + (R * 0.7).toFixed(1) + "px " + (R * 0.42).toFixed(1) + "px at " + (cx - R * 0.32).toFixed(1) + "px " + (cy - R * 0.55).toFixed(1) + "px, rgba(255,255,255,.14), rgba(255,255,255,0) 70%)" : "none";
+            // graded bed (lesson 17: brightness <= .7, contrast >= 1.1, saturation >= .4)
+            mapshake.style.filter = on ? "brightness(" + lerp(1, 0.6, ma).toFixed(3) + ") contrast(" + lerp(1, 1.12, ma).toFixed(3) + ") saturate(" + lerp(1, 0.72, ma).toFixed(3) + ") blur(" + (4 * ma).toFixed(2) + "px)" : "";
+          });
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

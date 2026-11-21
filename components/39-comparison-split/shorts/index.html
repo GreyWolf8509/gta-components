@@ -1,0 +1,281 @@
+<!doctype html>
+<!-- GTA-niche 39 Comparison split, variant B "Stacked" (9:16, 1080x1920, 30 fps, 5.4 s).
+     A Shorts stacked comparison: GTA Online (top) over GTA V (bottom), hard-synced cuts, each half a -h shot at <= 1.0x.
+     The seam is real Three.js geometry: a polished chrome blade that slams down from the top carrying a thick VS coin.
+     The labels sit ON the seam: enamel badges, the winner's resting on the blade, the challenger's hanging under it.
+     Verdict on the third cut: the blade winds up, snaps back and locks, the coin flips to an arrow pointing up at the
+     winner, the blade ignites pink with a light streak, the winner half lifts and the loser half greys.
+     Exit: the blade sweeps down and the winner takes the frame. Full-kind component: footage always shows. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <script src="media/split3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #000; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; }
+      .region { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; overflow: hidden; }
+      .grade { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; }
+      .vid { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; object-fit: cover; transform-origin: 0 0; }
+      .fx { position: absolute; pointer-events: none; }
+      #seamShade { left: 0; width: 1080px; height: 140px;
+        background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.20) 38%, rgba(0,0,0,.26) 48%, rgba(0,0,0,.46) 55%, rgba(0,0,0,.18) 72%, rgba(0,0,0,0) 100%); }
+      #seamGlow { left: 0; width: 1080px; height: 96px; mix-blend-mode: screen; opacity: 0;
+        background: linear-gradient(180deg, rgba(255,79,163,0) 0%, rgba(255,79,163,.10) 28%, rgba(255,120,190,.72) 50%, rgba(255,79,163,.10) 72%, rgba(255,79,163,0) 100%); }
+      #coinBloom { width: 420px; height: 420px; border-radius: 50%; mix-blend-mode: screen; opacity: 0;
+        background: radial-gradient(closest-side, rgba(255,130,195,1) 0%, rgba(255,90,170,.85) 38%, rgba(255,79,163,.32) 66%, rgba(255,79,163,0) 100%); }
+      #puckShade { width: 320px; height: 320px; border-radius: 50%;
+        background: radial-gradient(closest-side, rgba(0,0,0,.55) 0%, rgba(0,0,0,.32) 52%, rgba(0,0,0,0) 100%); }
+      #g3 { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; }
+
+      /* ---------- seam badges: an ink plate holding an enamel name tab and the year; mirrored across the seam ---------- */
+      .ride { position: absolute; left: 0; top: 0; }
+      .badgeClip { position: absolute; left: 0; top: 0; overflow: hidden; padding: 30px 30px 22px 30px; }
+      .badgeClip.under { padding: 22px 30px 40px 30px; }
+      .chip { position: relative; display: flex; flex-direction: column; align-items: stretch; padding: 6px; border-radius: 28px;
+        background: linear-gradient(180deg, #2E333D 0%, #15171D 46%, #08090C 100%);
+        box-shadow: inset 0 1.5px 0 rgba(255,255,255,.30), inset 0 -1px 0 rgba(0,0,0,.6), 0 0 0 1.5px rgba(0,0,0,.55), 0 3px 5px rgba(0,0,0,.45), 0 16px 34px rgba(0,0,0,.42); }
+      .cName { position: relative; display: flex; align-items: center; justify-content: center; height: 140px; padding: 0 34px; border-radius: 22px; overflow: hidden;
+        font: 900 110px/1 "Archivo"; font-stretch: 64%; letter-spacing: -0.01em; word-spacing: 0.1em; white-space: nowrap; }
+      .cName .cTxt { position: relative; display: block; transform: translateY(1px); }
+      .new .cName { color: #FFFFFF; background: linear-gradient(180deg, #FF6DB8 0%, #FF4AA3 48%, #EE2E8E 100%);
+        box-shadow: inset 0 1.5px 0 rgba(255,225,240,.85), inset 0 -2px 0 rgba(112,0,50,.55), inset 0 -2px 6px rgba(112,0,50,.28), inset 0 0 0 1px rgba(90,0,40,.22);
+        text-shadow: 0 2.5px 0 rgba(128,0,58,.55), 0 0 1px rgba(128,0,58,.7); }
+      .old .cName { color: #0E0F13; background: linear-gradient(180deg, #FFFFFF 0%, #F2F4F8 48%, #DCE1E8 100%);
+        box-shadow: inset 0 1.5px 0 #FFFFFF, inset 0 -2px 0 rgba(58,66,82,.45), inset 0 -2px 6px rgba(58,66,82,.18), inset 0 0 0 1px rgba(40,46,58,.16);
+        text-shadow: 0 2px 0 rgba(255,255,255,.85); }
+      .gloss { position: absolute; left: 0; right: 0; top: 0; height: 100%; border-radius: 22px;
+        background: linear-gradient(180deg, rgba(255,255,255,.20) 0%, rgba(255,255,255,.06) 38%, rgba(255,255,255,0) 60%); pointer-events: none; }
+      .sheen { position: absolute; top: -20%; left: 0; width: 96px; height: 140%; transform: translateX(-200px) skewX(-18deg);
+        background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.75) 50%, rgba(255,255,255,0) 100%); pointer-events: none; }
+      .cYear { position: relative; display: flex; align-items: center; justify-content: center; height: 96px; overflow: hidden;
+        font: 800 78px/1 "Inter"; font-variant-numeric: tabular-nums; letter-spacing: 0.01em; color: #FFFFFF; }
+      .cYear .yTxt { display: block; }
+      .glowRing { position: absolute; left: -3px; top: -3px; right: -3px; bottom: -3px; border-radius: 31px; opacity: 0;
+        box-shadow: 0 0 0 2px rgba(255,150,205,.95), 0 0 18px 0 rgba(255,79,163,.7), 0 0 44px 0 rgba(255,79,163,.32); }
+    </style>
+  </head>
+  <body>
+    <svg class="fx" width="0" height="0" aria-hidden="true" style="position:absolute">
+      <filter id="bladeBlur" x="-5%" y="-40%" width="110%" height="180%" color-interpolation-filters="sRGB">
+        <feGaussianBlur id="bladeBlurG" in="SourceGraphic" stdDeviation="0 0" />
+      </filter>
+    </svg>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5.4" data-width="1080" data-height="1920">
+      <div id="shake">
+        <!-- top half: GTA Online (the winner) -->
+        <div id="T" class="region">
+          <div id="Tg" class="grade">
+            <video id="t1" class="clip vid" src="assets/shots/v31-red-car-sunset-h.mp4" muted playsinline data-start="0" data-duration="1.45" data-media-start="0.1" data-track-index="0"></video>
+            <video id="t2" class="clip vid" src="assets/shots/v36-hills-city-view-h.mp4" muted playsinline data-start="1.45" data-duration="1.83" data-media-start="0" data-track-index="0"></video>
+            <video id="t3" class="clip vid" src="assets/shots/v11-yacht-h.mp4" muted playsinline data-start="3.28" data-duration="2.12" data-media-start="0" data-track-index="0"></video>
+          </div>
+          <div id="rideT" class="ride">
+            <div id="clipT" class="badgeClip">
+              <div id="chipT" class="chip new">
+                <div class="glowRing" id="glowT"></div>
+                <div class="cYear"><span class="yTxt" id="yearT"></span></div>
+                <div class="cName"><span class="cTxt" id="nameT"></span><i class="gloss"></i><i class="sheen" id="sheenT"></i></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- bottom half: GTA V (2013 gameplay) -->
+        <div id="B" class="region">
+          <div id="Bg" class="grade">
+            <video id="b1" class="clip vid" src="assets/shots/v57-gp-red-car-highway-h.mp4" muted playsinline data-start="0" data-duration="1.45" data-media-start="0.2" data-track-index="1"></video>
+            <video id="b2" class="clip vid" src="assets/shots/v47-gp-chiliad-aerial-h.mp4" muted playsinline data-start="1.45" data-duration="1.83" data-media-start="0.3" data-track-index="1"></video>
+            <video id="b3" class="clip vid" src="assets/shots/v46-gp-speedboat-h.mp4" muted playsinline data-start="3.28" data-duration="2.12" data-media-start="0.3" data-track-index="1"></video>
+          </div>
+          <div id="rideB" class="ride">
+            <div id="clipB" class="badgeClip under">
+              <div id="chipB" class="chip old">
+                <div class="cName"><span class="cTxt" id="nameB"></span><i class="gloss"></i></div>
+                <div class="cYear"><span class="yTxt" id="yearB"></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="seamShade" class="fx"></div>
+        <div id="puckShade" class="fx"></div>
+        <div id="seamGlow" class="fx"></div>
+        <div id="coinBloom" class="fx"></div>
+        <div id="g3"></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        top:    { name: "ONLINE", year: "NOW" },         // the winner (top half)
+        bottom: { name: "GTA V",  year: "2013" },         // the challenger (bottom half)
+        vs: "VS",                                          // A-Z / 0-9, real 3D glyphs on the coin
+        // focus: the source x (px, 0-1920) each clip keeps centred in its half. Clips themselves are the <video> tags above.
+        focus: { t1: 820, b1: 900, t2: 1250, b2: 820, t3: 700, b3: 900 },
+        badges: { x: 72 },                              // px: both badges' left edge (each sits 22 px off the seam, the coin at the seam's centre)
+        colors: { accent: "#FF4FA3", accentDeep: "#9E0F57", chrome: "#E9EDF3", ink: "#0B0C10", inkHi: "#2E323C", letter: "#FFFFFF" },
+        blade: { w: 20, t: 18, bevel: 6 },                 // px
+        puck: { r: 90, t: 32, bevel: 8, z: 120, grow: 0.12 },   // grow: the coin stays this much bigger after the verdict
+        timing: {
+          inEnd: 0.24,          // the blade slams down from the top
+          chipT: 0.40, chipB: 0.50,
+          windup: 2.35,         // the blade drifts up into the winner's half...
+          snap: 3.05,           // ...and snaps back
+          lock: 3.28,           // VERDICT, on the third cut
+          badgeOut: 4.76,       // the winner badge sinks into the seam
+          out: 4.86, outDur: 0.30,   // the blade sweeps down, the winner takes the frame
+          end: 5.4
+        }
+      };
+
+      (function () {
+        // full-kind component: the footage IS the component, so bg:none keeps it (DESIGN 3)
+        const $ = (s) => document.querySelector(s), C = CONFIG, T = C.timing, W = 1080, H = 1920, CY = H / 2, FR = 1 / 30;
+        document.querySelectorAll("#root *").forEach((n) => { n.setAttribute("data-layout-allow-overlap", ""); n.setAttribute("data-layout-allow-occlusion", ""); n.setAttribute("data-layout-allow-overflow", ""); });
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x)), E = (n) => gsap.parseEase(n);
+        const eSine = E("sine.inOut"), eP2io = E("power2.inOut"), eP3o = E("power3.out"), eP2i = E("power2.in");
+
+        $("#nameT").textContent = C.top.name; $("#yearT").textContent = C.top.year;
+        $("#nameB").textContent = C.bottom.name; $("#yearB").textContent = C.bottom.year;
+
+        // ---------- the seam: one pure function of time (px offset downward, d = CY + u) ----------
+        function seamU(t) {
+          if (t < T.inEnd) { const p = clamp(t / T.inEnd, 0, 1); return -1000 + 1000 * (0.35 * p + 0.65 * p * p); }
+          if (t < T.windup) { const k = t - T.inEnd; return 40 * Math.exp(-7.5 * k) * Math.sin(17.6 * k); }
+          if (t < T.snap) return -200 * eSine((t - T.windup) / (T.snap - T.windup));
+          if (t < T.lock) { const p = (t - T.snap) / (T.lock - T.snap); return -200 + 200 * p * p; }
+          if (t < T.out) { const k = t - T.lock; return 30 * Math.exp(-7 * k) * Math.sin(18 * k); }
+          const p = clamp((t - T.out) / T.outDur, 0, 1); return 1080 * (0.3 * p + 0.7 * p * p);
+        }
+        const seamD = (t) => CY + seamU(t);
+
+        Promise.all(["900 100px Archivo", "800 100px Inter"].map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          // badges: equal widths per badge (name tab sets the width), positioned against the seam each frame
+          const clipT = $("#clipT"), clipB = $("#clipB");
+          const bwT = clipT.offsetWidth, bhT = clipT.offsetHeight, bwB = clipB.offsetWidth, bhB = clipB.offsetHeight;
+
+          const P = Split3D({
+            W, H, orient: "h", glyphs: window.PAYOFF_GLYPHS, exposure: 1.0, sheenW: 30,
+            colors: C.colors, blade: C.blade,
+            puck: { r: C.puck.r, t: C.puck.t, bevel: C.puck.bevel, z: C.puck.z, text: C.vs, inkW: C.puck.r * 1.06, letterDepth: 9, letterBevel: 3, letterDy: 0,
+              arrow: { len: C.puck.r * 1.08, shaft: C.puck.r * 0.30, head: C.puck.r * 0.50, headH: C.puck.r * 0.86, dx: C.puck.r * 0.04 } }
+          });
+          $("#g3").appendChild(P.canvas);
+          P.canvas.setAttribute("data-layout-allow-overlap", ""); P.canvas.setAttribute("data-layout-allow-occlusion", ""); P.canvas.setAttribute("data-layout-allow-overflow", "");
+
+          const coinBloom = $("#coinBloom"), regionT = $("#T"), regionB = $("#B"), shade = $("#seamShade"), glow = $("#seamGlow"), pShade = $("#puckShade"), g3 = $("#g3"), blurG = $("#bladeBlurG"), Bg = $("#Bg");
+          const rideT = $("#rideT"), rideB = $("#rideB");
+          const shots = [["t1", "b1", 0, 1.45], ["t2", "b2", 1.45, 1.83], ["t3", "b3", 3.28, 2.12]].map((s) => ({ t: $("#" + s[0]), b: $("#" + s[1]), ft: C.focus[s[0]], fb: C.focus[s[1]], at: s[2], dur: s[3] }));
+          const ZMIN = 960 / 1080;   // a half is 1080x960: the -h shot at 0.889x (never upscaled while split)
+          function place(el, a, b, fx, push) {   // cover the band [a,b] (y), focus fx centred, never below ZMIN
+            const z = Math.max(ZMIN, (b - a) / 1080) * push, vw = 1920 * z, vh = 1080 * z, cy = (a + b) / 2;
+            const tx = clamp(W / 2 - fx * z, W - vw, 0), ty = clamp(cy - vh / 2, b - vh, a);
+            el.style.transform = "translate(" + tx.toFixed(2) + "px," + ty.toFixed(2) + "px) scale(" + z.toFixed(4) + ")";
+          }
+          const glowAt = (t) => { if (t < T.lock) return 0; const k = t - T.lock; return k < 0.034 ? 1.9 * k / 0.034 : k < 0.12 ? 1.9 : 0.45 + 1.45 * Math.exp(-(k - 0.12) * 5.2); };
+          const streakAt = (t) => {
+            if (t >= T.lock && t < T.lock + 0.46) { const p = (t - T.lock) / 0.46; return [eP2io(p), 2.6 * Math.pow(Math.sin(Math.PI * p), 0.6)]; }
+            if (t >= T.inEnd && t < T.inEnd + 0.40) { const p = (t - T.inEnd) / 0.40; return [eP2io(p), 1.3 * Math.pow(Math.sin(Math.PI * p), 0.6)]; }
+            return [-1, 0];
+          };
+          const flipAt = (t) => {
+            if (t < T.lock) return 0;
+            // lands from below without overshoot: the face never tilts up into the top softbox (which greyed the black face)
+            const k = t - T.lock, f = E("power2.inOut")(clamp(k / 0.34, 0, 1));
+            if (t < T.out) return f;
+            return 1 + 0.18 * eP2i(clamp((t - T.out) / T.outDur, 0, 1));
+          };
+          const spinAt = (t) => -0.5 * Math.PI * (1 - E("back.out(1.8)")(clamp(t / 0.42, 0, 1)));   // swings in from edge-on: the back never shows before the verdict
+          const scaleAt = (t) => {
+            let s = 1;
+            if (t >= T.inEnd) { const k = t - T.inEnd; s += 0.08 * (1 - Math.exp(-60 * k)) * Math.exp(-9 * k) * Math.cos(16 * k); }
+            if (t >= T.lock) { const k = t - T.lock; s += (1 - Math.exp(-70 * k)) * (C.puck.grow + 0.11 * Math.exp(-7 * k) * Math.cos(14 * k)); }
+            return s;
+          };
+          const sheenAt = (t) => { const a = T.lock + 0.30, b = a + 0.5; if (t < a || t > b) return [-1, 0]; const p = (t - a) / (b - a); return [eP2io(p), 1.5 * Math.sin(Math.PI * p)]; };
+
+          function frame(t) {
+            const d = seamD(t), dc = clamp(d, 0, H);
+            regionT.style.clipPath = "inset(0px 0px " + (H - dc).toFixed(2) + "px 0px)";
+            regionB.style.clipPath = "inset(" + dc.toFixed(2) + "px 0px 0px 0px)";
+            shots.forEach((s) => {
+              const push = 1 + 0.03 * clamp((t - s.at) / s.dur, 0, 1);
+              place(s.t, 0, Math.max(dc, 1), s.ft, push); place(s.b, Math.min(dc, H - 1), H, s.fb, push);
+            });
+            // badges ride the seam: the winner's rests on it, the challenger's hangs under it (the winner's stops riding on the exit)
+            const dT = t < T.out ? d : CY;
+            rideT.style.transform = "translate(" + (C.badges.x - 30) + "px," + (dT - bhT).toFixed(2) + "px)";
+            rideB.style.transform = "translate(" + (C.badges.x - 30) + "px," + d.toFixed(2) + "px)";
+            shade.style.transform = "translateY(" + (d - 70).toFixed(2) + "px)";
+            glow.style.transform = "translateY(" + (d - 48).toFixed(2) + "px)";
+            const g = glowAt(t);
+            glow.style.opacity = clamp(g / 1.9, 0, 1).toFixed(3);
+            pShade.style.transform = "translate(" + (W / 2 - 160 + 14).toFixed(2) + "px," + (d - 160 + 22).toFixed(2) + "px)";
+            const v = Math.abs(seamD(t + 1 / 120) - seamD(t - 1 / 120)) * 60;
+            const bl = clamp((v - 2400) / 160, 0, 34);
+            if (bl > 0.3) { blurG.setAttribute("stdDeviation", "0 " + bl.toFixed(2)); g3.style.filter = "url(#bladeBlur)"; } else g3.style.filter = "none";
+            const st = streakAt(t), sh = sheenAt(t);
+            P.render({ d, along: W / 2, spin: spinAt(t), flip: flipAt(t), scale: scaleAt(t), glow: g, streak: st[0], streakAmp: st[1], sheen: sh[0], sheenAmp: sh[1] });
+            const q = E("power2.out")(clamp((t - T.lock - FR) / 0.34, 0, 1));
+            Bg.style.filter = q > 0.001 ? "saturate(" + (1 - 0.3 * q).toFixed(3) + ") brightness(" + (1 - 0.13 * q).toFixed(3) + ") contrast(" + (1 + 0.06 * q).toFixed(3) + ")" : "none";
+            // the coin blooms when the flip lands (3-frame hold, then decay)
+            const lb = T.lock + 0.24, kb = t - lb;
+            const bloom = kb < 0 ? 0 : kb < 0.034 ? kb / 0.034 : kb < 0.134 ? 1 : Math.exp(-(kb - 0.134) / 0.12);
+            coinBloom.style.opacity = (0.75 * bloom).toFixed(3);
+            coinBloom.style.transform = "translate(" + (W / 2 - 210).toFixed(2) + "px," + (d - 210).toFixed(2) + "px) scale(" + (0.8 + 0.25 * bloom).toFixed(3) + ")";
+          }
+
+          const tl = gsap.timeline({ paused: true });
+
+          // ---------- badges: rise out of the seam (winner) / drop out of it (challenger) on a spring; the year rolls in ----------
+          function badgeIn(sel, yr, at, dir) {   // dir -1: rises up out of the seam; +1: drops down out of it
+            const off = dir * -1 * 300;
+            gsap.set(sel, { y: off, transformOrigin: dir < 0 ? "50% 100%" : "0% 0%" });
+            tl.fromTo(sel, { y: off }, { y: 0, duration: 0.42, ease: "back.out(1.55)", immediateRender: false }, at);
+            Look.mblur(tl, sel, at, 0.16, { x: 0, y: 14, ease: "power2.out" });
+            tl.fromTo(sel, { scaleX: 0.94, scaleY: 1.06 }, { scaleX: 1, scaleY: 1, duration: 0.4, ease: "back.out(2.2)", immediateRender: false }, at + 0.06);
+            gsap.set(yr, { yPercent: dir * -125 });
+            tl.fromTo(yr, { yPercent: dir * -125 }, { yPercent: 0, duration: 0.36, ease: "back.out(1.7)", immediateRender: false }, at + 0.03);
+          }
+          badgeIn("#chipT", "#yearT", T.chipT, -1);
+          badgeIn("#chipB", "#yearB", T.chipB, 1);
+
+          // ---------- VERDICT ----------
+          Look.impact(tl, T.inEnd, { shake: "#shake", amp: 5, dur: 0.24, zoom: 1.006, flash: 0 });
+          Look.impact(tl, T.lock, { shake: "#shake", amp: 8, dur: 0.34, zoom: 1.014, flash: 0 });
+          Look.expose(tl, T.lock, { target: "#Tg", peak: 1.12, hold: 3 / 30, dur: 0.5, saturate: 1.26 });
+          tl.fromTo("#chipT", { scale: 1 }, { scale: 1.05, duration: 2 * FR, ease: "power2.out", immediateRender: false }, T.lock);
+          tl.to("#chipT", { scale: 1, duration: 0.42, ease: "back.out(2.6)" }, T.lock + 2 * FR);
+          tl.fromTo("#glowT", { opacity: 0 }, { opacity: 1, duration: FR, ease: "none", immediateRender: false }, T.lock);
+          tl.to("#glowT", { opacity: 0.55, duration: 0.6, ease: "power2.out" }, T.lock + 0.12);
+          tl.fromTo("#sheenT", { x: -200 }, { x: 560, duration: 0.5, ease: "power2.inOut", immediateRender: false }, T.lock + 0.08);
+          tl.fromTo("#chipB", { filter: "grayscale(0) brightness(1)" }, { filter: "grayscale(1) brightness(0.62)", duration: 0.34, ease: "power2.out", immediateRender: false }, T.lock + FR);
+          tl.to("#chipB", { y: 8, scale: 0.94, duration: 0.34, ease: "power2.out" }, T.lock + FR);
+
+          // ---------- exit: the winner badge sinks into the seam; then the blade sweeps the loser away ----------
+          tl.fromTo("#chipT", { y: 0 }, { y: 300, duration: 0.2, ease: "power3.in", immediateRender: false }, T.badgeOut);
+          Look.mblur(tl, "#chipT", T.badgeOut + 0.06, 0.14, { x: 0, y: 2, to: [0, 10], ease: "power2.in" });
+          tl.set("#rideT", { visibility: "hidden" }, T.badgeOut + 0.2);
+
+          Look.drive(tl, 0, T.end, (p) => frame(p * T.end));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") frame(e.detail.time); });
+          frame(0);
+
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

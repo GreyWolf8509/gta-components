@@ -1,0 +1,347 @@
+<!doctype html>
+<!-- 42 Social post card, variant B: "Chat bubble" (9:16, 1080x1920, 30 fps, 6.6 s).
+     A lobby chat on "sunwire" (our own in-world network): messages pop in as real 3D glossy bubbles and push the thread up,
+     typing dots bounce, the creator's reply lands, and a glossy 3D heart reaction slams onto it while the count rolls up.
+     Variable: bg "plate" (sample footage) / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/post3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      #stage { position: absolute; inset: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.6" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <video id="shot1" class="clip shot" src="assets/shots/v24-sunset-powerlines-v.mp4" muted playsinline data-start="0" data-duration="1.65" data-media-start="0.02" data-track-index="0"></video>
+        <video id="shot2" class="clip shot" src="assets/shots/v36-hills-city-view-v.mp4" muted playsinline data-start="1.65" data-duration="1.9" data-media-start="0" data-track-index="0"></video>
+        <video id="shot3" class="clip shot" src="assets/shots/v12-heli-city-dusk-v.mp4" muted playsinline data-start="3.55" data-duration="1.55" data-media-start="0.02" data-track-index="0"></video>
+        <video id="shot4" class="clip shot" src="assets/shots/v17-deluxo-sunset-v.mp4" muted playsinline data-start="5.1" data-duration="1.5" data-media-start="0.02" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="6.6" data-track-index="1">
+        <div id="stage" data-layout-allow-occlusion data-layout-allow-overflow></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        platform: { name: "sunwire", room: "LS LOBBY", online: "2,418" },
+        messages: [
+          { from: "grove.jay", initial: "J", text: ["GTA 6 drops tonight.", "who's ready?"], color: "#0A88B4", av: ["#5FE0FF", "#1676D6"] },
+          { from: "vinewood.vic", initial: "V", text: ["been ready since 2013"], color: "#7B3FE4", av: ["#C69BFF", "#6A2BD9"] },
+          { from: "@everestchris6", mine: true, text: ["13 years.", "bags packed."] }
+        ],
+        reactions: { from: 1, to: 486 },
+        colors: {
+          ink: "#101217", sub: "#667085", bubble: ["#FFFFFF", "#EEF0F4"], edge: "#C9CDD5",
+          mine: ["#FF7A4D", "#F8344F", "#D0103F"], mineEdge: "#A40C34", head: ["#23252E", "#0E0F14"],
+          sun: ["#FFC93C", "#FF7A45", "#FF3D7F"], live: "#38E07B"
+        },
+        layout: { left: 84, right: 920, bottom: 1215 },
+        timing: { head: 0.2, m: [0.45, 1.3], typing: 2.05, mine: 3.15, payoff: 3.45, out: 6.0, end: 6.6 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const C = CONFIG, T = C.timing, K = C.colors, PI = Math.PI, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const Ez = (n) => gsap.parseEase(n);
+        const cl = (v) => Math.max(0, Math.min(1, v));
+        const seg = (t, a, b, e) => { const p = t <= a ? 0 : t >= b ? 1 : (t - a) / (b - a); return e ? Ez(e)(p) : p; };
+        const spring = (t, t0, f, z) => { const x = t - t0; if (x <= 0) return 0; const w = 2 * PI * f, wd = w * Math.sqrt(1 - z * z);
+          return 1 - Math.exp(-z * w * x) * (Math.cos(wd * x) + (z * w / wd) * Math.sin(wd * x)); };
+        const wob = (t, t0, amp, f, k) => (t < t0 ? 0 : amp * Math.exp(-k * (t - t0)) * Math.sin(2 * PI * f * (t - t0)));
+        const TS = 2;
+
+        const FACES = ["800 100px Inter", "700 100px Inter", "600 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const inter = (g, wt, size, track) => { g.font = wt + " " + size + "px Inter"; g.letterSpacing = (track || 0) + "px"; };
+          const mk = (w, h) => { const c = document.createElement("canvas"); c.width = Math.round(w * TS); c.height = Math.round(h * TS); return c; };
+          const meas = document.createElement("canvas").getContext("2d");
+          function sunMark(g, cx, cy, r, gap) {
+            g.save(); g.beginPath(); g.arc(cx, cy, r, 0, 2 * PI); g.clip();
+            const gr = g.createLinearGradient(0, cy - r, 0, cy + r);
+            gr.addColorStop(0, K.sun[0]); gr.addColorStop(0.5, K.sun[1]); gr.addColorStop(1, K.sun[2]);
+            g.fillStyle = gr; g.fillRect(cx - r, cy - r, 2 * r, 2 * r);
+            g.fillStyle = gap;
+            [[0.18, 0.09], [0.44, 0.12], [0.7, 0.15]].forEach((b) => g.fillRect(cx - r, cy + r * b[0], 2 * r, r * b[1]));
+            g.restore();
+          }
+
+          // ---------------- layout (screen px) ----------------
+          const BV = 4, NAME = 30, MSG = 52, MINE = 94, PADX = 32, MBV = 6;
+          const AVR = 44, BX = C.layout.left + 2 * AVR + 20, GAP = 22, HEADGAP = 34;
+          const items = [];
+          // header pill
+          inter(meas, 800, 30, -0.6); const wName = meas.measureText(C.platform.name).width;
+          inter(meas, 800, 26, 2.2); const wRoom = meas.measureText(C.platform.room).width;
+          inter(meas, 700, 26, 0); const wOn = meas.measureText(C.platform.online).width;
+          const HEAD = { h: 84, w: Math.round(22 + 44 + 14 + wName + 22 + 4 + 22 + wRoom + 26 + 14 + 10 + wOn + 30) };
+          items.push({ kind: "head", h: HEAD.h, gap: 0 });
+          C.messages.forEach((m, i) => {
+            if (m.mine) {
+              inter(meas, 800, MINE, -2);
+              const tw = Math.max(...m.text.map((s) => meas.measureText(s).width));
+              items.push({ kind: "mine", m, w: Math.ceil(tw + 2 * 46), h: Math.round(26 + m.text.length * MINE * 1.02 + 44), gap: GAP });
+            } else {
+              inter(meas, 600, MSG, -0.6);
+              const tw = Math.max(...m.text.map((s) => meas.measureText(s).width));
+              inter(meas, 800, NAME, -0.2); const nw = meas.measureText(m.from).width;
+              items.push({ kind: "msg", m, w: Math.ceil(Math.max(tw, nw) + 2 * PADX), h: Math.round(22 + NAME + 8 + m.text.length * MSG * 1.2 + 18), gap: i === 0 ? HEADGAP : GAP });
+            }
+          });
+          const TYPING = { w: 220, h: 116 };
+          let y = C.layout.bottom; for (let i = items.length - 1; i >= 0; i--) { y -= items[i].h; items[i].top = y; y -= items[i].gap; }
+          const lastIdx = items.length - 1;
+
+          // ---------------- 3D scene ----------------
+          const SY = 250, SH = 1300;
+          const st = K3.stage({ frameW: 1080, frameH: 1920, x: 0, y: SY, w: 1080, h: SH, ss: 2, fov: 24, exposure: 1.0 });
+          $("#stage").appendChild(st.canvas);
+          const SHADOW = "drop-shadow(0 16px 20px rgba(0,0,0,.40)) drop-shadow(0 3px 5px rgba(0,0,0,.22))";
+          st.canvas.style.filter = SHADOW;
+          const thread = new THREE.Group(); st.scene.add(thread);
+          const W = (x, y2) => st.W(x, y2);
+
+          // header
+          const headCv = mk(HEAD.w - 2 * BV, HEAD.h - 2 * BV);
+          (function () {
+            const w = HEAD.w - 2 * BV, h = HEAD.h - 2 * BV, g = headCv.getContext("2d"); g.scale(TS, TS);
+            let gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, K.head[0]); gr.addColorStop(1, K.head[1]);
+            g.fillStyle = gr; g.fillRect(0, 0, w, h);
+            g.fillStyle = "rgba(255,255,255,.14)"; g.fillRect(30, 0, w - 60, 1.5);
+            sunMark(g, 18 + 22, h / 2, 22, K.head[1]);
+            let x = 18 + 44 + 14; g.textBaseline = "middle";
+            inter(g, 800, 30, -0.6); g.fillStyle = "#fff"; g.fillText(C.platform.name, x, h / 2 + 1); x += wName + 22;
+            g.fillStyle = "rgba(255,255,255,.28)"; g.fillRect(x, h / 2 - 15, 2.5, 30); x += 4 + 20;
+            inter(g, 800, 26, 2.2); g.fillStyle = "rgba(255,255,255,.92)"; g.fillText(C.platform.room, x, h / 2 + 1); x += wRoom + 24;
+            g.fillStyle = K.live; g.beginPath(); g.arc(x + 7, h / 2, 7, 0, 2 * PI); g.fill();
+            g.fillStyle = "rgba(56,224,123,.28)"; g.beginPath(); g.arc(x + 7, h / 2, 12, 0, 2 * PI); g.fill();
+            x += 14 + 10; inter(g, 700, 26, 0); g.fillStyle = "rgba(255,255,255,.78)"; g.fillText(C.platform.online, x, h / 2 + 1);
+          })();
+          const head = K3.slab({ w: HEAD.w, h: HEAD.h, r: HEAD.h / 2, depth: 12, bevel: BV, face: headCv, side: "#3A3D48", sideMetal: 0.5, emissive: 0.96, env: 1.0, diffuse: 0.04, seg: 24 });
+          const headPiv = new THREE.Group(); headPiv.add(head.mesh); thread.add(headPiv);
+          items[0].piv = headPiv; items[0].mesh = head.mesh;
+          items[0].anchor = [(C.layout.left + C.layout.right) / 2, items[0].top + HEAD.h / 2]; head.mesh.position.set(0, 0, 0);
+
+          // message bubbles
+          function bubbleFace(it) {
+            const bv = it.kind === "mine" ? MBV : BV, w = it.w - 2 * bv, h = it.h - 2 * bv, cv = mk(w, h), m = it.m;
+            const draw = (glow) => {
+              const g = cv.getContext("2d"); g.setTransform(TS, 0, 0, TS, 0, 0);
+              if (it.kind === "mine") {
+                let gr = g.createLinearGradient(0, 0, 0, h);
+                gr.addColorStop(0, K.mine[0]); gr.addColorStop(0.5, K.mine[1]); gr.addColorStop(1, K.mine[2]);
+                g.fillStyle = gr; g.fillRect(0, 0, w, h);
+                // gloss lens across the top 45%, inner shadow along the bottom
+                gr = g.createLinearGradient(0, 0, 0, h * 0.46); gr.addColorStop(0, "rgba(255,255,255,.30)"); gr.addColorStop(1, "rgba(255,255,255,0.04)");
+                g.save(); g.beginPath(); g.ellipse(w * 0.5, -h * 0.55, w * 0.78, h * 1.0, 0, 0, 2 * PI); g.clip(); g.fillStyle = gr; g.fillRect(0, 0, w, h * 0.46); g.restore();
+                gr = g.createLinearGradient(0, h - 14, 0, h); gr.addColorStop(0, "rgba(90,0,24,0)"); gr.addColorStop(1, "rgba(90,0,24,.32)");
+                g.fillStyle = gr; g.fillRect(0, h - 14, w, 14);
+                if (glow > 0) {
+                  gr = g.createRadialGradient(70, h, 0, 70, h, 300);
+                  gr.addColorStop(0, "rgba(255,236,242," + (0.6 * glow).toFixed(3) + ")"); gr.addColorStop(0.45, "rgba(255,190,210," + (0.22 * glow).toFixed(3) + ")"); gr.addColorStop(1, "rgba(255,190,210,0)");
+                  g.fillStyle = gr; g.fillRect(0, 0, w, h);
+                }
+                g.fillStyle = "rgba(255,255,255,.55)"; g.fillRect(30, 0, w - 60, 1.5);
+                inter(g, 800, MINE, -2); g.textBaseline = "alphabetic";
+                m.text.forEach((s, i) => {
+                  const yb = 22 + MINE * 0.82 + i * MINE * 1.02;
+                  g.save(); g.shadowColor = "rgba(110,0,30,.42)"; g.shadowBlur = 10; g.shadowOffsetY = 4; g.fillStyle = "#fff"; g.fillText(s, 46 - MBV, yb); g.restore();
+                });
+              } else {
+                let gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, K.bubble[0]); gr.addColorStop(1, K.bubble[1]);
+                g.fillStyle = gr; g.fillRect(0, 0, w, h);
+                gr = g.createRadialGradient(80, 0, 0, 80, 0, 600); gr.addColorStop(0, "rgba(255,255,255,.9)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+                g.fillStyle = gr; g.fillRect(0, 0, w, h);
+                g.textBaseline = "alphabetic";
+                inter(g, 800, NAME, -0.2); g.fillStyle = m.color; g.fillText(m.from, PADX - BV, 22 + NAME * 0.8);
+                inter(g, 600, MSG, -0.6); g.fillStyle = K.ink;
+                m.text.forEach((s, i) => g.fillText(s, PADX - BV, 22 + NAME + 8 + MSG * 0.92 + i * MSG * 1.2));
+              }
+            };
+            draw(0);
+            return { cv, draw };
+          }
+          items.forEach((it, i) => {
+            if (it.kind === "head") return;
+            const mine = it.kind === "mine";
+            it.face = bubbleFace(it);
+            const R = mine ? [46, 46, 12, 46] : [36, 36, 36, 10];
+            it.slab = K3.slab({ w: it.w, h: it.h, r: mine ? [54, 54, 14, 54] : R, depth: mine ? 30 : 14, bevel: mine ? MBV : BV, face: it.face.cv, side: mine ? K.mineEdge : K.edge,
+              sideMetal: mine ? 0.3 : 0.25, emissive: 0.96, env: mine ? 0.9 : 0.6, diffuse: 0.04, bandK: mine ? 0.7 : 0, sideBandK: mine ? 0.5 : 0, seg: 20 });
+            it.piv = new THREE.Group(); it.piv.add(it.slab.mesh); thread.add(it.piv);
+            if (mine) { it.anchor = [C.layout.right, it.top + it.h]; it.slab.mesh.position.set(-it.w / 2, it.h / 2, 0); }
+            else { it.anchor = [BX, it.top + it.h]; it.slab.mesh.position.set(it.w / 2, it.h / 2, 0); }
+            if (!mine) {
+              const avCv = mk(2 * AVR - 2 * 3, 2 * AVR - 2 * 3), r = AVR - 3;
+              const g = avCv.getContext("2d"); g.scale(TS, TS);
+              const gr = g.createLinearGradient(0, 0, 0, 2 * r); gr.addColorStop(0, it.m.av[0]); gr.addColorStop(1, it.m.av[1]);
+              g.fillStyle = gr; g.fillRect(0, 0, 2 * r, 2 * r);
+              g.fillStyle = "rgba(255,255,255,.22)"; g.beginPath(); g.ellipse(r, r * 0.35, r * 0.8, r * 0.45, 0, 0, 2 * PI); g.fill();
+              inter(g, 800, 44, -0.5); g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = "#fff";
+              g.save(); g.shadowColor = "rgba(0,0,40,.3)"; g.shadowBlur = 6; g.shadowOffsetY = 2; g.fillText(it.m.initial, r, r + 3); g.restore();
+              it.av = K3.slab({ w: 2 * AVR, h: 2 * AVR, r: AVR, depth: 12, bevel: 3, face: avCv, side: "#E8EAEE", sideMetal: 0.3, emissive: 0.95, env: 0.8, diffuse: 0.04, seg: 32 });
+              it.avPiv = new THREE.Group(); it.avPiv.add(it.av.mesh); thread.add(it.avPiv);
+              it.avAnchor = [C.layout.left + AVR, it.top + it.h - AVR];
+            }
+          });
+          const mine = items[lastIdx];
+
+          // typing bubble with three glossy dots
+          const tyCv = mk(TYPING.w - 2 * BV, TYPING.h - 2 * BV);
+          (function () {
+            const w = TYPING.w - 2 * BV, h = TYPING.h - 2 * BV, g = tyCv.getContext("2d"); g.scale(TS, TS);
+            const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, K.mine[0]); gr.addColorStop(0.5, K.mine[1]); gr.addColorStop(1, K.mine[2]);
+            g.fillStyle = gr; g.fillRect(0, 0, w, h); g.fillStyle = "rgba(255,255,255,.5)"; g.fillRect(24, 0, w - 48, 1.5);
+          })();
+          const ty = K3.slab({ w: TYPING.w, h: TYPING.h, r: [48, 48, 12, 48], depth: 24, bevel: BV, face: tyCv, side: K.mineEdge, sideMetal: 0.35, emissive: 0.96, env: 0.9, diffuse: 0.04, seg: 20 });
+          const tyPiv = new THREE.Group(); tyPiv.add(ty.mesh); ty.mesh.position.set(-TYPING.w / 2, TYPING.h / 2, 0); thread.add(tyPiv);
+          const dotMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.55, roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 1.2 });
+          const dots = [0, 1, 2].map((i) => { const d = new THREE.Mesh(new THREE.SphereGeometry(15, 32, 20), dotMat); d.position.set(-TYPING.w / 2 + (i - 1) * 46, TYPING.h / 2, 16); tyPiv.add(d); return d; });
+
+          // reaction badge + 3D heart
+          const BADGE = { w: 280, h: 108 }, CS = 64, CAP = CS * 0.73;
+          const bdCv = mk(BADGE.w - 2 * BV, BADGE.h - 2 * BV);
+          inter(meas, 800, CS, -1);
+          const DIG = Math.max(...[..."0123456789"].map((d) => meas.measureText(d).width)) + 1;
+          const NDIG = String(C.reactions.to).length;
+          function colPos(v, k) { const p = Math.pow(10, k), base = Math.floor(v / p), rem = v - base * p; return base + cl(rem - (p - 1)); }
+          function drawBadge(v, dv) {
+            const w = BADGE.w - 2 * BV, h = BADGE.h - 2 * BV, g = bdCv.getContext("2d"); g.setTransform(TS, 0, 0, TS, 0, 0);
+            const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, "#FFFFFF"); gr.addColorStop(1, "#ECEEF2");
+            g.fillStyle = gr; g.fillRect(0, 0, w, h);
+            g.fillStyle = "rgba(255,255,255,1)"; g.fillRect(20, 0, w - 40, 1.5);
+            inter(g, 800, CS, -1); g.fillStyle = K.ink; g.textAlign = "center"; g.textBaseline = "alphabetic";
+            const right = w - 30, base = h / 2 + CAP / 2, top = base - CAP - 4, RH = CAP + 12;
+            for (let k = 0; k < NDIG; k++) {
+              const x = right - (k + 1) * DIG, pk = colPos(v, k), d = Math.floor(pk) % 10, f = dv / Math.pow(10, k) > 0.4 ? 0 : pk - Math.floor(pk);
+              g.save(); g.beginPath(); g.rect(x - 1, top, DIG + 2, CAP + 9); g.clip();
+              if (!(k > 0 && Math.floor(pk) === 0)) g.fillText(String(d), x + DIG / 2, base - f * RH);   // leading zeros stay blank
+              if (f > 0.001) g.fillText(String((d + 1) % 10), x + DIG / 2, base + (1 - f) * RH);
+              g.restore();
+            }
+          }
+          drawBadge(C.reactions.from, 0);
+          const badge = K3.slab({ w: BADGE.w, h: BADGE.h, r: BADGE.h / 2, depth: 20, bevel: BV, face: bdCv, side: "#D9DCE2", sideMetal: 0.25, emissive: 0.97, env: 0.7, diffuse: 0.03, bandK: 0.2, seg: 24 });
+          const bdPiv = new THREE.Group(); bdPiv.add(badge.mesh); thread.add(bdPiv);
+          const bdSh = K3.shadow(BADGE.w - 12, BADGE.h - 12, 48, 11); bdSh.mat.opacity = 0.45; thread.add(bdSh.mesh);
+          const BD = { x: C.layout.right - mine.w + 70 };   // badge centre (screen px): over the bubble's bottom-left corner
+          const HEART = K3.heart({ w: 76, depth: 8, bevelT: 10, bevelS: 3.6, bandK: 0.3 });
+          const hG = new THREE.Group(); hG.add(HEART.mesh); bdPiv.add(hG);
+          const HX = -BADGE.w / 2 + 68;
+          const emGeo = K3.heart({ w: 26, depth: 3, bevelT: 3.5, bevelS: 1.4 }).mesh.geometry;
+          const EMB = [0, 1, 2].map((i) => {
+            const m = new THREE.Mesh(emGeo, HEART.mat); bdPiv.add(m);
+            return { m, ang: (82 + i * 38 + 8 * Look.hash(i + 5)) * PI / 180, dist: 130 + 50 * Look.hash(i + 17), rot: (Look.hash(i + 29) - 0.5) * 1.8, t0: 0.025 * (i % 3) };
+          });
+
+          // ---------------- state from time ----------------
+          const P = T.payoff;
+          const arrive = [T.head, T.m[0], T.m[1], T.typing];
+          // slot heights: items arrive with the thread pushing up (expo out); the last slot grows typing -> message
+          function slotH(i, t) {
+            const it = items[i], full = it.h + it.gap;
+            if (i < lastIdx) return full * seg(t, arrive[i], arrive[i] + 0.38, "expo.out");
+            return (TYPING.h + it.gap) * seg(t, T.typing, T.typing + 0.38, "expo.out") + (it.h - TYPING.h) * seg(t, T.mine, T.mine + 0.38, "expo.out");
+          }
+          function offset(t) { let o = 0; for (let i = 0; i < items.length; i++) o += items[i].h + items[i].gap - slotH(i, t); return o; }
+          const pop = (t, t0) => (t < t0 ? 0 : 0.25 + 0.75 * spring(t, t0, 2.3, 0.42));
+          const outS = (t, i) => { const t0 = T.out + 0.05 * (items.length - 1 - i); return 1 - seg(t, t0, t0 + 0.2, "power3.in"); };
+          function place(piv, ax, ay, s, z) { const [x, y2] = W(ax, ay); piv.position.set(x, y2, z); piv.scale.set(s, s, s); piv.visible = s > 0.002; }
+          let bdKey = "", mineKey = "";
+
+          function renderAt(t) {
+            const on = t >= T.head && t < T.out + 0.5;
+            st.canvas.style.visibility = on ? "visible" : "hidden";
+            if (!on) return;
+            const off = offset(t);
+            thread.position.set(0, -off, 0);
+            thread.rotation.set(-0.07, -0.11 + 0.05 * seg(t, 0.4, T.out, "sine.inOut"), 0);
+            // header + messages
+            items.forEach((it, i) => {
+              const t0 = i === lastIdx ? T.mine : arrive[i];
+              let s = pop(t, t0) * outS(t, i);
+              let z = 50 * (1 - seg(t, t0, t0 + 0.3, "power2.out"));
+              if (i === lastIdx) { s *= 1 + 0.05 * wob(t, P + 0.1, 1, 3, 7); z -= 10 * wob(t, P + 0.1, 1, 2.6, 6); }
+              place(it.piv, it.anchor[0], i === lastIdx ? C.layout.bottom - off : it.anchor[1], s, z);
+              it.piv.rotation.set(0, 0, i === 0 ? 0 : (it.kind === "mine" ? -0.06 : 0.06) * (1 - seg(t, t0, t0 + 0.32, "power2.out")));
+              if (it.avPiv) place(it.avPiv, it.avAnchor[0], it.avAnchor[1], pop(t, t0 - 0.05) * outS(t, i), z);
+            });
+            // typing: pops at T.typing, dots bounce, collapses into its corner as the message lands
+            const tyS = pop(t, T.typing) * (1 - seg(t, T.mine - 0.08, T.mine, "power2.in"));
+            place(tyPiv, C.layout.right, C.layout.bottom - off, tyS * (1 + 0.025 * Math.sin(2 * PI * 1.6 * (t - T.typing))), 6);
+            tyPiv.visible = tyS > 0.002 && t < T.mine;
+            dots.forEach((d, i) => {
+              const ph = 2 * PI * 2.0 * (t - T.typing - 0.15) - i * 0.95;
+              const b = Math.max(0, Math.sin(ph)) * seg(t, T.typing + 0.15, T.typing + 0.3);
+              d.position.y = TYPING.h / 2 + 14 * b; const sc = 0.82 + 0.3 * b; d.scale.set(sc, sc, sc);
+            });
+            // mine bubble face (payoff bloom near the badge corner)
+            const glow = seg(t, P + 0.1, P + 0.14) * (1 - seg(t, P + 0.24, P + 0.7, "power2.out"));
+            const mk2 = glow.toFixed(3); if (mk2 !== mineKey) { mineKey = mk2; mine.face.draw(glow); mine.slab.tex.needsUpdate = true; }
+            mine.slab.faceMat.emissiveIntensity = 0.96 + 0.1 * seg(t, P + 0.1, P + 0.13) * (1 - seg(t, P + 0.2, P + 0.5, "power2.out"));
+            // badge pops under the landing heart; the heart slams in from the camera and squashes on the badge
+            const bS = t < P ? 0 : 0.2 + 0.8 * spring(t, P, 2.6, 0.42);
+            const bOut = 1 - seg(t, T.out - 0.05, T.out + 0.15, "power3.in");
+            const bdY = C.layout.bottom - off + 42;
+            place(bdPiv, BD.x, bdY, bS * bOut, 22);
+            bdPiv.rotation.set(0, 0, -0.08 + 0.05 * wob(t, P + 0.1, 1, 2.4, 6));
+            const [bx, by] = W(BD.x, bdY); bdSh.mesh.position.set(bx + 4, by - 8, 0.8); bdSh.mesh.scale.set(bS * bOut, bS * bOut, 1); bdSh.mesh.visible = bS * bOut > 0.01;
+            const fall = seg(t, P, P + 0.1, "power3.in");
+            const hS = t < P ? 0 : 2.6 - 1.6 * fall;
+            const land = wob(t, P + 0.1, 1, 3.4, 7);
+            // the heart is not scaled by the badge pop (only by its exit), so it reads as a slam from the camera
+            const bsc = Math.max(0.05, bS);
+            hG.visible = t >= P; hG.position.set((HX * bsc + 60 * (1 - fall)) / bsc, 40 * (1 - fall) / bsc, (HEART.depth * hS + 2 + 300 * (1 - fall)) / bsc);
+            HEART.mesh.scale.set(hS * (1 + 0.2 * land) / bsc, hS * (1 - 0.22 * land) / bsc, hS / bsc);
+            hG.rotation.set(0, 0, -0.35 * (1 - fall) + 0.1 * wob(t, P + 0.1, 1, 2, 5));
+            HEART.mat.emissiveIntensity = 0.3 + 0.3 * seg(t, P + 0.1, P + 0.13) * (1 - seg(t, P + 0.23, P + 0.6, "power2.out"));
+            EMB.forEach((o) => {
+              const p = seg(t, P + 0.1 + o.t0, P + 0.7 + o.t0); o.m.visible = p > 0 && p < 1; if (!o.m.visible) return;
+              const e2 = Ez("power3.out")(p), d = o.dist * e2;
+              o.m.position.set(HX + Math.cos(o.ang) * d, Math.sin(o.ang) * d, 30 + 40 * e2);
+              const sc = Math.sin(PI * Math.min(1, p * 1.25)) * (1 - p) * 1.9 + 0.001; o.m.scale.set(sc, sc, sc); o.m.rotation.set(0, 0, o.rot * e2);
+            });
+            const rx = (u) => C.reactions.from + (C.reactions.to - C.reactions.from) * seg(u, P + 0.12, P + 0.85, "expo.out");
+            const v = Math.round(rx(t) * 4) / 4, dv = Math.round(Math.abs(rx(t) - rx(t - 1 / 30)));
+            const bk = v.toFixed(2) + "|" + dv; if (bk !== bdKey) { bdKey = bk; drawBadge(v, dv); badge.tex.needsUpdate = true; }
+            // light: one specular band across the reply bubble + heart, a raking key on the landing
+            const bp = seg(t, P + 0.12, P + 0.5, "power1.inOut");
+            const cx = C.layout.right - mine.w / 2 - 540;
+            K3.U.uBand.value = cx - 560 + 1120 * bp; K3.U.uBandW.value = 56;
+            K3.U.uBandAmp.value = seg(t, P + 0.1, P + 0.14) * (1 - seg(t, P + 0.42, P + 0.52)) * 0.8;
+            st.rake.intensity = 0.9 * seg(t, P + 0.08, P + 0.16) * (1 - seg(t, P + 0.36, P + 0.8, "power2.out"));
+            st.rake.position.set((-1 + 2 * bp) * st.DIST, st.DIST * 0.5, st.DIST * 0.6);
+            st.render();
+          }
+
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+          if (plate) Look.push(tl, "#push", 0, T.end, { to: 1.04 });
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          renderAt(0);
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

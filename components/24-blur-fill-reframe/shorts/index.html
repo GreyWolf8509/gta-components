@@ -1,0 +1,456 @@
+<!doctype html>
+<!-- 24 Blur-fill reframe, variant B "Split stack" (9:16, 1080x1920, 30 fps, 5.93 s).
+     Two clips stacked for a Short: gameplay on top, the creator's cam underneath, on ONE real Three.js slab (a slim
+     polished edge: 3 px graphite ring, 5 px rounded chamfers, real thickness, PMREM reflections) over a dark graded blur
+     of each clip. One seam: a slot in the face that a polished divider rod grows out of, from the centre to both edges,
+     always inside the window. The slab swings in tilted and lands flat on the cut; on that frame the rod hits the bezel
+     (squash, overshoot, settle) and light runs out of the seam ends around the whole edge (HDR bloom on the metal only).
+     Two tabs notch into the window corners. It stays seated to the last frame; the tabs retract into their corners.
+     Kind "full": it always shows footage; bg:"none" keeps the footage. See gta/DESIGN.md and ../DECISIONS.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #040507; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif; background: #040507;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      /* beds: each clip full-bleed behind its pane, defocused and graded (blacks hold, colour shows) */
+      .bed { position: absolute; inset: -60px; overflow: hidden; }
+      #bedTop { filter: blur(38px) brightness(.7) contrast(1.2) saturate(1.2); }
+      #bedBot { filter: blur(42px) brightness(.6) contrast(1.25) saturate(1.15); }
+      #bedBot .shot { object-position: 100% 50%; transform: scale(1.5); transform-origin: 100% 50%; }   /* the desk side only: no blurred arm or face in the band */
+      .bedPush { position: absolute; inset: 0; }
+      .bw { position: absolute; inset: 0; }
+      #bedShade { position: absolute; inset: 0; pointer-events: none;
+        background:
+          radial-gradient(ellipse 115% 64% at 50% 46%, rgba(2,3,5,0) 56%, rgba(2,3,5,.34) 100%),
+          linear-gradient(180deg, rgba(2,3,5,.3) 0%, rgba(2,3,5,0) 14%, rgba(2,3,5,0) 80%, rgba(2,3,5,.42) 100%); }
+      #bedGrain { position: absolute; inset: 0; pointer-events: none; }
+      #stack { position: absolute; inset: 0; }
+      #out { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; display: block; }
+
+      /* ---- tabs: inlays notched into each pane's top-left corner ---- */
+      .pin { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+      .tab { position: absolute; left: 0; top: 0; height: 84px; display: flex; align-items: center; white-space: nowrap; visibility: hidden;
+        transform-origin: 0% 0%; padding: 0 30px 0 44px; font: 900 66px/1 "Inter", sans-serif; letter-spacing: -0.01em; }
+      .tab .txt { display: block; padding-top: 3px; }
+      .tab.y { color: #17130a; border-radius: 36px 0 22px 0;
+        background: linear-gradient(180deg, #FFE680 0%, #FFD23C 48%, #F0B416 100%);
+        box-shadow: inset -2px -2px 0 rgba(214,219,226,.95), inset -3px -3px 0 rgba(36,39,45,.7), inset 0 3px 0 rgba(255,255,255,.5),
+          inset 0 -3px 6px rgba(0,0,0,.35), 0 6px 16px rgba(0,0,0,.5); }
+      .tab.c { color: #04202A; border-radius: 0 0 22px 0; font-size: 54px; letter-spacing: -0.015em; padding-left: 40px;
+        background: linear-gradient(180deg, #8AF0FF 0%, #33D6FF 48%, #0FA6D8 100%);
+        box-shadow: inset -2px -2px 0 rgba(214,219,226,.95), inset -3px -3px 0 rgba(36,39,45,.7), inset 0 3px 0 rgba(255,255,255,.45),
+          inset 0 -3px 6px rgba(0,0,0,.35), 0 6px 16px rgba(0,0,0,.5); }
+      .tab.c .txt { padding-top: 1px; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5.9333" data-width="1080" data-height="1920">
+      <!-- top bed: gameplay. One copy of each shot: it is the blurred bed and its frame is the top pane's face.
+           Each incoming shot starts 2 frames before its cut (hidden) so its frame is ready on the cut frame. -->
+      <div class="bed" id="bedTop"><div class="bedPush" id="bedTopPush">
+        <div class="bw" id="bw1"><video id="g1" class="clip shot" src="assets/shots/v45-beach-aerial-h.mp4" muted playsinline data-start="0" data-duration="0.7" data-media-start="0" data-track-index="0"></video></div>
+        <div class="bw" id="bw2"><video id="g2" class="clip shot" src="assets/shots/v08-trevor-rifle-h.mp4" muted playsinline data-start="0.6" data-duration="0.9333" data-media-start="0" data-track-index="1"></video></div>
+        <div class="bw" id="bw3"><video id="g3" class="clip shot" src="assets/shots/v17-deluxo-sunset-h.mp4" muted playsinline data-start="1.4667" data-duration="1.5667" data-media-start="0" data-track-index="2"></video></div>
+        <div class="bw" id="bw4"><video id="g4" class="clip shot" src="assets/shots/v44-bridge-skyline-h.mp4" muted playsinline data-start="2.9667" data-duration="1.3" data-media-start="0.2" data-track-index="0"></video></div>
+        <div class="bw" id="bw5"><video id="g5" class="clip shot" src="assets/shots/v21-race-topdown-h.mp4" muted playsinline data-start="4.2" data-duration="1.7333" data-media-start="0" data-track-index="1"></video></div>
+      </div></div>
+      <!-- bottom bed: the cam, below the seam -->
+      <div class="bed" id="bedBot">
+        <video id="cam" class="clip shot" src="assets/plates/facecam-sample.mp4" muted playsinline data-start="0" data-duration="5.9333" data-media-start="0.5" data-track-index="3"></video>
+      </div>
+      <div id="bedShade"></div>
+      <div id="bedGrain"></div>
+      <div id="stack">
+        <canvas id="out" width="1080" height="1920"></canvas>
+        <div class="pin" id="pinTop"><div class="tab y" id="tabTop"><span class="txt" id="tabTopTxt"></span></div></div>
+        <div class="pin" id="pinBot"><div class="tab c" id="tabBot"><span class="txt" id="tabBotTxt"></span></div></div>
+      </div>
+    </div>
+    <script>
+      // Everything a creator edits. Clips: each gameplay shot is one <video> above (keep data-start = cut - 2 frames for every
+      // shot after the first; never run past a clip's length); list the same ids and cuts here. Put `lock` on a cut or a hit.
+      const CONFIG = {
+        topLabel: "IN GAME",
+        bottomLabel: "@everestchris6",
+        shots: [ { id: "g1", cut: 0 }, { id: "g2", cut: 0.6667 }, { id: "g3", cut: 1.5333 }, { id: "g4", cut: 3.0333 }, { id: "g5", cut: 4.2667 } ],
+        cam: { id: "cam", scale: 0.95, focusX: 700, top: 0 },   // face crop: source scale, source x at the pane centre (face sits right), source y at the top
+        slab: { width: 1040, top: 206, bottom: 1480, seamY: 866, radius: 44, bevel: 5, ring: 3, depth: 30 },
+        divider: { height: 14, bevel: 5, proud: 4 },   // the polished rod over the seam
+        metal: { ring: "#24272d", chamfer: "#8d939b" },
+        open: { x: 0, y: -40, z: -150, rx: -0.28, ry: 0.17, rz: 0.02 },   // the tilted opening pose (px, radians); y is an offset
+        settle: { hz: 2.2, damp: 7.0 },
+        kick: { rx: 0.035, ry: -0.015, z: 30 },
+        rake: { dur: 0.62, power: 9.0, bloom: 1.3 },
+        timing: { grow: 0.26, lock: 0.6667, tabTop: 0.68, tabBot: 0.7333, tabsOut: 5.56, end: 5.9333 }
+      };
+      (function () {
+        const C = CONFIG, S = C.slab, T = C.timing, $ = (s) => document.querySelector(s), FR = 1 / 30;
+        const CW = 1080, CH = 1920;
+        const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+        const c01 = (x) => clamp(x, 0, 1);
+        const sio = (x) => -(Math.cos(Math.PI * c01(x)) - 1) / 2;
+        const lerp = (a, b, k) => a + (b - a) * k;
+        $("#tabTopTxt").textContent = C.topLabel; $("#tabBotTxt").textContent = C.bottomLabel;
+
+        // ---------- renderer ----------
+        const gl = document.createElement("canvas"); gl.width = CW; gl.height = CH;
+        const renderer = new THREE.WebGLRenderer({ canvas: gl, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+        renderer.setPixelRatio(1); renderer.setSize(CW, CH, false); renderer.setClearColor(0x000000, 0);
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+        const out = $("#out"), octx = out.getContext("2d");
+        const scene = new THREE.Scene();
+        const FOV = 28, DIST = (CH / 2) / Math.tan((FOV / 2) * Math.PI / 180);
+        const camera = new THREE.PerspectiveCamera(FOV, CW / CH, 10, DIST * 3);
+        camera.position.set(0, 0, DIST); camera.lookAt(0, 0, 0);
+        const toWorldY = (cy) => CH / 2 - cy;
+
+        // ---------- geometry in px (slab-local: origin at the slab centre, y up) ----------
+        const SW = S.width, SH = S.bottom - S.top, BV = S.bevel, RING = S.ring, DEP = S.depth, R0 = S.radius - BV;
+        const holeW = SW - 2 * BV - 2 * RING, holeH = SH - 2 * BV - 2 * RING, scrW = holeW - 2 * BV, scrH = holeH - 2 * BV;
+        const cY = (S.top + S.bottom) / 2, restY = toWorldY(cY);
+        const scrTop = S.top + BV + RING + BV;                      // canvas y of the visible screen's top edge
+        const seamF = S.seamY - scrTop, D = C.divider;              // the seam in face-canvas px
+        const gpH = Math.round(seamF + D.height / 2), camY0 = Math.round(seamF - D.height / 2), camH = scrH - camY0;
+        const seamLocal = cY - S.seamY;                             // the seam in slab-local y
+        const BAR_FULL = holeW + 4;                                 // the rod's full length: its ends sit in the inner chamfer
+        const railX = SW / 2 - (BV + RING / 2), railY = SH / 2 - (BV + RING / 2);   // centre line of the bezel's edge
+
+        // ---------- frame sources ----------
+        function shotAt(t) { let s = C.shots[0]; for (const sh of C.shots) if (t >= sh.cut - 1e-4) s = sh; return s; }
+        function frameSource(id) {
+          const v = document.getElementById(id); if (!v) return null;
+          const img = v.nextElementSibling;
+          if (img && img.classList && img.classList.contains("__render_frame__") && img.complete && img.naturalWidth > 0) return img;
+          if (v.readyState >= 2 && v.videoWidth > 0) return v;
+          return null;
+        }
+        const foot = document.createElement("canvas"); foot.width = 256; foot.height = 144;
+        const footCtx = foot.getContext("2d");
+        const footTex = new THREE.CanvasTexture(foot); footTex.colorSpace = THREE.SRGBColorSpace;
+
+        // ---------- environment (dark studio, top softbox, strip lights, floor bounce, the gameplay in front) ----------
+        const envScene = new THREE.Scene();
+        envScene.add(new THREE.Mesh(new THREE.SphereGeometry(60, 48, 24), new THREE.ShaderMaterial({
+          side: THREE.BackSide, depthWrite: false,
+          vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 lo = vec3(0.004,0.005,0.007), mid = vec3(0.030,0.034,0.042), hi = vec3(0.16,0.17,0.19);" +
+            " vec3 c = y < 0.0 ? mix(mid, lo, smoothstep(0.0, -0.6, y)) : mix(mid, hi, smoothstep(0.0, 0.9, y)); gl_FragColor = vec4(c, 1.0); }"
+        })));
+        const hdr = (r, g, b) => new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b), side: THREE.DoubleSide });
+        const softTop = new THREE.Mesh(new THREE.PlaneGeometry(34, 10), hdr(1.6, 1.58, 1.52)); softTop.position.set(0, 30, 16); softTop.lookAt(0, 0, 0); envScene.add(softTop);
+        const stripL = new THREE.Mesh(new THREE.PlaneGeometry(3, 26), hdr(0.55, 0.6, 0.7)); stripL.position.set(-36, 4, 14); stripL.lookAt(0, 0, 0); envScene.add(stripL);
+        const stripR = new THREE.Mesh(new THREE.PlaneGeometry(3, 26), hdr(0.7, 0.62, 0.55)); stripR.position.set(36, 4, 14); stripR.lookAt(0, 0, 0); envScene.add(stripR);
+        const footBand = new THREE.Mesh(new THREE.CylinderGeometry(44, 44, 30, 32, 1, true, -Math.PI / 3, 2 * Math.PI / 3),
+          new THREE.MeshBasicMaterial({ map: footTex, side: THREE.BackSide, color: new THREE.Color(0.9, 0.9, 0.9) }));
+        footBand.position.y = -2; envScene.add(footBand);
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 24), hdr(0.16, 0.15, 0.14)); floor.position.set(0, -28, 14); floor.lookAt(0, 0, 0); envScene.add(floor);
+        const pmrem = new THREE.PMREMGenerator(renderer); let envRT = null;
+        const key = new THREE.DirectionalLight(0xfff2e2, 1.1); key.position.set(-900, 1400, 1600); scene.add(key);
+        scene.add(new THREE.HemisphereLight(0xb8c8ff, 0x1a1410, 0.5));
+
+        // ---------- metal with up to 6 raking point lights (Blinn lobes, each windowed by a gaussian around its own centre) ----------
+        const NL = 6;
+        const RK = { pos: { value: Array.from({ length: NL }, () => new THREE.Vector3(-9999, 0, 0)) }, amt: { value: new Array(NL).fill(0) },
+          win: { value: Array.from({ length: NL }, () => new THREE.Vector4(0, 0, 1, 1)) }, only: { value: 0 } };
+        function withRake(mat, pw) {
+          mat.onBeforeCompile = (sh) => {
+            sh.uniforms.uRkPos = RK.pos; sh.uniforms.uRkAmt = RK.amt; sh.uniforms.uRkWin = RK.win; sh.uniforms.uRkOnly = RK.only;
+            sh.vertexShader = "varying vec3 vWP;\n" + sh.vertexShader.replace("#include <worldpos_vertex>",
+              "#include <worldpos_vertex>\n  vWP = (modelMatrix * vec4(transformed, 1.0)).xyz;");
+            sh.fragmentShader = "varying vec3 vWP; uniform vec3 uRkPos[" + NL + "]; uniform float uRkAmt[" + NL + "]; uniform vec4 uRkWin[" + NL + "]; uniform float uRkOnly;\n" +
+              sh.fragmentShader.replace("#include <opaque_fragment>",
+              "  { vec3 Nw = normalize(inverseTransformDirection(normal, viewMatrix)); vec3 Vv = normalize(cameraPosition - vWP); vec3 rk = vec3(0.0);\n" +
+              "    for (int i = 0; i < " + NL + "; i++) { if (uRkAmt[i] <= 0.0) continue;\n" +
+              "      vec3 Lr = normalize(uRkPos[i] - vWP); vec3 Hh = normalize(Lr + Vv); vec2 dd = (vWP.xy - uRkWin[i].xy) / uRkWin[i].zw;\n" +
+              "      float sp = pow(clamp(dot(Nw, Hh), 0.0, 1.0), " + pw.toFixed(1) + ") * exp(-dot(dd, dd));\n" +
+              "      rk += mix(diffuseColor.rgb, vec3(1.0, 0.96, 0.9), 0.6) * sp * uRkAmt[i]; }\n" +
+              "    outgoingLight = uRkOnly > 0.5 ? rk : outgoingLight + rk; }\n#include <opaque_fragment>");
+          };
+          return mat;
+        }
+        const ringMat = withRake(new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.metal.ring), metalness: 1, roughness: 0.34, clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 1.25 }), 60);
+        const chamMat = withRake(new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.metal.chamfer), metalness: 1, roughness: 0.18, clearcoat: 0.6, clearcoatRoughness: 0.05, envMapIntensity: 1.0 }), 16);
+        const barMat = withRake(new THREE.MeshPhysicalMaterial({ color: new THREE.Color("#a7adb5"), metalness: 1, roughness: 0.14, clearcoat: 0.8, clearcoatRoughness: 0.04, envMapIntensity: 1.1 }), 24);
+        const blackMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+
+        function rr(w, h, r, path) {
+          const s = path ? new THREE.Path() : new THREE.Shape(), x = -w / 2, y = -h / 2;
+          s.moveTo(x + r, y); s.lineTo(x + w - r, y); s.absarc(x + w - r, y + r, r, -Math.PI / 2, 0, false);
+          s.lineTo(x + w, y + h - r); s.absarc(x + w - r, y + h - r, r, 0, Math.PI / 2, false);
+          s.lineTo(x + r, y + h); s.absarc(x + r, y + h - r, r, Math.PI / 2, Math.PI, false);
+          s.lineTo(x, y + r); s.absarc(x + r, y + r, r, Math.PI, 1.5 * Math.PI, false);
+          return s;
+        }
+        function smoothSides(geo) {
+          const pos = geo.attributes.position, nor = geo.attributes.normal, g1 = geo.groups.find((g) => g.materialIndex === 1);
+          if (!g1) return; const acc = new Map(), key = (i) => Math.round(pos.getX(i) * 4) + "," + Math.round(pos.getY(i) * 4) + "," + Math.round(pos.getZ(i) * 4);
+          for (let i = g1.start; i < g1.start + g1.count; i++) { const k = key(i); const a = acc.get(k) || [0, 0, 0]; a[0] += nor.getX(i); a[1] += nor.getY(i); a[2] += nor.getZ(i); acc.set(k, a); }
+          for (let i = g1.start; i < g1.start + g1.count; i++) { const a = acc.get(key(i)), l = Math.hypot(a[0], a[1], a[2]) || 1; nor.setXYZ(i, a[0] / l, a[1] / l, a[2] / l); }
+          nor.needsUpdate = true;
+        }
+
+        // ---------- the slab: one body, one window, two clips on one face, one divider rod ----------
+        const outer = rr(SW - 2 * BV, SH - 2 * BV, R0); outer.holes.push(rr(holeW, holeH, R0 - RING, true));
+        const bodyGeo = new THREE.ExtrudeGeometry(outer, { depth: DEP, bevelEnabled: true, bevelThickness: BV, bevelSize: BV, bevelSegments: 10, curveSegments: 28, steps: 1 });
+        bodyGeo.computeVertexNormals(); smoothSides(bodyGeo); bodyGeo.translate(0, 0, -(DEP + BV));
+        const body = new THREE.Mesh(bodyGeo, [ringMat, chamMat]);
+        const face = document.createElement("canvas"); face.width = scrW; face.height = scrH;
+        const fctx = face.getContext("2d");
+        const faceTex = new THREE.CanvasTexture(face); faceTex.colorSpace = THREE.SRGBColorSpace; faceTex.minFilter = THREE.LinearFilter; faceTex.generateMipmaps = false;
+        const faceMat = new THREE.MeshBasicMaterial({ map: faceTex, toneMapped: false });
+        const sg = new THREE.ShapeGeometry(rr(scrW + 3, scrH + 3, Math.max(4, R0 - RING - BV + 1.5)), 24);
+        { const p = sg.attributes.position, uv = sg.attributes.uv; for (let i = 0; i < p.count; i++) uv.setXY(i, (p.getX(i) + scrW / 2) / scrW, (p.getY(i) + scrH / 2) / scrH); uv.needsUpdate = true; }
+        const screen = new THREE.Mesh(sg, faceMat); screen.position.z = -BV - 0.6;
+        // the rod: a pill-profile bar rebuilt at its current length (it grows from the centre of the slot to both edges,
+        // so it is always inside the window; at full length its ends sit in the inner chamfer)
+        const barCache = new Map();
+        function barGeoFor(len) {
+          const q = Math.round(len / 2) * 2; if (barCache.has(q)) return barCache.get(q);
+          const w = Math.max(0.5, q - 2 * D.bevel), h = D.height - 2 * D.bevel;
+          const g = new THREE.ExtrudeGeometry(rr(w, h, Math.max(0.05, Math.min(h, w) / 2 - 0.01)), { depth: 6, bevelEnabled: true, bevelThickness: D.bevel, bevelSize: D.bevel, bevelSegments: 8, curveSegments: 12, steps: 1 });
+          g.computeVertexNormals(); smoothSides(g); g.translate(0, 0, -(6 + D.bevel) + D.proud);
+          barCache.set(q, g); return g;
+        }
+        const bar = new THREE.Mesh(barGeoFor(BAR_FULL), [barMat, barMat]);
+        const barPivot = new THREE.Group(); barPivot.add(bar);
+        const HALF = (DEP + 2 * BV) / 2, slab = new THREE.Group(), inner = new THREE.Group();
+        inner.position.z = HALF; inner.add(body); inner.add(screen); inner.add(barPivot); slab.add(inner); scene.add(slab);
+        // soft shadow far back on the bed plane (darkening only)
+        const SHZ = 1400, SHK = (DIST + SHZ) / DIST;
+        const shC = document.createElement("canvas"); shC.width = 512; shC.height = Math.round(512 * (SH + 240) / (SW + 240));
+        { const x = shC.getContext("2d"), k = 512 / (SW + 240); x.filter = "blur(" + Math.round(40 * k) + "px)"; x.fillStyle = "#000";
+          x.beginPath(); x.roundRect(120 * k, 120 * k, SW * k, SH * k, S.radius * k); x.fill(); }
+        const shadow = new THREE.Mesh(new THREE.PlaneGeometry(SW + 240, SH + 240), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(shC), transparent: true, depthWrite: false, toneMapped: false }));
+        shadow.renderOrder = -1; scene.add(shadow);
+
+        function lipShade() {          // the bezel's lip and the slot shade the glass edge (darkening only); the slot itself is the seam
+          const E = 14, g = (x0, y0, x1, y1, a) => { const gr = fctx.createLinearGradient(x0, y0, x1, y1); gr.addColorStop(0, "rgba(0,0,0," + a + ")"); gr.addColorStop(1, "rgba(0,0,0,0)"); return gr; };
+          fctx.fillStyle = g(0, 0, 0, E, .38); fctx.fillRect(0, 0, scrW, E); fctx.fillStyle = g(0, scrH, 0, scrH - E, .38); fctx.fillRect(0, scrH - E, scrW, E);
+          fctx.fillStyle = g(0, 0, E, 0, .38); fctx.fillRect(0, 0, E, scrH); fctx.fillStyle = g(scrW, 0, scrW - E, 0, .38); fctx.fillRect(scrW - E, 0, E, scrH);
+          const s0 = seamF - D.height / 2, s1 = seamF + D.height / 2;
+          fctx.fillStyle = g(0, s0, 0, s0 - 16, .5); fctx.fillRect(0, s0 - 16, scrW, 16);
+          fctx.fillStyle = g(0, s1, 0, s1 + 16, .5); fctx.fillRect(0, s1, scrW, 16);
+          const sl = fctx.createLinearGradient(0, s0, 0, s1);          // the slot: a dark machined groove, lit lip on top, shadow floor
+          sl.addColorStop(0, "#1b1e23"); sl.addColorStop(0.18, "#07080a"); sl.addColorStop(0.8, "#030304"); sl.addColorStop(1, "#121418");
+          fctx.fillStyle = sl; fctx.fillRect(0, s0, scrW, s1 - s0);
+        }
+        function drawFace(t) {
+          const src = frameSource(shotAt(t).id);
+          if (src) {
+            const iw = src.naturalWidth || src.videoWidth || 1920, ih = src.naturalHeight || src.videoHeight || 1080, fa = scrW / gpH;
+            let sw = ih * fa, sh = ih; if (sw > iw) { sw = iw; sh = iw / fa; }
+            try { fctx.drawImage(src, (iw - sw) / 2, (ih - sh) / 2, sw, sh, 0, 0, scrW, gpH); footCtx.drawImage(src, 0, 0, 256, 144); footTex.needsUpdate = true; } catch (e) {}
+          }
+          const cs = frameSource(C.cam.id);
+          if (cs) {
+            const nf = (cs.naturalWidth || cs.videoWidth || 1920) / 1920, k = C.cam.scale * nf, sw = scrW / k, sh = camH / k;
+            try { fctx.drawImage(cs, C.cam.focusX * nf - sw / 2, C.cam.top * nf, sw, sh, 0, camY0, scrW, camH); } catch (e) {}
+          }
+          lipShade(); faceTex.needsUpdate = true;
+        }
+
+        // ---------- HDR bloom on the hot metal only (the face renders black in this pass) ----------
+        const BLOOM_OK = renderer.capabilities.isWebGL2 && renderer.extensions.has("EXT_color_buffer_float");
+        const RTO = { type: THREE.HalfFloatType, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter };
+        const rtMain = new THREE.WebGLRenderTarget(CW / 2, CH / 2, Object.assign({ samples: 4 }, RTO));
+        const LV = [4, 8, 16].map((d) => [new THREE.WebGLRenderTarget(CW / d, CH / d, Object.assign({ depthBuffer: false }, RTO)), new THREE.WebGLRenderTarget(CW / d, CH / d, Object.assign({ depthBuffer: false }, RTO))]);
+        const postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), postScene = new THREE.Scene();
+        const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2)); quad.frustumCulled = false; postScene.add(quad);
+        const VS = "varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }";
+        const post = (u, fs, extra) => new THREE.ShaderMaterial(Object.assign({ uniforms: u, vertexShader: VS, fragmentShader: fs, depthTest: false, depthWrite: false, blending: THREE.NoBlending }, extra || {}));
+        const brightMat = post({ tSrc: { value: null }, uTh: { value: 0.7 } },
+          "uniform sampler2D tSrc; uniform float uTh; varying vec2 vUv; void main(){ vec4 c = texture2D(tSrc, vUv); float l = max(c.r, max(c.g, c.b)); float k = smoothstep(uTh, uTh + 1.2, l); gl_FragColor = vec4(c.rgb * k, 1.0); }");
+        const blurMat = post({ tSrc: { value: null }, uDir: { value: new THREE.Vector2() } },
+          "uniform sampler2D tSrc; uniform vec2 uDir; varying vec2 vUv; void main(){ vec3 c = texture2D(tSrc, vUv).rgb * 0.2270270270;" +
+          " c += (texture2D(tSrc, vUv + uDir * 1.3846153846).rgb + texture2D(tSrc, vUv - uDir * 1.3846153846).rgb) * 0.3162162162;" +
+          " c += (texture2D(tSrc, vUv + uDir * 3.2307692308).rgb + texture2D(tSrc, vUv - uDir * 3.2307692308).rgb) * 0.0702702703; gl_FragColor = vec4(c, 1.0); }");
+        const compMat = post({ t1: { value: null }, t2: { value: null }, t3: { value: null }, uStr: { value: 0 } },
+          "uniform sampler2D t1, t2, t3; uniform float uStr; varying vec2 vUv; void main(){ vec3 b = (texture2D(t1, vUv).rgb + texture2D(t2, vUv).rgb * 0.5 + texture2D(t3, vUv).rgb * 0.22) * uStr;" +
+          " b = b / (1.0 + b); b = pow(b, vec3(1.0 / 2.2)); gl_FragColor = vec4(b, max(b.r, max(b.g, b.b))); }",
+          { blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor,
+            blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor });
+        function runPass(mat, target) { quad.material = mat; renderer.setRenderTarget(target); renderer.render(postScene, postCam); }
+        function bloomPass(str) {
+          if (!BLOOM_OK || str < 0.01) return;
+          screen.material = blackMat; shadow.visible = false; RK.only.value = 1;
+          renderer.setRenderTarget(rtMain); renderer.clear(); renderer.render(scene, camera);
+          screen.material = faceMat; shadow.visible = true; RK.only.value = 0;
+          brightMat.uniforms.tSrc.value = rtMain.texture; runPass(brightMat, LV[0][0]);
+          let src = LV[0][0];
+          LV.forEach(([A, B]) => {
+            blurMat.uniforms.tSrc.value = src.texture; blurMat.uniforms.uDir.value.set(1 / A.width, 0); runPass(blurMat, B);
+            blurMat.uniforms.tSrc.value = B.texture; blurMat.uniforms.uDir.value.set(0, 1 / A.height); runPass(blurMat, A);
+            src = A;
+          });
+          compMat.uniforms.t1.value = LV[0][0].texture; compMat.uniforms.t2.value = LV[1][0].texture; compMat.uniforms.t3.value = LV[2][0].texture;
+          compMat.uniforms.uStr.value = str;
+          renderer.autoClear = false; runPass(compMat, null); renderer.autoClear = true;
+        }
+
+        // ---------- motion (pure functions of time) ----------
+        const O = C.open, KEYS = ["x", "y", "z", "rx", "ry", "rz"], REST = { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0 };
+        const VLAND = 1.7 / T.lock, W0 = 2 * Math.PI * C.settle.hz, GROW0 = T.lock - T.grow;
+        function openF(t) {                 // 1 = the tilted pose, 0 = seated; arrives with speed on the lock, then settles past it
+          if (t <= T.lock) { const u = c01(t / T.lock); return 1 - (0.3 * u + 0.7 * u * u); }
+          return -(VLAND / W0) * Math.exp(-C.settle.damp * (t - T.lock)) * Math.sin(W0 * (t - T.lock));
+        }
+        function slabPose(t) {              // seated from the lock to the last frame (the reframe is always on)
+          const f = openF(t), p = {};
+          KEYS.forEach((q) => { p[q] = REST[q] + (O[q] - REST[q]) * f; });
+          C.shots.forEach((s) => { if (s.cut <= T.lock + 0.1) return; const a = t - s.cut; if (a >= -1e-4) { const k = Math.exp(-8 * a) * Math.cos(2 * Math.PI * 2.4 * a); p.rx += C.kick.rx * k; p.ry += C.kick.ry * k; p.z += C.kick.z * k; } });
+          p.y += restY; return p;
+        }
+        function barLen(t) {                // grows out of the centre of the slot, accelerating, and hits the bezel on the lock
+          if (t <= GROW0) return 0; if (t >= T.lock) return BAR_FULL;
+          const u = (t - GROW0) / T.grow; return BAR_FULL * (0.1 * u + 0.9 * u * u);
+        }
+        function barPose(t) {               // after the hit: 2-frame squash, overshoot, settle (a centre-out spring in y and z)
+          const tau = t - T.lock; let z = 0, sy = 1;
+          if (tau >= 0) { z = -3 * Math.exp(-9 * tau) * Math.cos(2 * Math.PI * 3.2 * tau);
+            sy = tau < 2 * FR ? 0.86 : 1 - 0.12 * Math.exp(-8 * (tau - 2 * FR)) * Math.cos(2 * Math.PI * 3.2 * (tau - 2 * FR)); }
+          return { len: barLen(t), z, sy };
+        }
+        function applyPose(t) {
+          const p = slabPose(t), b = barPose(t);
+          slab.position.set(p.x, p.y, p.z - HALF); slab.rotation.set(p.rx, p.ry, p.rz, "XYZ");
+          bar.visible = b.len >= 2 * D.bevel + 2; if (bar.visible) bar.geometry = barGeoFor(b.len);
+          barPivot.position.set(0, seamLocal, b.z); barPivot.scale.set(1, b.sy, 1);
+          const lift = clamp((p.z + 160) / 400, 0, 1.5);
+          shadow.position.set((p.x + 6) * SHK, (p.y - 40 - 26 * lift) * SHK, -SHZ);
+          const sc = SHK * (1.0 + 0.05 * lift + Math.abs(p.ry) * 0.2);
+          shadow.scale.set(sc, sc * (1 + Math.abs(p.rx) * 0.2), 1);
+          shadow.material.opacity = 0.56 - 0.14 * lift;
+          return b;
+        }
+        const _v = new THREE.Vector3();
+        function proj(obj, lx, ly, lz) { _v.set(lx, ly, lz); obj.localToWorld(_v); _v.project(camera); return [(_v.x + 1) * CW / 2, (1 - _v.y) * CH / 2]; }
+        function cornersAt(t) {
+          const b = applyPose(t); slab.updateMatrixWorld(true);
+          const r = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, c]) => proj(inner, a * SW / 2, c * SH / 2, 0));
+          r.push(proj(inner, -b.len / 2, seamLocal, D.proud), proj(inner, b.len / 2, seamLocal, D.proud));
+          return r;
+        }
+        // ---------- the one payoff light ----------
+        // the rod's two tips carry a light while it grows; on the lock the whole rod flares (peak held 3 frames) and four
+        // light packets run out of the seam ends, up and down the side rails and along the top and bottom rails to the centre.
+        const _w = new THREE.Vector3();
+        function setLight(i, lx, ly, lz, wx, wy, rx, ry, amt) {
+          _w.set(lx, ly, lz); inner.localToWorld(_w); RK.pos.value[i].copy(_w);
+          _w.set(wx, wy, 0); inner.localToWorld(_w); RK.win.value[i].set(_w.x, _w.y, rx, ry); RK.amt.value[i] = amt;
+        }
+        const L1T = railY - seamLocal, L1B = railY + seamLocal;    // seam end to the top / bottom corner along the side rail
+        function railPoint(s, sx, sy, L1) {  // s: distance from the seam end; sx: side, sy: up (+1) or down (-1)
+          if (s < L1) return [sx * railX, seamLocal + sy * s, 0];
+          return [sx * Math.max(0, railX - (s - L1)), sy * railY, 1];
+        }
+        function rakeAt(t) {
+          RK.amt.value.fill(0); let peak = 0;
+          if (t > GROW0 && t < T.lock) {
+            const L = barLen(t), u = c01((t - GROW0) / T.grow), a = C.rake.power * 0.8 * (0.35 + 0.65 * u);
+            [-1, 1].forEach((sx, i) => setLight(i, sx * (L / 2 - 10), seamLocal + 160, 260, sx * (L / 2 - 26), seamLocal, 70, 26, a));
+            peak = Math.max(peak, 0.35 + 0.65 * u);
+          }
+          const tau = t - T.lock;
+          if (tau >= 0 && tau < 0.6) {
+            const env = tau < 3 * FR ? 1 : Math.exp(-(tau - 3 * FR) / 0.13);
+            setLight(0, 0, seamLocal + 220, 700, 0, seamLocal, 640, 22, C.rake.power * 1.15 * env);
+            setLight(1, 0, seamLocal - 220, 700, 0, seamLocal, 640, 22, C.rake.power * 0.5 * env);
+            peak = Math.max(peak, env);
+          }
+          const v = (t - T.lock - FR) / C.rake.dur;   // the side rails only: the light dies before the corners (no lit outline)
+          if (v > 0 && v < 1) {
+            const e = 1 - Math.pow(1 - v, 2.0), env = Math.min(1, v / 0.07) * (v > 0.45 ? 1 - sio((v - 0.45) / 0.55) : 1);
+            let k = 2;
+            [[1, L1T], [-1, L1B]].forEach(([sy, L1]) => {
+              const s = e * (L1 - 150);
+              [-1, 1].forEach((sx) => { const [px, py] = railPoint(s, sx, sy, L1); setLight(k++, px * 0.94, py, 260, px, py, 40, 170, C.rake.power * 0.9 * env); });
+            });
+            peak = Math.max(peak, env);
+          }
+          return peak;
+        }
+
+        // ---------- beds + tabs ----------
+        const bws = C.shots.map((s) => document.getElementById(s.id).parentElement), bedBot = $("#bedBot"), bedTopPush = $("#bedTopPush"), bedTop = $("#bedTop");
+        const pinTop = $("#pinTop"), pinBot = $("#pinBot");
+        $("#tabTop").style.borderRadius = (R0 - RING) + "px 0 22px 0";
+        function renderDom(t) {
+          const cur = shotAt(t); bws.forEach((w, i) => (w.style.opacity = C.shots[i] === cur ? "1" : "0"));
+          let pulse = 0; C.shots.slice(1).forEach((s) => { const a = t - s.cut; if (a >= 0 && a < 0.5) pulse = Math.max(pulse, a < 3 * FR ? 1 : 1 - sio((a - 3 * FR) / 0.3)); });
+          bedTop.style.filter = "blur(" + (38 + 14 * pulse).toFixed(1) + "px) brightness(.7) contrast(1.2) saturate(1.2)";
+          bedTopPush.style.transform = "scale(" + (1.02 + 0.04 * sio(t / T.end)).toFixed(4) + ")";
+          // the cam's bed sits below the seam (feathered), following the slab
+          const ys = proj(inner, 0, seamLocal, 0)[1] + 60;
+          const m = "linear-gradient(180deg, rgba(0,0,0,0) " + (ys - 60).toFixed(1) + "px, #000 " + (ys + 60).toFixed(1) + "px)";
+          bedBot.style.webkitMaskImage = m; bedBot.style.maskImage = m;
+          // tabs pinned to each pane's top-left corner, flush with the window's edge (the cam tab tucked under the rod)
+          const a = proj(inner, -holeW / 2, holeH / 2, 0), b = proj(inner, -holeW / 2, seamLocal - D.height / 2, 0);
+          pinTop.style.transform = "translate(" + a[0].toFixed(2) + "px," + a[1].toFixed(2) + "px)";
+          pinBot.style.transform = "translate(" + b[0].toFixed(2) + "px," + b[1].toFixed(2) + "px)";
+        }
+
+        function renderAt(t) {
+          drawFace(t);
+          const rt = pmrem.fromScene(envScene, 0, 0.1, 200); scene.environment = rt.texture; if (envRT) envRT.dispose(); envRT = rt;
+          key.position.set(lerp(-1100, -500, sio(t / T.end)), 1400, 1600);
+          const a = cornersAt(t), b = cornersAt(t - 0.5 * FR);
+          let d = 0; for (let i = 0; i < a.length; i++) d = Math.max(d, Math.hypot(a[i][0] - b[i][0], a[i][1] - b[i][1]));
+          const K = clamp(1 + Math.floor(d / 4), 1, 10);
+          octx.clearRect(0, 0, CW, CH);
+          octx.globalCompositeOperation = K > 1 ? "lighter" : "source-over"; octx.globalAlpha = 1 / K;
+          for (let i = 0; i < K; i++) {
+            const ts = K > 1 ? t - 0.5 * FR * (1 - i / (K - 1)) : t;
+            applyPose(ts); slab.updateMatrixWorld(true);
+            const rk = rakeAt(ts);
+            renderer.setRenderTarget(null); renderer.render(scene, camera);
+            bloomPass(rk * C.rake.bloom);
+            octx.drawImage(gl, 0, 0);
+          }
+          octx.globalAlpha = 1; octx.globalCompositeOperation = "source-over";
+          applyPose(t); slab.updateMatrixWorld(true);
+          renderDom(t);
+        }
+        window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+
+        const FACES = ["900 100px Inter", "700 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const tl = gsap.timeline({ paused: true });
+          Look.install(tl, { root: "#bedGrain", duration: T.end, grain: 0.05, vignette: 0 });
+          Look.drive(tl, 0, T.end, (q) => renderAt(q * T.end));
+          Look.impact(tl, T.lock, { shake: "#stack", amp: 5, dur: 0.28, flash: 0 });
+          // tabs: opaque from their first frame; they grow out of the pane's corner (clip from the corner + a spring on scale)
+          const CLOSED = "inset(0% 100% 100% 0%)", OPEN = "inset(0% 0% 0% 0%)";
+          function tabIn(tab, at) {
+            gsap.set(tab, { visibility: "hidden", clipPath: CLOSED, scale: 1 });
+            tl.set(tab, { visibility: "visible" }, at);
+            tl.fromTo(tab, { clipPath: CLOSED }, { clipPath: OPEN, duration: 0.24, ease: "expo.out", immediateRender: false }, at);
+            tl.fromTo(tab, { scale: 1.16 }, { scale: 1, duration: 0.36, ease: "back.out(2.4)", immediateRender: false }, at);
+          }
+          function tabOut(tab, at) {
+            tl.fromTo(tab, { clipPath: OPEN }, { clipPath: CLOSED, duration: 0.18, ease: "power3.in", immediateRender: false }, at);
+            tl.set(tab, { visibility: "hidden" }, at + 0.18);
+          }
+          tabIn($("#tabTop"), T.tabTop); tabIn($("#tabBot"), T.tabBot);
+          tabOut($("#tabBot"), T.tabsOut); tabOut($("#tabTop"), T.tabsOut + 0.05);
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

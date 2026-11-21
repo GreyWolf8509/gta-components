@@ -1,0 +1,483 @@
+<!doctype html>
+<!-- 65 Scale slider, variant B: a big vertical CALM -> CHAOS fader for a Short; the knob climbs the stops and slams into CHAOS (9:16, 1080x1920, 30 fps).
+     The slot, fill, ticks, knob and end stop are real Three.js geometry; type is DOM (stop labels and the knob readout pinned to projected 3D anchors). See ../DECISIONS.md.
+     Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      /* Shorts blur-fill: the -h shot at exactly 1.0x (centre 1080 px of 1920) in a band, over a blurred, dimmed copy of itself */
+      .bgv { filter: blur(26px) brightness(.5) saturate(1.25); transform: scale(1.1); }
+      .band { position: absolute; left: -420px; top: 470px; width: 1920px; height: 1080px; object-fit: fill;
+        box-shadow: 0 0 46px rgba(0,0,0,.55); }
+      #dim { position: absolute; inset: 0; z-index: 20; pointer-events: none; opacity: 0;
+        background: linear-gradient(180deg, rgba(6,2,12,.45) 0%, rgba(6,2,12,.3) 16%, rgba(6,2,12,.08) 30%, rgba(6,2,12,0) 38%),
+          linear-gradient(0deg, rgba(6,2,12,.5) 0%, rgba(6,2,12,.3) 12%, rgba(6,2,12,0) 21%),
+          radial-gradient(60% 38% at 42% 55%, rgba(6,2,12,.3) 0%, rgba(6,2,12,.18) 55%, rgba(6,2,12,0) 100%); }
+      #ov { position: absolute; inset: 0; }
+      #gl { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; }
+      .pin { position: absolute; left: 0; top: 0; white-space: nowrap; visibility: hidden; will-change: transform; }
+      .hdr { position: absolute; left: 96px; white-space: nowrap; visibility: hidden; }
+      .m { overflow: hidden; padding: 8px 20px 14px; margin: -8px -20px -14px; }
+      .i { will-change: transform; }
+      #kick { top: 252px; }
+      #kick .i { font: 800 36px/1.25 "Inter"; letter-spacing: .16em; color: #FF9ACD; -webkit-text-stroke: 5px rgba(12,4,20,.85); paint-order: stroke fill;
+        text-shadow: 0 0 14px rgba(255,79,163,.55), 0 3px 10px rgba(0,0,0,.5); }
+      #ttl { top: 300px; left: 88px; }
+      #ttl .i { display: flex; align-items: center; gap: 18px; }
+      #ttl svg { display: block; filter: drop-shadow(0 4px 8px rgba(0,0,0,.55)) drop-shadow(0 0 14px rgba(255,79,163,.55)); }
+      #ttl .word { font-family: "Archivo"; font-weight: 900; font-stretch: 72%; font-size: 156px; line-height: 1; letter-spacing: -0.006em; color: #FFFFFF;
+        -webkit-text-stroke: 9px rgba(12,4,20,.9); paint-order: stroke fill; text-shadow: 0 6px 0 rgba(28,8,48,.55), 0 12px 30px rgba(0,0,0,.5); }
+      #read .i { font: 900 68px/1 "Inter"; letter-spacing: -0.04em; color: #1C1030; font-variant-numeric: tabular-nums lining-nums;
+        font-feature-settings: "tnum" 1, "lnum" 1; }
+      #read .m { padding: 6px 10px 8px; margin: -6px -10px -8px; }
+      #read .pct { font-size: 40px; letter-spacing: 0; margin-left: 2px; color: #7A68A0; }
+      .stop .i { font-family: "Archivo"; font-weight: 900; font-stretch: 66%; font-size: 100px; line-height: 1; letter-spacing: -0.004em; color: #FFFFFF;
+        -webkit-text-stroke: 4px rgba(12,4,20,.7); paint-order: stroke fill; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5.8" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <video id="s1g" class="clip shot bgv" style="z-index:4" src="assets/shots/v17-deluxo-sunset-h.mp4" muted playsinline data-start="0" data-duration="1.5" data-media-start="0" data-track-index="1"></video>
+        <video id="s2g" class="clip shot bgv" style="z-index:3" src="assets/shots/v52-gp-police-bridge-h.mp4" muted playsinline data-start="1.433" data-duration="1.567" data-media-start="0.5" data-track-index="3"></video>
+        <video id="s3g" class="clip shot bgv" style="z-index:2" src="assets/shots/v30-street-explosion-h.mp4" muted playsinline data-start="2.933" data-duration="1.567" data-media-start="0" data-track-index="1"></video>
+        <video id="s4g" class="clip shot bgv" style="z-index:1" src="assets/shots/v26-bridge-explosion-h.mp4" muted playsinline data-start="4.433" data-duration="1.367" data-media-start="0.2" data-track-index="3"></video>
+        <video id="s1" class="clip band" style="z-index:14" src="assets/shots/v17-deluxo-sunset-h.mp4" muted playsinline data-start="0" data-duration="1.533" data-media-start="0" data-track-index="0"></video>
+        <video id="s2" class="clip band" style="z-index:13" src="assets/shots/v52-gp-police-bridge-h.mp4" muted playsinline data-start="1.467" data-duration="1.533" data-media-start="0.534" data-track-index="2"></video>
+        <video id="s3" class="clip band" style="z-index:12" src="assets/shots/v30-street-explosion-h.mp4" muted playsinline data-start="2.933" data-duration="1.6" data-media-start="0" data-track-index="0"></video>
+        <video id="s4" class="clip band" style="z-index:11" src="assets/shots/v26-bridge-explosion-h.mp4" muted playsinline data-start="4.467" data-duration="1.333" data-media-start="0.233" data-track-index="2"></video>
+        <div id="dim"></div>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="5.8" data-track-index="2">
+        <canvas id="gl" width="1080" height="1920"></canvas>
+        <div class="hdr" id="kick"><div class="m"><div class="i"></div></div></div>
+        <div class="hdr" id="ttl"><div class="m"><div class="i">
+          <svg width="100" height="114" viewBox="0 0 58 66"><defs><linearGradient id="flg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFB8DA"/><stop offset=".45" stop-color="#FF4FA3"/><stop offset="1" stop-color="#E0182A"/></linearGradient></defs>
+            <path d="M30 2 C34 15 47 21 49 37 C51 53 41 63 29 63 C17 63 8 54 9 41 C10 31 16 25 19 18 C21 26 24 29 27 30 C26 20 27 10 30 2 Z" fill="url(#flg)" stroke="#2A0A1E" stroke-width="3" stroke-linejoin="round"/>
+            <path d="M29 35 C33 41 37 45 36 52 C35 58 31 60 28 60 C23 60 20 56 21 51 C22 46 26 43 29 35 Z" fill="#FFE6F2"/></svg>
+          <span class="word"></span></div></div></div>
+        <div class="pin stop" id="st0"><div class="m"><div class="i"></div></div></div>
+        <div class="pin stop" id="st1"><div class="m"><div class="i"></div></div></div>
+        <div class="pin stop" id="st2"><div class="m"><div class="i"></div></div></div>
+        <div class="pin stop" id="st3"><div class="m"><div class="i"></div></div></div>
+        <div class="pin" id="read"><div class="m"><div class="i"><span class="num">0</span><span class="pct">%</span></div></div></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        kicker: "HOW I'M PLAYING IT",
+        title: "VIOLENCE",
+        stops: ["CALM", "ROWDY", "RECKLESS", "CHAOS"],           // bottom to top, evenly spaced, first = 0 %, last = 100 %
+        ramp: [[0, "#6FD8FF"], [0.4, "#A779FF"], [0.72, "#FF4FA3"], [1, "#FF2E3A"]],
+        neon: "#FF4FA3", chaos: "#FF2E3A",
+        // knob path: [time s, value 0..1, move] ; "detent" = settle with overshoot, "wind" = pull back, "slam" = accelerate into the end stop
+        knob: [[1.15, 0], [1.5, 1 / 3, "detent"], [1.85, 1 / 3], [2.25, 2 / 3, "detent"], [2.55, 2 / 3], [2.82, 0.56, "wind"], [3.0, 1, "slam"]],
+        timing: { in: 0.15, knob: 0.62, labels: 0.66, out: 4.95, end: 5.8 }
+      };
+
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const C = CONFIG, T = C.timing, $ = (s) => document.querySelector(s);
+        const W = 1080, H = 1920, VERT = true;
+        const HIT = C.knob[C.knob.length - 1][0];
+        if (!plate) { document.querySelectorAll("video.clip").forEach((v) => (v.style.display = "none")); $("#dim").style.display = "none"; }
+
+        // ---------------- layout (page px) ----------------
+        const LY = {
+          pivot: [500, 1060],
+          track: { a: [296, 1400], b: [296, 720], th: 66 },        // a = 0 % (bottom), b = 100 % (top)
+          knob: { w: 256, h: 116, r: 38, d: 54, bev: 13 },
+          dome: 32,
+          labelX: 470,
+          tick: { gap: 10, minor: [4, 18], major: [7, 32] }
+        };
+        const L = Math.hypot(LY.track.b[0] - LY.track.a[0], LY.track.b[1] - LY.track.a[1]);
+        const FACE = 20;                                            // reference plane z (the track sits on it)
+        const KDT = LY.knob.d + 2 * LY.knob.bev;
+
+        // ---------------- helpers ----------------
+        const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+        const seg = (t, a, d) => clamp((t - a) / d);
+        const lerp = (a, b, k) => a + (b - a) * k;
+        const eO3 = (p) => 1 - Math.pow(1 - p, 3), eI2 = (p) => p * p, eI3 = (p) => p * p * p;
+        const eIO2 = (p) => (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2);
+        const eOB = (p, s = 1.7) => 1 + (s + 1) * Math.pow(p - 1, 3) + s * Math.pow(p - 1, 2);
+        const hexRGB = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+        const hex3 = (h) => { const c = hexRGB(h); return new THREE.Vector3(c[0] / 255, c[1] / 255, c[2] / 255); };
+        const RAMP = C.ramp.map(([p, h]) => [p, hexRGB(h)]);
+        function rampRGB(u) {
+          u = clamp(u); for (let k = 1; k < RAMP.length; k++) if (u <= RAMP[k][0]) {
+            const [p0, c0] = RAMP[k - 1], [p1, c1] = RAMP[k], q = (u - p0) / (p1 - p0 || 1);
+            return [lerp(c0[0], c1[0], q), lerp(c0[1], c1[1], q), lerp(c0[2], c1[2], q)];
+          } return RAMP[RAMP.length - 1][1];
+        }
+        const css = (c, a = 1) => "rgba(" + c.map((x) => Math.round(x)).join(",") + "," + a + ")";
+
+        function knobV(t) {
+          const K = C.knob; if (t <= K[0][0]) return K[0][1];
+          for (let i = 1; i < K.length; i++) {
+            const [t1, v1, m] = K[i], [t0, v0] = K[i - 1];
+            if (t <= t1) { const p = (t - t0) / (t1 - t0); const e = m === "detent" ? eOB(p, 1.5) : m === "wind" ? eO3(p) : m === "slam" ? p * p * p : 1; return m ? lerp(v0, v1, e) : v1; }
+          }
+          const q = t - HIT; return 1 - 0.038 * Math.exp(-6.5 * q) * Math.abs(Math.sin(q * Math.PI / 0.16));
+        }
+        function knobLean(t) {
+          const K = C.knob; let lean = 0;
+          for (let i = 1; i < K.length; i++) {
+            const [t1, , m] = K[i], t0 = K[i - 1][0];
+            if (t > t0 && t <= t1 && m) { const p = (t - t0) / (t1 - t0);
+              if (m === "detent") lean = 0.1 * Math.sin(Math.PI * p) - 0.06 * Math.max(0, p - 0.7) / 0.3;
+              if (m === "wind") lean = -0.12 * Math.sin(Math.PI * p);
+              if (m === "slam") lean = 0.26 * p * p; }
+          }
+          for (let i = 1; i < K.length; i++) if (K[i][2] === "detent") { const q = t - K[i][0]; if (q > 0 && q < 0.5) lean += -0.06 * Math.exp(-8 * q) * Math.cos(18 * q); }
+          if (t > HIT) { const q = t - HIT; lean = -0.34 * Math.exp(-7 * q) * Math.cos(15 * q); }
+          return lean;
+        }
+
+        // ---------------- DOM text ----------------
+        $("#kick .i").textContent = C.kicker;
+        $("#ttl .word").textContent = C.title;
+        const stopEls = C.stops.map((s, i) => { const el = $("#st" + i); el.querySelector(".i").textContent = s; return { el, i: el.querySelector(".i") }; });
+        const numEl = $("#read .num");
+
+        function canvasTex(w, h, draw) {
+          const cv = document.createElement("canvas"); cv.width = w; cv.height = h; const c = cv.getContext("2d"); draw(c, w, h);
+          const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4; return tex;
+        }
+        function radialTex(stops, size = 128) {
+          return canvasTex(size, size, (c, N) => { const g = c.createRadialGradient(N / 2, N / 2, 0, N / 2, N / 2, N / 2); stops.forEach(([o, col]) => g.addColorStop(o, col)); c.fillStyle = g; c.fillRect(0, 0, N, N); });
+        }
+        function rrShape(w, h, r) {
+          r = Math.min(r, w / 2 - 0.01, h / 2 - 0.01);
+          const s = new THREE.Shape(), x0 = -w / 2, y0 = -h / 2, x1 = w / 2, y1 = h / 2;
+          s.moveTo(x0 + r, y0); s.lineTo(x1 - r, y0); s.absarc(x1 - r, y0 + r, r, -Math.PI / 2, 0, false);
+          s.lineTo(x1, y1 - r); s.absarc(x1 - r, y1 - r, r, 0, Math.PI / 2, false);
+          s.lineTo(x0 + r, y1); s.absarc(x0 + r, y1 - r, r, Math.PI / 2, Math.PI, false);
+          s.lineTo(x0, y0 + r); s.absarc(x0 + r, y0 + r, r, Math.PI, Math.PI * 1.5, false); return s;
+        }
+        function extrude(w, h, r, d, bev, seg = 5) {
+          const g = new THREE.ExtrudeGeometry(rrShape(w, h, r), { depth: d, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: seg, curveSegments: 16 });
+          g.translate(0, 0, -d / 2); return g;
+        }
+
+        function build() {
+          const canvas = $("#gl");
+          const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+          renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 0);
+          renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+          const scene = new THREE.Scene();
+          const FOV = 24, DIST = (H / 2) / Math.tan((FOV / 2) * Math.PI / 180);
+          const camera = new THREE.PerspectiveCamera(FOV, W / H, 10, DIST * 3);
+          camera.position.set(0, 0, DIST); camera.lookAt(0, 0, 0);
+
+          const envScene = new THREE.Scene();
+          envScene.add(new THREE.Mesh(new THREE.SphereGeometry(50, 48, 24), new THREE.ShaderMaterial({
+            side: THREE.BackSide, depthWrite: false,
+            vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+            fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 top = vec3(0.92,0.94,1.0), hor = vec3(0.26,0.2,0.3), low = vec3(0.03,0.03,0.04);" +
+              " vec3 c = y > 0.0 ? mix(hor, top, smoothstep(0.0, 0.9, y)) : mix(hor, low, smoothstep(0.0, 0.45, -y)); gl_FragColor = vec4(c, 1.0); }"
+          })));
+          const panelL = (w, h, x, y, z, c) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); envScene.add(m); };
+          panelL(36, 14, -14, 26, 26, new THREE.Color(4.2, 4.1, 4.0));
+          panelL(5, 34, 30, 2, 18, new THREE.Color(2.4, 2.5, 2.9));
+          panelL(30, 8, -30, -4, 10, new THREE.Color(3.2, 0.9, 2.0));
+          panelL(26, 8, -6, -24, 24, new THREE.Color(0.8, 0.75, 0.8));
+          const pmrem = new THREE.PMREMGenerator(renderer);
+          scene.environment = pmrem.fromScene(envScene, 0.02, 0.1, 200).texture;
+          const key = new THREE.DirectionalLight(0xffffff, 2.0); key.position.set(-0.5, 0.9, 1.0); scene.add(key);
+          scene.add(new THREE.HemisphereLight(0xffffff, 0x2a2232, 0.85));
+
+          const G = new THREE.Group(); G.position.set(LY.pivot[0] - W / 2, H / 2 - LY.pivot[1], 0); scene.add(G);
+          const P = (x, y, z = 0) => new THREE.Vector3(x - LY.pivot[0], LY.pivot[1] - y, z);
+
+          const VS = "varying vec2 vUv; varying vec3 vN; varying vec3 vV; varying vec2 vP;" +
+            "void main(){ vUv = uv; vP = position.xy; vec4 mv = modelViewMatrix * vec4(position,1.0); vV = mv.xyz; vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * mv; }";
+          const SD = "float sdRR(vec2 p, vec2 b, float r){ vec2 q = abs(p) - b + r; return length(max(q,0.0)) + min(max(q.x,q.y),0.0) - r; }";
+          const HALO = SD + "uniform vec3 uCol; uniform vec2 uB; uniform float uR, uA, uFall, uIn; varying vec2 vP;" +
+            "void main(){ float d = sdRR(vP, uB, uR); float a = d > 0.0 ? exp(-d/uFall) * uA : uIn;" +
+            " gl_FragColor = vec4(uCol, clamp(a,0.0,1.0)); }";
+          const FILL = "uniform float uA0, uLen, uHead, uEnd, uR, uBoost, uGlow, uFall; uniform vec3 uC0, uC1, uC2, uC3; uniform vec4 uS; varying vec2 vP;" +
+            "vec3 ramp(float u){ u = clamp(u,0.0,1.0); if (u < uS.y) return mix(uC0, uC1, u/uS.y); if (u < uS.z) return mix(uC1, uC2, (u-uS.y)/(uS.z-uS.y)); return mix(uC2, uC3, (u-uS.z)/(1.0-uS.z)); }" +
+            "float cap(vec2 p, float a, float b, float r){ float x = clamp(p.x, a, b); return length(vec2(p.x - x, p.y)) - r; }" +
+            "void main(){ vec2 p = vP; float u = (p.x - uA0) / uLen; vec3 c = ramp(u);" +
+            " float dF = cap(p, uA0, uHead, uR), dE = cap(p, uA0, uEnd, uR);" +
+            " float yy = clamp(p.y / uR, -1.0, 1.0);" +
+            " vec3 fc = c * (0.6 + 0.4*(1.0 - yy*yy)) * uBoost + vec3(1.0)*pow(max(1.0-abs(yy),0.0),5.0)*0.4*uBoost + vec3(1.0)*exp(-pow((yy-0.5)/0.2,2.0))*0.55;" +
+            " float inF = smoothstep(0.9, -0.9, dF), inE = smoothstep(0.9, -0.9, dE);" +
+            " float gA = dF > 0.0 ? exp(-dF/uFall) * uGlow : 0.0; vec3 gc = ramp(min(u, (uHead-uA0)/uLen));" +
+            " vec3 col = gc; float a = gA * (1.0 - inE);" +
+            " vec3 dim = c * 0.26 * (0.7 + 0.3*(1.0-yy*yy)); float aD = inE * (1.0 - inF) * 0.9;" +
+            " col = mix(col, dim, aD / max(a + aD - a*aD, 0.001)); a = a + aD - a*aD;" +
+            " col = mix(col, min(fc, vec3(1.0)), inF); a = a + inF - a*inF;" +
+            " gl_FragColor = vec4(col, clamp(a,0.0,1.0)); }";
+          const RS = new THREE.Vector4(0, C.ramp[1][0], C.ramp[2][0], 1);
+          const RC = C.ramp.map(([, h]) => hex3(h));
+
+          const SG = new THREE.Group(); G.add(SG);
+
+          // ---------- track: shadow, slot, lip, fill, ticks ----------
+          const TR = LY.track, TH = TR.th;
+          const dir = [(TR.b[0] - TR.a[0]) / L, (TR.b[1] - TR.a[1]) / L];
+          const TG = new THREE.Group(); if (VERT) TG.rotation.z = Math.PI / 2; SG.add(TG);
+          const CH = L + TH + 26;
+          const tShadow = new THREE.Mesh(new THREE.PlaneGeometry(CH + 240, TH + 240), new THREE.ShaderMaterial({
+            uniforms: { uCol: { value: hex3("#06020C") }, uB: { value: new THREE.Vector2(CH / 2 + 6, TH / 2 + 6) }, uR: { value: TH / 2 + 6 }, uA: { value: 0.62 }, uFall: { value: 26 }, uIn: { value: 0.62 } },
+            vertexShader: VS, fragmentShader: HALO, transparent: true, depthWrite: false }));
+          tShadow.position.set(0, -10, -6); tShadow.renderOrder = 0; TG.add(tShadow);
+          const lip = new THREE.Mesh(extrude(CH + 14, TH + 14, (TH + 14) / 2, 3, 3.5, 4), new THREE.MeshPhysicalMaterial({ color: 0xc8b2ff, metalness: 1, roughness: 0.22, clearcoat: 0.6, envMapIntensity: 1.5 }));
+          lip.position.z = 1.5; lip.renderOrder = 3; TG.add(lip);
+          const chan = new THREE.Mesh(extrude(CH, TH, TH / 2, 3, 3, 4), new THREE.MeshPhysicalMaterial({ color: 0x07040d, metalness: 0.2, roughness: 0.28, clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 0.9 }));
+          chan.position.z = 4.5; chan.renderOrder = 3; TG.add(chan);
+          const CZ = 4.5 + 1.5 + 3;
+          const fillU = { uA0: { value: -L / 2 - 4 }, uLen: { value: L + 8 }, uHead: { value: -L / 2 }, uEnd: { value: L / 2 + 6 }, uR: { value: TH / 2 - 8 },
+            uBoost: { value: 1 }, uGlow: { value: 0.55 }, uFall: { value: 16 }, uC0: { value: RC[0] }, uC1: { value: RC[1] }, uC2: { value: RC[2] }, uC3: { value: RC[3] }, uS: { value: RS } };
+          const fill = new THREE.Mesh(new THREE.PlaneGeometry(CH + 160, TH * 4), new THREE.ShaderMaterial({ uniforms: fillU, vertexShader: VS, fragmentShader: FILL, transparent: true, depthWrite: false }));
+          fill.position.z = CZ + 0.4; fill.renderOrder = 6; TG.add(fill);
+          const ticks = [];
+          for (let k = 0; k <= 12; k++) {
+            const major = k % 4 === 0, [tw, tl] = major ? LY.tick.major : LY.tick.minor;
+            const m = new THREE.MeshPhysicalMaterial({ color: 0x9d8cc8, metalness: 0.6, roughness: 0.3, clearcoat: 0.5, emissive: 0xffffff, emissiveIntensity: 0 });
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(tw, tl, 4), m);
+            mesh.position.set(-L / 2 + (k / 12) * L, -(TH / 2 + LY.tick.gap + tl / 2), 2.5); TG.add(mesh);
+            ticks.push({ mesh, m, v: k / 12, major });
+          }
+
+          // ---------- end stop ----------
+          const KN = LY.knob;
+          const along = (v) => [lerp(TR.a[0], TR.b[0], v), lerp(TR.a[1], TR.b[1], v)];
+          const KA = VERT ? KN.h : KN.w;
+          const domeAt = [TR.b[0] + dir[0] * (KA / 2 + LY.dome + 3), TR.b[1] + dir[1] * (KA / 2 + LY.dome + 3)];
+          const DG = new THREE.Group(); DG.position.copy(P(domeAt[0], domeAt[1], FACE + 6)); SG.add(DG);
+          const chrome = new THREE.MeshPhysicalMaterial({ color: 0xe6e8ef, metalness: 1, roughness: 0.18, clearcoat: 0.6, clearcoatRoughness: 0.1, envMapIntensity: 1.5 });
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(LY.dome + 4, 6, 16, 48), chrome); DG.add(ring);
+          const domeMat = new THREE.MeshPhysicalMaterial({ color: 0xff2e3a, roughness: 0.12, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.04, emissive: 0xff2e3a, emissiveIntensity: 0.25, envMapIntensity: 1.2 });
+          const dome = new THREE.Mesh(new THREE.SphereGeometry(LY.dome, 40, 24), domeMat); dome.scale.z = 0.7; DG.add(dome);
+          const domeFlare = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTex([[0, "rgba(255,255,255,1)"], [0.16, "rgba(255,220,222,.95)"], [0.4, "rgba(255,46,58,.5)"], [1, "rgba(255,46,58,0)"]]), transparent: true, depthWrite: false, depthTest: false }));
+          domeFlare.renderOrder = 14; domeFlare.position.z = LY.dome; domeFlare.visible = false; DG.add(domeFlare);
+          const dShadow = new THREE.Mesh(new THREE.PlaneGeometry(LY.dome * 5, LY.dome * 5), new THREE.MeshBasicMaterial({ map: radialTex([[0, "rgba(0,0,0,.6)"], [0.5, "rgba(0,0,0,.28)"], [1, "rgba(0,0,0,0)"]]), transparent: true, depthWrite: false }));
+          dShadow.position.set(0, -8, -8); dShadow.renderOrder = 0; DG.add(dShadow);
+
+          // ---------- the knob ----------
+          const kFaceTex = canvasTex(256, Math.round(256 * KN.h / KN.w), (c, w, h) => {
+            let g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, "#FFFFFF"); g.addColorStop(0.5, "#EEEAF6"); g.addColorStop(1, "#C6BDD8");
+            c.fillStyle = g; c.fillRect(0, 0, w, h);
+            g = c.createRadialGradient(w / 2, h * 0.3, 0, w / 2, h * 0.3, w * 0.5); g.addColorStop(0, "rgba(255,255,255,.55)"); g.addColorStop(1, "rgba(255,255,255,0)");
+            c.fillStyle = g; c.fillRect(0, 0, w, h);
+            g = c.createLinearGradient(0, 0, w, 0); g.addColorStop(0, "rgba(70,40,110,.2)"); g.addColorStop(0.18, "rgba(70,40,110,0)"); g.addColorStop(0.82, "rgba(70,40,110,0)"); g.addColorStop(1, "rgba(70,40,110,.22)");
+            c.fillStyle = g; c.fillRect(0, 0, w, h);
+          });
+          kFaceTex.repeat.set(1 / KN.w, 1 / KN.h); kFaceTex.offset.set(0.5, 0.5);
+          const kFace = new THREE.MeshPhysicalMaterial({ map: kFaceTex, roughness: 0.26, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 1.0, emissive: 0xff1626, emissiveIntensity: 0 });
+          const kSide = new THREE.MeshPhysicalMaterial({ color: 0xe9e4f1, roughness: 0.28, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.06, envMapIntensity: 1.1, emissive: 0xff2e3a, emissiveIntensity: 0 });
+          const KG = new THREE.Group(); SG.add(KG);
+          const KB = new THREE.Group(); KG.add(KB);
+          const knob = new THREE.Mesh(extrude(KN.w, KN.h, KN.r, KN.d, KN.bev, 8), [kFace, kSide]); knob.position.z = KDT / 2; knob.renderOrder = 8; KB.add(knob);
+          const KF = KDT;
+          const slotW = VERT ? KN.w * 0.5 : 12, slotH = VERT ? 15 : KN.h * 0.62;
+          const slot = new THREE.Mesh(extrude(slotW, slotH, 6, 0.6, 0.8, 3), new THREE.MeshPhysicalMaterial({ color: 0x130a1e, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.08 }));
+          slot.position.set(0, VERT ? -KN.h / 2 + 20 : 0, KF + 0.2); slot.renderOrder = 9; KB.add(slot);
+          const ledMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
+          const led = new THREE.Mesh(new THREE.ShapeGeometry(rrShape(slotW - 3, slotH - 3, 3.5), 8), ledMat); led.position.set(0, slot.position.y, KF + 1.6); led.renderOrder = 10; KB.add(led);
+          const ledGlowMat = new THREE.SpriteMaterial({ map: radialTex([[0, "rgba(255,255,255,.9)"], [0.3, "rgba(255,255,255,.35)"], [1, "rgba(255,255,255,0)"]]), transparent: true, depthWrite: false, depthTest: false, color: 0xffffff });
+          const ledGlow = new THREE.Sprite(ledGlowMat); ledGlow.position.set(0, slot.position.y, KF + 2.5); ledGlow.renderOrder = 11; ledGlow.scale.set(slotW * 1.5, slotH * 3.2, 1); KB.add(ledGlow);
+          // grip ribs: inset dark grooves with a light strip in the current ramp colour
+          const ribMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
+          const grooveMat = new THREE.MeshPhysicalMaterial({ color: 0x1a0f28, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.08 });
+          [-1, 1].forEach((sd) => [0, 1].forEach((k) => {
+            const x = sd * (KN.w / 2 - 10 - k * 9);
+            const gr = new THREE.Mesh(extrude(6, KN.h * 0.5, 3, 0.6, 0.8, 3), grooveMat); gr.position.set(x, 4, KF + 0.2); gr.renderOrder = 9; KB.add(gr);
+            const rb = new THREE.Mesh(new THREE.ShapeGeometry(rrShape(3.4, KN.h * 0.5 - 4, 1.7), 6), ribMat); rb.position.set(x, 4, KF + 1.6); rb.renderOrder = 10; KB.add(rb);
+          }));
+          const aRead = new THREE.Object3D(); aRead.position.set(0, 9, KF + 2); KB.add(aRead);
+          const kShadow = new THREE.Mesh(new THREE.PlaneGeometry(KN.w * 1.9, KN.h * 2.4), new THREE.MeshBasicMaterial({ map: radialTex([[0, "rgba(0,0,0,.66)"], [0.45, "rgba(0,0,0,.32)"], [1, "rgba(0,0,0,0)"]]), transparent: true, depthWrite: false }));
+          kShadow.renderOrder = 1; SG.add(kShadow);
+          const kLight = new THREE.PointLight(0xff2e3a, 0, 420, 0); SG.add(kLight);
+          const bloomTex = radialTex([[0, "rgba(255,110,118,1)"], [0.22, "rgba(255,46,58,.88)"], [0.5, "rgba(255,46,58,.38)"], [0.75, "rgba(255,46,58,.1)"], [1, "rgba(255,46,58,0)"]], 256);
+          const bloom = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: bloomTex, transparent: true, depthWrite: false, toneMapped: false, opacity: 0, blending: plate ? THREE.AdditiveBlending : THREE.NormalBlending }));
+          bloom.renderOrder = 2; bloom.visible = false; SG.add(bloom);
+          const ringTex = radialTex([[0, "rgba(255,46,58,0)"], [0.42, "rgba(255,46,58,0)"], [0.62, "rgba(255,150,158,.95)"], [0.78, "rgba(255,46,58,.62)"], [1, "rgba(255,46,58,0)"]], 256);
+          const shock = new THREE.Sprite(new THREE.SpriteMaterial({ map: ringTex, transparent: true, depthWrite: false, depthTest: false })); shock.renderOrder = 12; shock.visible = false; SG.add(shock);
+          const emberTex = radialTex([[0, "rgba(255,255,255,1)"], [0.2, "rgba(255,230,200,.95)"], [0.5, "rgba(255,90,70,.4)"], [1, "rgba(255,46,58,0)"]], 64);
+          const embers = [];
+          for (let k = 0; k < 10; k++) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: emberTex, transparent: true, depthWrite: false, depthTest: false })); s.renderOrder = 13; s.visible = false; SG.add(s);
+            const a = (Look.hash(k * 7 + 3) - 0.5) * 2.6, sp = 380 + Look.hash(k * 13 + 1) * 420; embers.push({ s, a, sp, sz: 10 + Look.hash(k * 5 + 2) * 12, life: 0.32 + Look.hash(k * 11 + 4) * 0.25 }); }
+
+          // ---------- anchors ----------
+          const anchor = (x, y, z) => { const o = new THREE.Object3D(); o.position.copy(P(x, y, z)); SG.add(o); return o; };
+          const aStops = C.stops.map((s, i) => { const [, y] = along(i / (C.stops.length - 1)); return anchor(LY.labelX, y, FACE); });
+          const v3 = new THREE.Vector3(), v3b = new THREE.Vector3();
+          function project(obj) {
+            obj.getWorldPosition(v3); const a = v3.clone().project(camera);
+            v3b.copy(v3); v3b.x += 100; const b = v3b.project(camera);
+            return [(a.x + 1) / 2 * W, (1 - a.y) / 2 * H, ((b.x - a.x) / 2 * W) / 100];
+          }
+          function pinEl(el, obj, ax, sc) {
+            const [x, y, k] = project(obj);
+            el.style.transformOrigin = (ax * 100) + "% 50%";
+            el.style.transform = "translate(" + x.toFixed(1) + "px," + y.toFixed(1) + "px) translate(" + (-ax * 100) + "%,-50%) scale(" + (k * sc).toFixed(4) + ")";
+          }
+          const rise = (el, p, out) => { el.style.transform = "translateY(" + ((1 - eO3(p)) * 115 - eI3(out) * 115).toFixed(1) + "%)"; el.style.filter = p > 0 && p < 0.45 ? "blur(" + ((1 - p / 0.45) * 6).toFixed(1) + "px)" : "none"; };
+          const tDet = C.knob.filter((k) => k[2] === "detent").map((k) => k[0]);
+          const aEnd = along(0);
+
+          function renderAt(t) {
+            const v = knobV(t), hp = t - HIT;
+            // ----- in / out -----
+            const gIn = seg(t, T.in + 0.08, 0.5), sOut = seg(t, T.out + 0.12, 0.3), gOut = 1 - eI2(sOut);
+            const showS = gIn > 0 && sOut < 1;
+            SG.visible = showS;
+            G.rotation.y = lerp(-0.16, -0.08, clamp(t / T.end));
+            G.rotation.x = lerp(0.05, 0.02, clamp(t / T.end));
+            SG.rotation.x = 0; SG.scale.set(1, 1, 1);
+            const jolt = hp > 0 ? 10 * Math.exp(-10 * hp) * Math.cos(26 * hp) : 0;
+            SG.position.set(dir[0] * jolt, -dir[1] * jolt, 0);
+            canvas.style.filter = sOut > 0 && sOut < 1 ? "blur(" + (eI2(sOut) * 7).toFixed(1) + "px)" : "none";
+            // the slot grows up from CALM with a spring
+            const grow = gIn <= 0 ? 0.001 : Math.max(0.001, eOB(gIn, 1.4) * gOut);   // retracts back into CALM on the exit
+            TG.scale.set(grow, 1, 1);
+            const gc = [aEnd[0] + dir[0] * (L / 2) * grow, aEnd[1] + dir[1] * (L / 2) * grow];
+            TG.position.copy(P(gc[0], gc[1], FACE));
+            const dIn = seg(t, T.in + 0.42, 0.3); DG.visible = dIn > 0;
+
+            const flare = hp < 0 ? 0 : hp < 0.1 ? 1 : Math.exp(-4 * (hp - 0.1));
+            const red = hp >= 0 ? 1 : 0;
+
+            // ----- fill + ticks -----
+            const head = -L / 2 + v * L;
+            fillU.uHead.value = head;
+            fillU.uBoost.value = 1 + (hp < 0 ? 0 : hp < 0.1 ? 0.75 : 0.75 * Math.exp(-3.5 * (hp - 0.1)) + 0.12 * (1 - Math.exp(-3.5 * (hp - 0.1))));
+            fillU.uGlow.value = (0.55 + 0.7 * flare) * clamp(gIn * 2);
+            ticks.forEach((tk) => {
+              const lit = v >= tk.v - 0.004 && t > T.knob, c = rampRGB(tk.v);
+              tk.m.emissive.setRGB(c[0] / 255, c[1] / 255, c[2] / 255); tk.m.emissiveIntensity = lit ? (tk.major ? 1.3 : 0.9) * (1 + 0.6 * flare) : 0;
+              tk.m.color.setHex(lit ? 0xffffff : 0x9d8cc8);
+              const tf = HIT - 0.12 + 0.12 * tk.v, fl = t >= tf ? Math.exp(-7 * (t - tf)) : 0;   // light races up the scale into the slam
+              if (fl > 0.02) { tk.m.emissive.setRGB(1, lerp(c[1] / 255, 1, fl), lerp(c[2] / 255, 1, fl)); tk.m.emissiveIntensity += 3.2 * fl; }
+              let pop = 1; if (tk.major) { const idx = Math.round(tk.v * 3); const tt = idx === 3 ? HIT : tDet[idx - 1]; if (tt !== undefined && t > tt) pop = 1 + 0.7 * Math.exp(-9 * (t - tt)); }
+              tk.mesh.scale.set(1, pop * (1 + 0.5 * (t >= HIT - 0.12 + 0.12 * tk.v ? Math.exp(-9 * (t - (HIT - 0.12 + 0.12 * tk.v))) : 0)), 1);
+            });
+
+            // ----- knob -----
+            const kIn = seg(t, T.knob, 0.34);
+            KG.visible = kIn > 0;
+            const [kx, ky] = along(v * gOut);
+            const drop = 1 - kIn * kIn;
+            const zLift = 180 * drop;
+            KG.position.copy(P(kx, ky, FACE + 8 + zLift)); KG.scale.setScalar(Math.max(0.001, (1 + 0.4 * drop) * (1 - eI3(seg(sOut, 0.5, 0.5)))));
+            const land = t - (T.knob + 0.34);
+            const sq = land > 0 ? 1 - 0.4 * Math.exp(-12 * land) * Math.cos(22 * land) : 1;
+            let sAlong = 1, sCross = 1;
+            const K = C.knob, sl = K[K.length - 1], slP = seg(t, K[K.length - 2][0], sl[0] - K[K.length - 2][0]);
+            if (t < HIT && slP > 0) { sAlong = 1 + 0.4 * slP * slP; sCross = 1 - 0.08 * slP * slP; }
+            if (hp >= 0) { const s2 = Math.exp(-11 * hp) * Math.cos(20 * hp); sAlong = 1 - 0.26 * s2; sCross = 1 + 0.12 * s2; }
+            tDet.forEach((td) => { const q = t - td; if (q > 0 && q < 0.4) { const s3 = Math.exp(-14 * q) * Math.cos(24 * q); sAlong *= 1 - 0.08 * s3; } });
+            if (VERT) KB.scale.set(sCross, sAlong, sq); else KB.scale.set(sAlong, sCross, sq);
+            const lean = knobLean(t), tumble = (1 - eO3(kIn)) * -0.9;
+            if (VERT) KB.rotation.set(lean + tumble, 0, 0); else KB.rotation.set(tumble, -lean, 0);
+            const ledC = rampRGB(v), hot = hp < 0 ? 0 : hp < 0.1 ? 1 : Math.exp(-3 * (hp - 0.1));
+            const wm = red > 0 ? 0.55 + 0.4 * hot : 0.12; ledMat.color.setRGB(lerp(ledC[0] / 255, 1, wm), lerp(ledC[1] / 255, 0.93, wm), lerp(ledC[2] / 255, 0.9, wm));
+            ledGlowMat.color.setRGB(ledC[0] / 255, ledC[1] / 255, ledC[2] / 255); ledGlowMat.opacity = 0.7 + 0.3 * hot;
+            kFace.color.setRGB(lerp(0.86, 0.92, red), lerp(0.81, 0.07, red), lerp(0.97, 0.11, red)); kSide.color.setRGB(lerp(0.66, 0.78, red), lerp(0.56, 0.05, red), lerp(0.92, 0.09, red));
+            ribMat.color.setRGB(lerp(ledC[0] / 255, 1, red * (0.5 + 0.4 * hot)), lerp(ledC[1] / 255, 0.85, red * (0.5 + 0.4 * hot)), lerp(ledC[2] / 255, 0.86, red * (0.5 + 0.4 * hot)));
+            kFace.emissiveIntensity = red * (0.1 + 0.32 * hot); kSide.emissiveIntensity = red * (0.06 + 0.2 * hot);
+            kShadow.visible = KG.visible; kShadow.position.copy(P(kx + 14, ky + 18 + zLift * 0.04, FACE - 4));
+            kShadow.scale.setScalar(1 + drop * 1.2); kShadow.material.opacity = 1 - 0.8 * drop;
+            kLight.position.copy(P(kx - dir[0] * 10, ky - dir[1] * 10, FACE + 110)); kLight.intensity = hp < 0 ? 0 : 3.2 * (hp < 0.1 ? 1 : 0.35 + 0.65 * Math.exp(-3 * (hp - 0.1)));
+
+            // ----- end stop + payoff light -----
+            const dq = hp >= 0 ? Math.exp(-12 * hp) * Math.cos(22 * hp) : 0;
+            const dPop = dIn <= 0 ? 0.001 : Math.max(0.001, eOB(dIn, 2.2) * (1 - eI3(seg(sOut, 0, 0.35))));
+            DG.scale.set(dPop * (VERT ? 1 + 0.1 * dq : 1 - 0.28 * dq), dPop * (VERT ? 1 - 0.28 * dq : 1 + 0.1 * dq), dPop);
+            domeMat.emissiveIntensity = 0.3 + (hp < 0 ? 0 : hp < 0.1 ? 3.6 : 1.1 + 2.5 * Math.exp(-4 * (hp - 0.1)));
+            domeFlare.visible = hp >= 0 && hp < 0.6 && showS; if (domeFlare.visible) { const fa = hp < 0.1 ? 1 : Math.exp(-6 * (hp - 0.1)); domeFlare.scale.setScalar(LY.dome * (hp < 0.1 ? 6 : lerp(6, 3, fa < 1 ? 1 - fa : 0))); domeFlare.material.opacity = fa; }
+            bloom.visible = hp >= 0 && showS;
+            if (bloom.visible) { bloom.position.copy(P(kx + dir[0] * 30, ky + dir[1] * 30, FACE - 2)); const bs = KN.w * (hp < 0.1 ? 3.0 : lerp(3.0, 2.1, eO3(seg(hp, 0.1, 0.7)))); bloom.scale.set(bs, bs * 0.9, 1);
+              bloom.material.opacity = (plate ? 0.8 : 1) * (hp < 0.1 ? 1 : 0.38 + 0.62 * Math.exp(-3.2 * (hp - 0.1))); }
+            const shp = seg(hp, 0, 0.36); shock.visible = hp >= 0 && shp < 1 && showS;
+            if (shock.visible) { shock.position.copy(P(domeAt[0], domeAt[1], FACE + 16)); shock.scale.setScalar(lerp(80, 380, eO3(shp))); shock.material.opacity = 1 - eI2(shp); }
+            const cpt = [domeAt[0] - dir[0] * LY.dome, domeAt[1] - dir[1] * LY.dome];
+            embers.forEach((e) => {
+              const q = hp / e.life; e.s.visible = hp >= 0 && q < 1 && showS; if (!e.s.visible) return;
+              const ang = -Math.PI / 2 + e.a, dd = e.sp * hp * (1 - 0.45 * q);
+              const ex = cpt[0] + Math.cos(ang) * dd, ey = cpt[1] + Math.sin(ang) * dd + 700 * hp * hp;
+              e.s.position.copy(P(ex, ey, FACE + 40)); e.s.scale.setScalar(e.sz * (1 - 0.6 * q)); e.s.material.opacity = 1 - eI2(q);
+            });
+
+            renderer.render(scene, camera);
+            scene.updateMatrixWorld();
+
+            // ----- DOM: header -----
+            const lout = seg(t, T.out, 0.24);
+            [["#kick", T.in, 0.45], ["#ttl", T.in + 0.06, 0.5]].forEach(([sel, at, d]) => {
+              const p = seg(t, at, d), el = $(sel); el.style.visibility = p > 0 && lout < 1 ? "visible" : "hidden"; rise($(sel + " .i"), p, lout);
+            });
+            // ----- DOM: readout on the knob face -----
+            const rp = seg(t, T.knob + 0.22, 0.3);
+            const rEl = $("#read"); rEl.style.visibility = KG.visible && rp > 0 && lout < 1 && showS ? "visible" : "hidden";
+            if (rEl.style.visibility === "visible") {
+              const punch = hp >= 0 ? 1 + 0.06 * Math.exp(-7 * hp) * Math.max(0, Math.cos(Math.min(hp, 0.5) * 9)) : 1;
+              pinEl(rEl, aRead, 0.5, punch); rise($("#read .i"), rp, lout);
+            }
+            const pct = hp >= 0 ? 100 : Math.round(clamp(v) * 100);
+            if (numEl.textContent !== String(pct)) numEl.textContent = String(pct);
+            numEl.style.color = red > 0.7 ? "#FFFFFF" : "#1C1030";
+            numEl.style.textShadow = red > 0.7 ? "0 2px 0 rgba(110,0,18,.7), 0 0 16px rgba(255,200,205,.6)" : "0 1px 0 rgba(255,255,255,.7)";
+            $("#read .pct").style.color = red > 0.7 ? "#FFD9DC" : "#7A68A0";
+            // ----- DOM: stop labels -----
+            const N = C.stops.length - 1;
+            stopEls.forEach((s, i) => {
+              const sv = i / N, p = seg(t, T.labels + i * 0.07, 0.45);
+              s.el.style.visibility = p > 0 && lout < 1 && showS ? "visible" : "hidden";
+              if (s.el.style.visibility === "hidden") return;
+              const active = hp < 0 ? Math.abs(v - sv) < 0.1 && t > T.knob : i === N;
+              const SH = "0 6px 18px rgba(0,0,0,.5), 0 0 36px rgba(8,2,14,.6)";
+              const reached = v >= sv - 0.02 && t > T.knob;
+              let col = [255, 255, 255], glow = SH, scl = 1, op = reached ? 1 : 0.78;
+              if (active) { const c = rampRGB(sv); col = i === N && hp >= 0 ? hexRGB("#FF5C66") : [255, 255, 255]; op = 1; glow = "0 0 16px " + css(c, 0.95) + ", 0 0 40px " + css(c, 0.6) + ", " + SH; }
+              if (hp >= 0 && i < N) { op = 0.78; glow = SH; }
+              s.i.style.opacity = op;
+              const tt = i === 0 ? null : i === N ? HIT : tDet[i - 1];
+              if (tt !== null && tt !== undefined && t > tt) scl = 1 + (i === N ? 0.5 : 0.14) * Math.exp(-8 * (t - tt)) * Math.cos(Math.min(t - tt, 0.4) * 10);
+              if (i === N && hp >= 0) scl *= 1 + 0.16 * eO3(seg(hp, 0, 0.3));
+              s.i.style.color = css(col); s.i.style.textShadow = glow;
+              pinEl(s.el, aStops[i], 0, scl); rise(s.i, p, lout);
+            });
+            if (plate) $("#dim").style.opacity = (eIO2(seg(t, 0.05, 0.45)) * (1 - eIO2(seg(t, T.out + 0.1, 0.45)))).toFixed(3);
+          }
+
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+          const tl = gsap.timeline({ paused: true });
+          renderAt(0);
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          if (plate) {
+            Look.impact(tl, HIT, { shake: "#shake", amp: 7, dur: 0.3, flash: 0, zoom: 1.015 });
+          }
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        }
+
+        const FACES = ["800 100px Inter", "900 100px Inter", "900 100px Archivo"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(build);
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,400 @@
+<!doctype html>
+<!-- GTA-niche 75 Honor to profile slider, variant A (16:9, 1920x1080, 30 fps, 6.6 s). RDR2's honor meter flips into GTA VI's
+     criminal profile and slides to IRREDEEMABLE: a meter that changes identity, the comparison object for a system that crossed games.
+     The meter is a physical object: a Three.js navy housing with a title tab, a recessed lit slot with a liquid fill, a bevelled ceramic
+     puck with a contact shadow; labels are DOM Oswald pinned to the housing face. Full-kind component over official GTA VI footage.
+     Variable: bg "plate" / "none" (full kind: footage stays). Content and timing live in CONFIG. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Sample footage"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <style>
+      @font-face { font-family: "Oswald"; font-style: normal; font-weight: 200 700; font-display: block; src: url("media/fonts/Oswald.ttf") format("truetype"); }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #000; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: "Oswald", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #gl { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; z-index: 5; }
+      #ov { position: absolute; inset: 0; z-index: 6; }
+      .win { position: absolute; left: 0; top: 0; overflow: hidden; white-space: nowrap; }
+      .win .ln { position: absolute; left: 0; top: 0; height: 100%; display: flex; align-items: center; white-space: nowrap; font-weight: 600;
+        text-transform: uppercase; line-height: 1; color: #ECEBFA; padding-top: 0.06em; }
+      .win.r .ln { left: auto; right: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.6" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="s0" class="clip shot" src="assets/clips/gta6-t2-008_1.30_7.71.mp4" muted playsinline data-start="0" data-duration="3.6" data-media-start="0.3" data-track-index="1" style="z-index:2"></video>
+        <video id="s1" class="clip shot" src="assets/clips/gta6-t2-013_0.20_2.97.mp4" muted playsinline data-start="3.533" data-duration="3.067" data-track-index="0" style="z-index:1"></video>
+      </div></div>
+      <canvas id="gl" class="clip" data-start="0" data-duration="6.6" data-track-index="4" width="1920" height="1080"></canvas>
+      <div id="ov" class="clip" data-start="0" data-duration="6.6" data-track-index="5">
+        <div class="win" id="wT"><div class="ln" id="t0"></div><div class="ln" id="t1"></div></div>
+        <div class="win" id="wL"><div class="ln" id="l0"></div><div class="ln" id="l1"></div></div>
+        <div class="win r" id="wR"><div class="ln" id="r0"></div><div class="ln" id="r1"></div></div>
+      </div>
+    </div>
+    <script>
+      // Content structure: the film kit ports this (type "slider"): title / left / right per identity, colours, knob positions, times.
+      const CONFIG = {
+        title: ["HONOR", "CRIMINAL PROFILE"],        // identity 0 (RDR2) -> identity 1 (GTA VI)
+        left:  ["LOW HONOR", "PROFESSIONAL"],
+        right: ["HIGH HONOR", "IRREDEEMABLE"],
+        colour: ["#E6D9BC", "#F2558E"],              // fill / LED per identity: RDR2 parchment cream, GTA VI pink
+        hot:    ["#FFFBEE", "#FFC2DA"],              // hot core of the fill
+        tint:   ["#E6D9BC", "#F2558E"],              // active end label tint (>= 5:1 on the leather / navy face)
+        home: 0.9,                                   // knob after the honor rises (HIGH HONOR)
+        flipHome: 0.08,                              // where it lands after the flip (PROFESSIONAL)
+        end: 1.0,                                    // the slide's target (IRREDEEMABLE)
+        timing: { in: 0.0, knob: 0.25, flip: 2.24, slide: 3.6, hit: 4.0, out: 5.85, end: 6.6 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const W = 1920, H = 1080, T = CONFIG.timing, $ = (s) => document.querySelector(s), C = CONFIG;
+        const LY = { housing: { x: 300, y: 481, w: 1320, h: 184, r: 18, d: 26, bev: 5 }, tab: { h: 72, pad: 30, over: 10 },
+          slot: { x0: 372, x1: 1548, cy: 541, r: 18, lip: 7 }, title: { size: 44, track: 0.12 },
+          labels: { size: 42, track: 0.08, xL: 348, cyL: 614, xR: 1572, cyR: 614 }, knob: { r: 42, h: 28, ch: 8 }, inset: 16, shake: 6, blur: 8 };
+        const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v)), lerp = (a, b, p) => a + (b - a) * p;
+        const seg = (t, a, d) => clamp((t - a) / d);
+        const eO3 = (p) => 1 - Math.pow(1 - p, 3), eI3 = (p) => p * p * p, eI2 = (p) => p * p, eIO2 = (p) => p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+        const eIO3 = (p) => p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+        const eOB = (p, s = 1.7) => 1 + (s + 1) * Math.pow(p - 1, 3) + s * Math.pow(p - 1, 2);
+        const sm = (a, b, x) => { const u = clamp((x - a) / (b - a)); return u * u * (3 - 2 * u); };
+        const hex3 = (h) => new THREE.Color(h);
+
+        // ---------------- DOM type ----------------
+        const t0 = $("#t0"), t1 = $("#t1"), l0 = $("#l0"), l1 = $("#l1"), r0 = $("#r0"), r1 = $("#r1");
+        t0.textContent = C.title[0]; t1.textContent = C.title[1]; l0.textContent = C.left[0]; l1.textContent = C.left[1]; r0.textContent = C.right[0]; r1.textContent = C.right[1];
+        [t0, t1].forEach((e) => { e.style.fontSize = LY.title.size + "px"; e.style.letterSpacing = LY.title.track + "em"; });
+        [l0, l1, r0, r1].forEach((e) => { e.style.fontSize = LY.labels.size + "px"; e.style.letterSpacing = LY.labels.track + "em"; });
+        const wT = $("#wT"), wL = $("#wL"), wR = $("#wR");
+
+        function canvasTex(w, h, draw) {
+          const cv = document.createElement("canvas"); cv.width = w; cv.height = h; const c = cv.getContext("2d"); draw(c, w, h);
+          const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4; return tex;
+        }
+        function rrShape(w, h, r, Cls) {
+          r = Math.min(r, w / 2 - 0.01, h / 2 - 0.01);
+          const s = new (Cls || THREE.Shape)(), x0 = -w / 2, y0 = -h / 2, x1 = w / 2, y1 = h / 2;
+          s.moveTo(x0 + r, y0); s.lineTo(x1 - r, y0); s.absarc(x1 - r, y0 + r, r, -Math.PI / 2, 0, false);
+          s.lineTo(x1, y1 - r); s.absarc(x1 - r, y1 - r, r, 0, Math.PI / 2, false);
+          s.lineTo(x0 + r, y1); s.absarc(x0 + r, y1 - r, r, Math.PI / 2, Math.PI, false);
+          s.lineTo(x0, y0 + r); s.absarc(x0 + r, y0 + r, r, Math.PI, Math.PI * 1.5, false); return s;
+        }
+        function extrude(w, h, r, d, bev, seg = 4, hole) {
+          const sh = rrShape(w, h, r); if (hole) sh.holes.push(rrShape(hole[0], hole[1], hole[2], THREE.Path));
+          const g = new THREE.ExtrudeGeometry(sh, { depth: d, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: seg, curveSegments: 18 });
+          g.translate(0, 0, -d / 2); return g;
+        }
+
+        function build() {
+          // measure type (fonts are loaded): the tab fits the longer title, windows fit the longer label
+          const mw = (el) => el.getBoundingClientRect().width;
+          let leftW = Math.max(mw(l0), mw(l1)), rightW = Math.max(mw(r0), mw(r1));
+          if (LY.labels.fit && LY.labels.cyL === LY.labels.cyR) {                 // one row: both ends must fit between xL and xR with a gap
+            const room = LY.labels.xR - LY.labels.xL - LY.labels.fit, need = leftW + rightW;
+            if (need > room) { const fs = Math.floor(LY.labels.size * room / need); [l0, l1, r0, r1].forEach((e) => (e.style.fontSize = fs + "px")); leftW = Math.max(mw(l0), mw(l1)); rightW = Math.max(mw(r0), mw(r1)); }
+          }
+          const titleW = Math.max(mw(t0), mw(t1));
+          const HS = LY.housing, TB = LY.tab, SL = LY.slot, KB = LY.knob;
+          const tabW = Math.round(titleW + TB.pad * 2 + 6), tabH = TB.h, tabX = HS.x, tabY = HS.y - tabH + TB.over;
+          const winH = Math.round(LY.labels.size * 1.25), tWinH = Math.round(LY.title.size * 1.25);
+          wT.style.width = (titleW + 8) + "px"; wT.style.height = tWinH + "px";
+          wL.style.width = (leftW + 8) + "px"; wL.style.height = winH + "px";
+          wR.style.width = (rightW + 8) + "px"; wR.style.height = winH + "px";
+
+          const canvas = $("#gl");
+          const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+          renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 0);
+          renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+          const scene = new THREE.Scene();
+          const FOV = 22, DIST = (H / 2) / Math.tan((FOV / 2) * Math.PI / 180);
+          const camera = new THREE.PerspectiveCamera(FOV, W / H, 10, DIST * 3);
+          camera.position.set(0, 0, DIST); camera.lookAt(0, 0, 0);
+
+          // studio env for the clear coat and the metal
+          const envScene = new THREE.Scene();
+          envScene.add(new THREE.Mesh(new THREE.SphereGeometry(50, 48, 24), new THREE.ShaderMaterial({
+            side: THREE.BackSide, depthWrite: false,
+            vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+            fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 top = vec3(0.9,0.93,1.0), hor = vec3(0.22,0.22,0.3), low = vec3(0.03,0.03,0.05);" +
+              " vec3 c = y > 0.0 ? mix(hor, top, smoothstep(0.0, 0.9, y)) : mix(hor, low, smoothstep(0.0, 0.45, -y)); gl_FragColor = vec4(c, 1.0); }"
+          })));
+          const panelL = (w, h, x, y, z, c) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); envScene.add(m); };
+          panelL(36, 14, -14, 26, 26, new THREE.Color(4.0, 4.0, 4.1));
+          panelL(5, 34, 30, 2, 18, new THREE.Color(2.2, 2.4, 3.0));
+          panelL(26, 8, -6, -24, 24, new THREE.Color(0.7, 0.7, 0.8));
+          const pmrem = new THREE.PMREMGenerator(renderer);
+          scene.environment = pmrem.fromScene(envScene, 0.02, 0.1, 200).texture;
+          const key = new THREE.DirectionalLight(0xffffff, 2.1); key.position.set(-0.45, 0.9, 1.0); scene.add(key);
+          scene.add(new THREE.HemisphereLight(0xffffff, 0x1c1a2a, 0.8));
+
+          // pixel-mapped world: P(x, y, z) takes canvas px
+          const G = new THREE.Group(); scene.add(G);
+          const HX = HS.x + HS.w / 2, HY = HS.y + HS.h / 2;                        // housing centre (the pivot)
+          G.position.set(HX - W / 2, H / 2 - HY, 0);
+          const P = (x, y, z = 0) => new THREE.Vector3(x - HX, HY - y, z);
+          const SG = new THREE.Group(); G.add(SG);
+          const FACE = HS.d / 2 + HS.bev;
+
+          // ---------- housing: a brushed-metal bezel with a real recess, a key-lit navy panel sunk 8 px into it; the title tab is a solid slab ----------
+          const INS = LY.inset, IW = HS.w - 2 * INS, IH = HS.h - 2 * INS, IR = Math.max(6, HS.r - 8);
+          const brushTex = canvasTex(1024, 512, (c, w, h) => {
+            c.fillStyle = "#4b5583"; c.fillRect(0, 0, w, h);
+            for (let i = 0; i < 1400; i++) { const y = Look.hash(i * 3 + 1) * h, l = 40 + Look.hash(i * 3 + 2) * 300, x = Look.hash(i * 3 + 3) * w, a = 0.05 + Look.hash(i * 7 + 5) * 0.12;
+              c.fillStyle = (i % 2 ? "rgba(255,255,255," : "rgba(0,0,10,") + a.toFixed(3) + ")"; c.fillRect(x, y, l, 1); }
+            const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, "rgba(255,255,255,.16)"); g.addColorStop(0.5, "rgba(255,255,255,0)"); g.addColorStop(1, "rgba(0,0,10,.28)");
+            c.fillStyle = g; c.fillRect(0, 0, w, h);
+          });
+          brushTex.wrapS = brushTex.wrapT = THREE.RepeatWrapping; brushTex.repeat.set(1 / HS.w, 1 / HS.h); brushTex.offset.set(0.5, 0.5);
+          const bezelMat = new THREE.MeshPhysicalMaterial({ map: brushTex, color: 0xffffff, metalness: 0.85, roughness: 0.44, clearcoat: 0.35, clearcoatRoughness: 0.25, envMapIntensity: 0.7 });
+          const sideMat = new THREE.MeshPhysicalMaterial({ color: 0x3d4670, metalness: 0.9, roughness: 0.3, clearcoat: 0.5, clearcoatRoughness: 0.12, envMapIntensity: 1.2 });
+          renderer.localClippingEnabled = true;
+          const NRM = new THREE.Vector3(1, 0.45, 0).normalize();
+          const planeOld = new THREE.Plane(NRM.clone(), 1e6), planeNew = new THREE.Plane(NRM.clone().negate(), -1e6);
+          const clipTo = (mats, pl) => mats.forEach((m) => { m.clippingPlanes = [pl]; m.clipShadows = false; });
+          // RDR2 skin: worn leather with a brass-lit top edge
+          const leatherTex = canvasTex(1024, 512, (c, w, h) => {
+            c.fillStyle = "#2b1d13"; c.fillRect(0, 0, w, h);
+            for (let i = 0; i < 9000; i++) { const x = Look.hash(i * 5 + 1) * w, y = Look.hash(i * 5 + 2) * h, r = 0.6 + Look.hash(i * 5 + 3) * 1.9, a = 0.04 + Look.hash(i * 5 + 4) * 0.14;
+              c.fillStyle = (i % 3 ? "rgba(0,0,0," : "rgba(215,175,120,") + a.toFixed(3) + ")"; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.fill(); }
+            const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, "rgba(184,155,106,.26)"); g.addColorStop(0.28, "rgba(184,155,106,0)"); g.addColorStop(1, "rgba(0,0,0,.38)");
+            c.fillStyle = g; c.fillRect(0, 0, w, h);
+          });
+          leatherTex.wrapS = leatherTex.wrapT = THREE.RepeatWrapping; leatherTex.repeat.set(1 / HS.w, 1 / HS.h); leatherTex.offset.set(0.5, 0.5);
+          const leatherMat = new THREE.MeshPhysicalMaterial({ map: leatherTex, roughness: 0.66, metalness: 0, clearcoat: 0.35, clearcoatRoughness: 0.45, envMapIntensity: 0.5 });
+          const leatherSide = new THREE.MeshPhysicalMaterial({ color: 0x1a110b, roughness: 0.8, metalness: 0, clearcoat: 0.2 });
+          const bezelG = extrude(HS.w, HS.h, HS.r, HS.d, HS.bev, 4, [IW, IH, IR]);
+          const bezel = new THREE.Mesh(bezelG, [bezelMat, sideMat]); SG.add(bezel);
+          const bezelR = new THREE.Mesh(bezelG, [leatherMat, leatherSide]); SG.add(bezelR);
+          const faceTex = canvasTex(1024, 256, (c, w, h) => {
+            let g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, "#1C2244"); g.addColorStop(0.45, "#141936"); g.addColorStop(1, "#0B0F22");
+            c.fillStyle = g; c.fillRect(0, 0, w, h);
+            g = c.createRadialGradient(w * 0.2, h * 0.0, 0, w * 0.2, h * 0.0, w * 0.5); g.addColorStop(0, "rgba(150,160,230,.22)"); g.addColorStop(1, "rgba(150,160,230,0)");
+            c.fillStyle = g; c.fillRect(0, 0, w, h);
+            g = c.createLinearGradient(0, 0, 0, h * 0.18); g.addColorStop(0, "rgba(0,0,8,.55)"); g.addColorStop(1, "rgba(0,0,8,0)");   // the recess's own shadow under the top lip
+            c.fillStyle = g; c.fillRect(0, 0, w, h * 0.18);
+          });
+          faceTex.repeat.set(1 / (IW + 6), 1 / (IH + 6)); faceTex.offset.set(0.5, 0.5);
+          const faceMat = new THREE.MeshPhysicalMaterial({ map: faceTex, roughness: 0.4, metalness: 0.05, clearcoat: 0.8, clearcoatRoughness: 0.2, envMapIntensity: 0.5 });
+          const PF = FACE - 8;                                                      // the panel face, sunk 8 px into the bezel
+          const panelG = extrude(IW + 6, IH + 6, IR + 3, 14, 2, 2);
+          const panel = new THREE.Mesh(panelG, [faceMat, sideMat]); panel.position.z = PF - 9; SG.add(panel);
+          const leatherPTex = leatherTex.clone(); leatherPTex.repeat.set(1 / (IW + 6), 1 / (IH + 6)); leatherPTex.offset.set(0.5, 0.5); leatherPTex.needsUpdate = true;
+          const panelMatR = new THREE.MeshPhysicalMaterial({ map: leatherPTex, color: 0x7a6a58, roughness: 0.7, metalness: 0, clearcoat: 0.25, clearcoatRoughness: 0.5, envMapIntensity: 0.4 });
+          const panelR = new THREE.Mesh(panelG, [panelMatR, leatherSide]); panelR.position.z = PF - 9; SG.add(panelR);
+          const w0 = Math.round(mw(t0) + TB.pad * 2 + 6), w1 = Math.round(mw(t1) + TB.pad * 2 + 6);
+          const tabG = extrude(tabW, tabH, Math.min(14, HS.r), HS.d, HS.bev); tabG.translate(tabW / 2, 0, 0);
+          const tabTex = brushTex.clone(); tabTex.repeat.set(1 / tabW, 1 / (tabH * 1.6)); tabTex.offset.set(0.5, 0.5); tabTex.needsUpdate = true;
+          const tabMat = bezelMat.clone(); tabMat.map = tabTex;
+          const tab = new THREE.Mesh(tabG, [tabMat, sideMat]);
+          tab.position.copy(P(tabX, tabY + tabH / 2, 0.5)); SG.add(tab);
+          const tabTexR = leatherTex.clone(); tabTexR.repeat.set(1 / tabW, 1 / (tabH * 1.6)); tabTexR.offset.set(0.5, 0.5); tabTexR.needsUpdate = true;
+          const tabMatR = leatherMat.clone(); tabMatR.map = tabTexR;
+          const tabR = new THREE.Mesh(tabG, [tabMatR, leatherSide]); tabR.position.copy(tab.position); SG.add(tabR);
+          clipTo([bezelMat, sideMat, faceMat, tabMat], planeNew); clipTo([leatherMat, leatherSide, panelMatR, tabMatR], planeOld);
+
+          // ---------- the slot: metal lip ring, dark channel, liquid fill shader ----------
+          const L = SL.x1 - SL.x0, SR = SL.r, LIP = SL.lip, SCX = (SL.x0 + SL.x1) / 2;
+          const lipMat = new THREE.MeshPhysicalMaterial({ color: 0xb48c4e, metalness: 1, roughness: 0.24, clearcoat: 0.6, clearcoatRoughness: 0.1, envMapIntensity: 1.5 });
+          const lip = new THREE.Mesh(extrude(L + 2 * LIP, 2 * (SR + LIP), SR + LIP, 3, 1.2, 3), lipMat); lip.position.copy(P(SCX, SL.cy, PF + 1.5)); SG.add(lip);
+          const chanMat = new THREE.MeshPhysicalMaterial({ color: 0x05060c, metalness: 0.2, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.1, envMapIntensity: 0.8 });
+          const chan = new THREE.Mesh(extrude(L, 2 * SR, SR, 1.5, 0.6, 2), chanMat); chan.position.copy(P(SCX, SL.cy, PF + 3.4)); SG.add(chan);
+          const FILL = "uniform float uA0, uHead, uLen, uR, uSweep, uBoost; uniform vec3 uC0, uC1, uH0, uH1; varying vec2 vP;" +
+            "float cap(vec2 p, float a, float b, float r){ float x = clamp(p.x, a, b); return length(vec2(p.x - x, p.y)) - r; }" +
+            "void main(){ vec2 p = vP; float yy = clamp(p.y / uR, -1.0, 1.0);" +
+            " float dE = cap(p, uA0, uA0 + uLen, uR); float hd = max(uHead, uA0 + 0.5); float dF = cap(p, uA0, hd, uR);" +
+            " float inE = smoothstep(0.9, -0.9, dE), inF = smoothstep(0.9, -0.9, dF) * step(uA0 + 2.0, uHead);" +
+            " float sw = smoothstep(-36.0, 36.0, uSweep - p.x); vec3 c = mix(uC0, uC1, sw), h = mix(uH0, uH1, sw);" +
+            " float topShade = smoothstep(-0.15, 1.0, yy) * 0.8;" +
+            " vec3 bed = mix(vec3(0.045,0.048,0.085), c * 0.2, 0.55) * (1.0 - topShade);" +
+            " bed += vec3(0.62,0.66,0.84) * exp(-pow((yy + 0.84) / 0.13, 2.0)) * 0.38;" +
+            " vec3 fc = c * (0.5 + 0.5 * (1.0 - yy * yy)); fc = mix(fc, c * 0.5, smoothstep(0.15, 1.0, yy) * 0.6);" +
+            " fc += vec3(1.0) * exp(-pow((yy - 0.38) / 0.2, 2.0)) * 0.26; fc += h * exp(-pow((yy + 0.08) / 0.24, 2.0)) * 0.42 * (uBoost - 0.6);" +
+            " fc *= uBoost; vec3 col = mix(bed, min(fc, vec3(1.0)), inF);" +
+            " gl_FragColor = vec4(col, inE); }";
+          const VS = "varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }";
+          const fillU = { uA0: { value: -L / 2 }, uHead: { value: -L / 2 - 10 }, uLen: { value: L }, uR: { value: SR }, uSweep: { value: -9999 }, uBoost: { value: 1 },
+            uC0: { value: hex3(C.colour[0]) }, uC1: { value: hex3(C.colour[1]) }, uH0: { value: hex3(C.hot[0]) }, uH1: { value: hex3(C.hot[1]) } };
+          const fill = new THREE.Mesh(new THREE.PlaneGeometry(L + 2 * SR + 12, 2 * SR + 12), new THREE.ShaderMaterial({ uniforms: fillU, vertexShader: VS, fragmentShader: FILL, transparent: true, depthWrite: false }));
+          fill.position.copy(P(SCX, SL.cy, PF + 5.2)); fill.renderOrder = 2; SG.add(fill);
+          // ticks under the slot: tiny machined pegs
+          const tickMat = new THREE.MeshPhysicalMaterial({ color: 0xd6dbf0, metalness: 0.6, roughness: 0.35, envMapIntensity: 1.2, emissive: 0xffffff, emissiveIntensity: 0.22 });
+          for (let i = 0; i <= 10; i++) {
+            const major = i % 5 === 0, tk = new THREE.Mesh(new THREE.BoxGeometry(major ? 4 : 3, major ? 12 : 7, 2), tickMat);
+            tk.position.copy(P(SL.x0 + (L * i) / 10, SL.cy + SR + LIP + (major ? 8 : 6), PF + 1)); SG.add(tk);
+          }
+          // light sweep across the face at the flip (soft, clipped to the face by construction)
+          const SWEEP = "uniform float uX, uW, uA; varying vec2 vP; void main(){ float d = (vP.x + vP.y * 0.45 - uX) / uW; float a = exp(-d * d) * uA; gl_FragColor = vec4(1.0, 0.96, 1.0, a); }";
+          const sweepU = { uX: { value: -9999 }, uW: { value: 46 }, uA: { value: 0 } };
+          const sweep = new THREE.Mesh(new THREE.PlaneGeometry(IW - 2, IH - 2), new THREE.ShaderMaterial({ uniforms: sweepU, vertexShader: VS, fragmentShader: SWEEP, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+          sweep.position.set(0, 0, PF + 5.4); sweep.renderOrder = 3; SG.add(sweep);
+          const sweepTG = new THREE.PlaneGeometry(tabW - 6, tabH - 6); sweepTG.translate(tabW / 2, 0, 0);
+          const sweepT = new THREE.Mesh(sweepTG, new THREE.ShaderMaterial({ uniforms: { uX: sweepU.uX, uW: sweepU.uW, uA: sweepU.uA }, vertexShader: VS, fragmentShader: SWEEP, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+          sweepT.position.copy(P(tabX, tabY + tabH / 2, FACE + 1.2)); sweepT.renderOrder = 3; SG.add(sweepT);
+
+          // ---------- the knob: bevelled ceramic puck in a metal collar, an LED inset, a contact shadow ----------
+          const KG = new THREE.Group(); SG.add(KG);
+          const puckMat = new THREE.MeshPhysicalMaterial({ color: 0xeceaf2, roughness: 0.3, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.06, envMapIntensity: 1.0, emissive: 0xff2e74, emissiveIntensity: 0 });
+          const prof = [new THREE.Vector2(0, 0), new THREE.Vector2(KB.r, 0), new THREE.Vector2(KB.r, KB.h - KB.ch), new THREE.Vector2(KB.r - KB.ch, KB.h), new THREE.Vector2(0, KB.h)];
+          const puck = new THREE.Mesh(new THREE.LatheGeometry(prof, 64), puckMat); puck.rotation.x = Math.PI / 2; KG.add(puck);
+          const collarMat = new THREE.MeshPhysicalMaterial({ color: 0x3f4870, metalness: 1, roughness: 0.26, clearcoat: 0.5, envMapIntensity: 1.4, side: THREE.DoubleSide });
+          const cprof = [new THREE.Vector2(KB.r + 1, 0), new THREE.Vector2(KB.r + 8, 0), new THREE.Vector2(KB.r + 8, 4), new THREE.Vector2(KB.r + 1, 5), new THREE.Vector2(KB.r + 1, 0)];
+          const collar = new THREE.Mesh(new THREE.LatheGeometry(cprof, 64), collarMat); collar.rotation.x = Math.PI / 2; KG.add(collar);
+          const ledMat = new THREE.MeshPhysicalMaterial({ color: 0x2a0d18, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.05, emissive: hex3(C.colour[0]), emissiveIntensity: 0.9 });
+          const groove = new THREE.Mesh(new THREE.TorusGeometry(KB.r * 0.64, 1.6, 10, 72), new THREE.MeshPhysicalMaterial({ color: 0x8a8697, roughness: 0.5, metalness: 0.3 })); groove.position.z = KB.h - 0.4; KG.add(groove);
+          const led = new THREE.Mesh(new THREE.CylinderGeometry(KB.r * 0.3, KB.r * 0.3, 1.6, 40), ledMat); led.rotation.x = Math.PI / 2; led.position.z = KB.h + 0.6; KG.add(led);
+          const HALO = "uniform float uA; varying vec2 vP; void main(){ vec2 q = (vP - vec2(0.0, -0.16)) / vec2(1.0, 0.72); float d = length(q); float a = uA * exp(-d * d * 3.2); gl_FragColor = vec4(0.0, 0.0, 0.02, a); }";
+          const shadowU = { uA: { value: 0.62 } };
+          const shadowSz = (KB.r + 10) * 2;
+          const shadow = new THREE.Mesh(new THREE.PlaneGeometry(shadowSz, shadowSz), new THREE.ShaderMaterial({ uniforms: shadowU, vertexShader: "varying vec2 vP; void main(){ vP = position.xy / " + (shadowSz / 2).toFixed(1) + "; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }", fragmentShader: HALO, transparent: true, depthWrite: false }));
+          shadow.renderOrder = 4; SG.add(shadow);
+
+          // ---------- anchors for the DOM type ----------
+          const anchor = (x, y, z) => { const o = new THREE.Object3D(); o.position.copy(P(x, y, z)); SG.add(o); return o; };
+          const aT = anchor(tabX + TB.pad, tabY + tabH / 2 - 1, FACE + 0.5), aL = anchor(LY.labels.xL, LY.labels.cyL, PF), aR = anchor(LY.labels.xR, LY.labels.cyR, PF);
+          const v3 = new THREE.Vector3(), v3b = new THREE.Vector3();
+          function project(obj) {
+            obj.getWorldPosition(v3); const a = v3.clone().project(camera);
+            v3b.copy(v3); v3b.x += 100; const b = v3b.project(camera);
+            return [(a.x + 1) / 2 * W, (1 - a.y) / 2 * H, ((b.x - a.x) / 2 * W) / 100];
+          }
+          function pin(win, obj, right, sc) {
+            const [x, y, k] = project(obj);
+            win.style.transformOrigin = right ? "100% 50%" : "0% 50%";
+            win.style.transform = "translate(" + x.toFixed(1) + "px," + y.toFixed(1) + "px) translate(" + (right ? -100 : 0) + "%,-50%) scale(" + (k * (sc || 1)).toFixed(4) + ")";
+          }
+          // a label line inside its window: y in % of the window height, optional blur while it moves
+          const line = (el, yPct, blur, color, bright) => {
+            el.style.transform = "translateY(" + yPct.toFixed(1) + "%)";
+            el.style.filter = (blur > 0.2 ? "blur(" + blur.toFixed(1) + "px) " : "") + (bright && bright !== 1 ? "brightness(" + bright.toFixed(2) + ")" : "");
+            if (color) el.style.color = color;
+          };
+          // roll: entrance (rise into the window), flip (old down and out, new down from above), exit (down and out)
+          function roll(old, nw, t, delay) {
+            const pIn = seg(t, T.in + 0.12 + delay, 0.32), pOutOld = seg(t, T.flip + delay, 0.2), pInNew = seg(t, T.flip + delay + 0.2, 0.3), pOut = seg(t, T.out + delay, 0.22);
+            const yOld = pOutOld > 0 ? eI3(pOutOld) * 118 : (1 - eO3(pIn)) * 118;
+            const yNew = pOut > 0 ? eI3(pOut) * 118 : (eO3(pInNew) - 1) * 118;
+            line(old, yOld, pIn > 0 && pIn < 0.5 ? (1 - pIn / 0.5) * 4 : 0);
+            line(nw, yNew, pInNew > 0 && pInNew < 0.5 ? (1 - pInNew / 0.5) * 4 : 0);
+            old.style.visibility = Math.abs(yOld) >= 117 ? "hidden" : "visible"; nw.style.visibility = Math.abs(yNew) >= 117 ? "hidden" : "visible";
+            return [yOld, yNew];
+          }
+
+          // ---------- motion from time ----------
+          const KX = (v) => SL.x0 + v * L;
+          function knobV(t) {
+            if (t < T.flip + 0.05) return C.home;
+            if (t < T.slide) return lerp(C.home, C.flipHome, eOB(seg(t, T.flip + 0.05, 0.6), 0.9));
+            if (t < T.hit) return lerp(C.flipHome, C.end, Math.pow(seg(t, T.slide, T.hit - T.slide), 2.4));
+            const hp = t - T.hit; return C.end + 0.022 * Math.exp(-9 * hp) * Math.sin(24 * hp);
+          }
+          function fillV(t) {
+            if (t < T.knob) return -0.05;
+            if (t < T.flip + 0.05) return lerp(0, C.home, eO3(seg(t, T.knob, 0.55)));
+            return Math.min(C.end, knobV(t - 0.05));
+          }
+          const sweepX = (t) => { const p = seg(t, T.flip, 0.5); return p <= 0 ? -9999 : p >= 1 ? 9999 : lerp(-HS.w / 2 - 220, HS.w / 2 + 220, eIO2(p)); };
+
+          function renderAt(t) {
+            const v = knobV(t), hp = t - T.hit;
+            // housing entrance / exit
+            const sIn = seg(t, T.in, 0.38), sOut = seg(t, T.out + 0.15, 0.3);
+            SG.visible = sIn > 0 && sOut < 1;
+            const flip = eOB(sIn, 1.1);
+            G.rotation.x = lerp(0.13, 0.08, clamp(t / T.end));
+            G.rotation.y = lerp(-0.04, 0.02, clamp(t / T.end));
+            SG.rotation.x = (1 - flip) * -0.85 + eI3(sOut) * 1.1;
+            const sc = lerp(0.85, 1, eO3(sIn)) * (1 - 0.3 * eI3(sOut));
+            SG.scale.set(sc, sc * Math.max(0.001, 1 - 0.96 * eI3(sOut)), sc);
+            const jolt = hp > 0 ? 7 * Math.exp(-11 * hp) * Math.cos(28 * hp) : (t > T.flip + 0.26 ? 3 * Math.exp(-14 * (t - T.flip - 0.26)) * Math.cos(30 * (t - T.flip - 0.26)) : 0);
+            SG.position.set(jolt, (1 - eO3(sIn)) * -40, 0);
+            const bl = sIn < 1 ? (1 - eO3(sIn)) * LY.blur : sOut > 0 && sOut < 1 ? eI2(sOut) * 6 : 0;
+            canvas.style.filter = bl > 0.2 ? "blur(" + bl.toFixed(1) + "px)" : "none";
+            const envK = lerp(0.1, 1, eO3(sIn));                                   // the metal only catches the studio once it has settled (no blown-out first frames)
+            bezelMat.envMapIntensity = 0.7 * envK; tabMat.envMapIntensity = 0.7 * envK; sideMat.envMapIntensity = 1.2 * envK; lipMat.envMapIntensity = 1.5 * envK;
+
+            // the sweep and the identity swap
+            const sx = sweepX(t); let dX = sx, dA = sx > -9000 && sx < 9000 ? 0.48 : 0;
+            if (LY.hitSweep && hp >= 0 && hp < 0.28) { dX = lerp(KX(C.end) - HX, -HS.w / 2 - 200, eO3(hp / 0.28)); dA = 0.34 * (hp < 0.1 ? 1 : 1 - (hp - 0.1) / 0.18); }
+            sweepU.uX.value = dX; sweepU.uA.value = dA;
+            SG.updateMatrixWorld(true);
+            const fp = SG.localToWorld(new THREE.Vector3(clamp(sx, -5000, 5000), 0, 0)), nW = NRM.clone().transformDirection(SG.matrixWorld);
+            planeOld.setFromNormalAndCoplanarPoint(nW, fp); planeNew.setFromNormalAndCoplanarPoint(nW.clone().negate(), fp);
+            const skin = sm(-L / 2, L / 2, sx);
+            lipMat.color.copy(hex3("#B48C4E")).lerp(hex3("#8E97C4"), skin);
+            collarMat.color.copy(hex3("#A67F45")).lerp(hex3("#3F4870"), skin);
+            fillU.uSweep.value = sx;
+            const fv = fillV(t); fillU.uHead.value = -L / 2 + fv * L;
+            fillU.uBoost.value = 1 + (hp < 0 ? 0 : hp < 0.1 ? 0.7 : 0.7 * Math.exp(-3.5 * (hp - 0.1)) + 0.14 * (1 - Math.exp(-3.5 * (hp - 0.1))));
+            const kx = KX(v);
+            const ledMix = sm(-36, 36, sx - (kx - HX));
+            ledMat.emissive.copy(hex3(C.colour[0])).lerp(hex3(C.colour[1]), ledMix);
+            const lit = hp < 0 ? 0 : hp < 0.1 ? 1 : Math.exp(-4 * (hp - 0.1));
+            ledMat.emissiveIntensity = 0.9 + 1.5 * lit;
+            puckMat.emissive.copy(hex3(C.colour[1])); puckMat.emissiveIntensity = 0.12 * lit;
+            const tw = lerp(w0, w1, eIO3(seg(t, T.flip + 0.08, 0.42))) / tabW; tab.scale.x = tw; tabR.scale.x = tw; sweepT.scale.x = tw;
+
+            // the knob: pop onto home with a landing squash, travel with lean, stretch into the slam, squash and rebound
+            const kIn = seg(t, T.knob, 0.3);
+            KG.visible = kIn > 0;
+            const drop = 1 - kIn * kIn, land = t - (T.knob + 0.3);
+            let sAlong = 1, sCross = 1, sZ = 1, lean = 0;
+            if (land > 0 && land < 0.5) { const q = Math.exp(-12 * land) * Math.cos(22 * land); sZ = 1 - 0.35 * q; sAlong = 1 + 0.16 * q; sCross = 1 + 0.16 * q; }
+            if (t >= T.flip + 0.05 && t < T.slide) { const p = seg(t, T.flip + 0.05, 0.6); lean = -0.28 * Math.sin(p * Math.PI); }
+            if (t >= T.slide && t < T.hit) { const p = seg(t, T.slide, T.hit - T.slide); sAlong = 1 + 0.32 * sm(0.45, 1, p); sCross = 1 - 0.12 * sm(0.45, 1, p); lean = 0.34 * sm(0.2, 1, p); }
+            if (hp >= 0) { const q = Math.exp(-10 * hp) * Math.cos(18 * hp); sAlong = 1 - 0.36 * q; sCross = 1 + 0.18 * q; lean = -0.3 * Math.exp(-7 * hp) * Math.cos(16 * hp); }
+            KG.position.copy(P(kx, SL.cy, PF + 5.7 + 140 * drop)); KG.scale.set(sAlong * (1 + 0.6 * drop), sCross * (1 + 0.6 * drop), sZ);
+            KG.rotation.y = lean;
+            shadow.visible = KG.visible; shadow.position.copy(P(kx + 2, SL.cy, PF + 5.5)); shadow.scale.setScalar(1 + 0.9 * drop); shadowU.uA.value = 0.62 * (1 - 0.7 * drop);
+
+            // DOM labels: roll through their windows, pinned to the face
+            const [tyO] = roll(t0, t1, t, 0);
+            roll(l0, l1, t, 0.04); roll(r0, r1, t, 0.08);
+            // active end tint: the end nearest the knob takes the identity tint; the payoff label lights
+            const idn = sx > kx - HX ? 1 : 0;
+            const active = v >= 0.5 ? "r" : "l";
+            const dimC = "#A9A8C4";
+            l0.style.color = active === "l" ? C.tint[0] : "#ECEBFA"; r0.style.color = active === "r" ? C.tint[0] : "#ECEBFA";
+            l1.style.color = active === "l" ? C.tint[1] : (hp >= 0 ? dimC : "#ECEBFA");
+            r1.style.color = active === "r" ? C.tint[1] : "#ECEBFA";
+            let rScale = 1, rBright = 1;
+            if (hp >= 0) { rBright = hp < 0.1 ? 2.4 : 1 + 1.4 * Math.exp(-6 * (hp - 0.1)); rScale = 1 + 0.14 * Math.exp(-7 * hp) * Math.cos(Math.min(hp, 0.35) * 9); r1.style.color = hp < 0.1 ? "#FFFFFF" : C.tint[1]; }
+            r1.style.filter = (r1.style.filter || "").replace(/brightness\([^)]*\)/, "") + (rBright !== 1 ? " brightness(" + rBright.toFixed(2) + ")" : "");
+            pin(wT, aT, false, 1); pin(wL, aL, false, 1); pin(wR, aR, true, rScale);
+            wT.style.visibility = wL.style.visibility = wR.style.visibility = SG.visible ? "visible" : "hidden";
+            renderer.render(scene, camera);
+          }
+
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+          const tl = gsap.timeline({ paused: true });
+          renderAt(0);
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          if (plate) {
+            Look.impact(tl, T.hit, { shake: "#shake", amp: LY.shake, dur: 0.3, flash: 0, zoom: 1.012 });
+            Look.impact(tl, T.flip + 0.26, { shake: "#shake", amp: 3, dur: 0.2, flash: 0, zoom: 1.0 });
+            Look.push(tl, "#push", 0, T.end, { to: 1.035 });
+          }
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        }
+
+        const FACES = ["600 100px Oswald", "500 100px Oswald"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(build);
+      })();
+    </script>
+  </body>
+</html>

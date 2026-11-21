@@ -1,0 +1,266 @@
+<!doctype html>
+<!-- 14 Callout label, variant B (9:16, 1080x1920, 30 fps): "Stacked callouts, one locks in".
+     Three callouts pop onto people in a gameplay shot (FRANKLIN, OG, FAMILIES), staggered, each with its own bead pin and a
+     bold enamel elbow leader, each tracking its subject: pins sit on hair, a vest and a back (never on a face), leaders run
+     clear of every head, and OG hangs under its pin from an overline. OG and FAMILIES retract; on the hard cut to a sharp
+     close shot of Franklin his callout re-pins on his hair (the leader stays attached) and locks in: a light pulse charges
+     the leader green, a bevelled lacquer plaque hinges up behind the word and locks with a punch and a rim flash, a light
+     front ignites the type from white enamel to Franklin green, and the locked label holds still for 1.2 s while its leader
+     follows his head. All payoff light sits on the plaque and the leader, never on his face.
+     Sample plate: media/plate-v.mp4 (the Shorts blur-fill layout, every shot at native 1.0x; media/make_plate.sh).
+     Variable: bg "plate" / "none". See README.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <script src="media/tracks.js"></script>
+    <script src="media/callout3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      #lines { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; overflow: visible; }
+      #gl { position: absolute; inset: 0; }
+      .edge { position: absolute; left: 0; width: 1080px; pointer-events: none; }
+      #edgeT { top: 330px; height: 110px; background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.42) 100%); }
+      #edgeB { top: 1520px; height: 120px; background: linear-gradient(180deg, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0) 100%); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="4.033" data-width="1080" data-height="1920">
+      <video id="shotA" class="clip shot" src="media/plate-v.mp4" muted playsinline data-start="0" data-duration="4.033" data-media-start="0" data-track-index="0"></video>
+      <div id="ov" class="clip" data-start="0" data-duration="4.033" data-track-index="1">
+        <!-- plate only: a soft contact shadow where the sharp 1.0x window meets the blur-fill bed -->
+        <div id="edgeT" class="edge"></div><div id="edgeB" class="edge"></div>
+        <svg id="lines" viewBox="0 0 1080 1920">
+          <g id="pings"></g>
+          <g id="shd" stroke="#000000" stroke-opacity="0.38" stroke-linecap="round" fill="none"></g>
+          <!-- leaders and shelves are bold enamel tubes: a thick ink keyline, a white core, a shaded underside -->
+          <g id="ink" stroke="#0E0F13" stroke-linecap="round" fill="none"></g>
+          <g id="core" stroke="#FFFFFF" stroke-linecap="round" fill="none"></g>
+          <g id="hi" stroke="#A9B4C2" stroke-linecap="round" fill="none"></g>
+          <!-- the payoff callout's charged (green metal) leader, laid over the enamel as the pulse passes -->
+          <g id="gcore" stroke="#27C964" stroke-linecap="round" fill="none"></g>
+          <g id="ghi" stroke="#D2FFE0" stroke-linecap="round" fill="none"></g>
+          <g id="pulse" stroke-linecap="round" fill="none"></g>
+          <!-- colour-coded end caps on every shelf / overline: each callout carries its pin colour to the ends of its rail -->
+          <g id="caps"></g>
+        </svg>
+        <div id="gl"></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        // one entry per callout, in landing order. track = tracked subject in media/tracks.js (canvas px, one point per frame);
+        // pin = bead offset from the tracked point, px; label = label offset from the pin, px; elbowDx = where the leader meets
+        // the shelf, x offset from the pin; hang = the label hangs under its pin from an overline (the leader never meets the type);
+        // ping = landing ring radii (small on a head, so no ring crosses a face); land / out = when it pops on / starts its exit.
+        // The payoff callout (payoff: true) rides the cut: its pin re-lands on the new shot at `cut` with the leader attached, and it
+        // locks in: it glides to `lock` (label centre x, baseline y) and holds still there while its leader keeps following the pin.
+        callouts: [
+          { text: "FRANKLIN", size: 116, collar: "#FFD23C", collar2: "#38E07B", land: 0.10, out: 3.82, payoff: true, ping: [38, 28],
+            track: "fr", pin: [0, 0], label: [150, -150], elbowDx: 70, lock: [540, 420], lockScale: 1.0 },   // pin on his hair, label above-right
+          { text: "OG", size: 112, collar: "#FFD23C", land: 0.28, out: 2.12, ping: [58, 44],
+            track: "og2", pin: [0, 0], label: [40, 207], elbowDx: 0, hang: true },                       // pin on the vest, label hangs below
+          { text: "FAMILIES", size: 106, collar: "#38E07B", land: 0.46, out: 2.20, ping: [58, 44],
+            track: "fam2", pin: [0, 0], label: [-200, -250], elbowDx: 30 }                               // rider's back; leader clears his head
+        ],
+        cut: 2.40,   // the plate's hard cut (v49 gameplay -> v06 Franklin close): the payoff lands on the sharp shot
+        // payoff: the pulse charges the payoff leader green, the plaque hinges up and locks (punch, rim flash, bloom peak on the
+        // plaque, collar turns green), the light front ignites the type, one specular rake later; then it holds until `out`
+        payoff: { pulse: 2.44, pulseDur: 0.14, lock: 2.48, lockDur: 0.2, ignite: 2.52, frontDur: 0.24, punch: 0.24, spec: 3.25, specDur: 0.42 },
+        plate: { padX: 38, padTop: 30, yb: -22, chamfer: 24, depth: 16, bevel: 6, top: "#1A4D32", bot: "#04110A", gloss: "#CFFFDF" },
+        depth: 26, bevel: 4,
+        leader: { core: 9, ink: 18, shadow: 22, shade: 3 },
+        colors: {
+          base: ["#FFFFFF", "#D9E0E8"], baseSide: ["#A3ACB8", "#3A414B"],
+          face: ["#D6FFE2", "#44E381", "#16A34D"], side: ["#11803B", "#05341A"], lip: "#A6F7C4", hot: "#EFFFF4",   // Franklin green metal
+          ink: "#0E0F13", pulse: "#F4FFF7"
+        },
+        safe: { x0: 84, y0: 236, x1: 906, y1: 1474 },
+        end: 4.033
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const CUT = CONFIG.cut, CC = CONFIG.colors, PO = CONFIG.payoff, PL = CONFIG.plate, LD = CONFIG.leader, $ = (s) => document.querySelector(s);
+        if (!plate) { document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none")); document.querySelectorAll(".edge").forEach((e) => (e.style.display = "none")); }
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+        const seg = (t, a, d) => clamp((t - a) / d, 0, 1);
+        const E = (n) => gsap.parseEase(n);
+        const eOut = E("expo.out"), eIn = E("power3.in"), eIO = E("power2.inOut"), eBack = E("back.out(2.2)"), eP2 = E("power2.out"), eHinge = E("back.out(1.9)");
+        const NS = "http://www.w3.org/2000/svg";
+        const mk = (tag, attrs, parent) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); parent.appendChild(n); return n; };
+
+        const FACES = ["900 100px Inter", "800 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const W = 1080, H = 1920, FPS = 30, END = CONFIG.end, NF = Math.round(END * FPS) + 1;
+          const C3 = Callout3D({ W, H, glyphs: window.CALLOUT_GLYPHS, inkPx: 5.5, inkColor: CC.ink, shadow: 0.6, shadowOff: 10, shadowOffX: 4 });
+          $("#gl").appendChild(C3.canvas);
+          const TR = window.CALLOUT_TRACKS, pulse = $("#pulse"), pings = $("#pings"), capsG = $("#caps");
+          const G = { shd: $("#shd"), ink: $("#ink"), core: $("#core"), hi: $("#hi"), gcore: $("#gcore"), ghi: $("#ghi") };
+          const line = (g, extra) => mk("line", Object.assign({ x1: 0, y1: 0, x2: 0, y2: 0, opacity: "0" }, extra || {}), g);
+          // a tube = offset shadow + ink keyline + white core + a shaded underside; a charged tube = green core + lit top edge
+          const tube = () => ({ shd: line(G.shd), ink: line(G.ink), core: line(G.core), hi: line(G.hi), hx: 1.0, hy: 2.6 });
+          const gtube = () => ({ core: line(G.gcore), hi: line(G.ghi), hx: -1.0, hy: -2.4 });
+          const setLine = (L, x1, y1, x2, y2, show) => { L.setAttribute("x1", x1.toFixed(1)); L.setAttribute("y1", y1.toFixed(1)); L.setAttribute("x2", x2.toFixed(1)); L.setAttribute("y2", y2.toFixed(1)); L.setAttribute("opacity", show ? "1" : "0"); };
+          const setTube = (T, x1, y1, x2, y2, show) => {
+            if (T.shd) { setLine(T.shd, x1 + 3, y1 + 8, x2 + 3, y2 + 8, show); T.shd.setAttribute("stroke-width", LD.shadow); }
+            if (T.ink) { setLine(T.ink, x1, y1, x2, y2, show); T.ink.setAttribute("stroke-width", LD.ink); }
+            setLine(T.core, x1, y1, x2, y2, show); T.core.setAttribute("stroke-width", LD.core);
+            const len = Math.hypot(x2 - x1, y2 - y1); setLine(T.hi, x1 + T.hx, y1 + T.hy, x2 + T.hx, y2 + T.hy, show && len > 6); T.hi.setAttribute("stroke-width", LD.shade); };
+          // ping rings: 8 px colour over a 14 px ink ring, so they still read on a phone
+          const ring = (c) => ({ ink: mk("circle", { cx: 0, cy: 0, r: 0, fill: "none", stroke: CC.ink, "stroke-width": 14, opacity: "0" }, pings), col: mk("circle", { cx: 0, cy: 0, r: 0, fill: "none", stroke: c, "stroke-width": 8, opacity: "0" }, pings) });
+          const setRing = (R, x, y, p, rMax) => { const on = p > 0 && p < 1, r = 16 + (rMax - 16) * eOut(p), o = on ? (1 - p) * 0.95 : 0;
+            [R.ink, R.col].forEach((c) => { c.setAttribute("cx", x.toFixed(1)); c.setAttribute("cy", y.toFixed(1)); c.setAttribute("r", r.toFixed(1)); c.setAttribute("opacity", o.toFixed(3)); }); };
+
+          const sf = CONFIG.safe;
+          const CO = CONFIG.callouts.map((c) => {
+            const lab = C3.add({ text: c.text, size: c.size, hotW: 0.32, depth: CONFIG.depth, bevel: CONFIG.bevel, tracking: -0.01, plate: c.payoff ? PL : null,
+              colors: { base: CC.base, baseSide: CC.baseSide, face: CC.face, side: CC.side, lip: CC.lip, hot: CC.hot } });
+            const pin = C3.addPin({ r: 12, bead: "#FFFFFF", collar: c.collar, collar2: c.collar2 });
+            // pin per frame from the track (kept inside the safe zone), label target per frame, then a damped spring carries the
+            // label (it lags and settles, so the leader flexes). The payoff label's target moves to its lock position and the
+            // spring stiffens, so from the lock on it holds still and the leader does the stretching.
+            const tr = TR[c.track], pinA = [], tgt = [], wk = [];
+            for (let i = 0; i < NF; i++) {
+              const t = i / FPS, p = tr[clamp(i, 0, tr.length - 1)];
+              const a = [clamp(p[0] + c.pin[0], sf.x0 + 28, sf.x1 - 28), p[1] + c.pin[1]]; pinA.push(a);
+              const free = [a[0] + c.label[0], a[1] + c.label[1]];
+              const lk = c.lock ? eIO(seg(t, CUT, 0.24)) : 0;   // the lock glide starts on the cut
+              tgt.push(c.lock ? [free[0] + (c.lock[0] - free[0]) * lk, free[1] + (c.lock[1] - free[1]) * lk] : free);
+              wk.push(c.lock && t >= PO.lock ? 17 : 9);
+            }
+            const lp = []; { let x = tgt[0][0], y = tgt[0][1], vx = 0, vy = 0; const z = 0.7, sub = 8, dt = 1 / FPS / sub;
+              for (let i = 0; i < NF; i++) { const w = wk[i]; for (let j = 0; j < sub; j++) { const ax = w * w * (tgt[i][0] - x) - 2 * z * w * vx, ay = w * w * (tgt[i][1] - y) - 2 * z * w * vy; vx += ax * dt; vy += ay * dt; x += vx * dt; y += vy * dt; } lp.push([x, y, vx, vy]); } }
+            return { c, lab, pin, pinA, lp,
+              L: { lead: tube(), shL: tube(), shR: tube(), gLead: gtube(), gShL: gtube(), gShR: gtube(),
+                pl: line(pulse, { stroke: CC.pulse, "stroke-width": LD.core, "stroke-dasharray": "70 5000" }),
+                ps: line(pulse, { stroke: CC.pulse, "stroke-width": LD.core, "stroke-dasharray": "70 5000" }),
+                pq: line(pulse, { stroke: CC.pulse, "stroke-width": LD.core, "stroke-dasharray": "70 5000" }) },
+              R: [ring(c.collar), ring("#FFFFFF")],
+              K: [0, 1].map(() => mk("circle", { cx: 0, cy: 0, r: 0, fill: c.collar, stroke: CC.ink, "stroke-width": 4.5, opacity: "0" }, capsG)) };
+          });
+          const at = (arr, t) => { const f = clamp(t * FPS, 0, NF - 1), i = Math.floor(f + 1e-6), j = Math.min(NF - 1, i + 1), u = clamp(f - i, 0, 1); return arr[i].map((v, n) => v + (arr[j][n] - v) * u); };
+          const ePunch = E("back.out(2.5)");
+          const LOCKED = PO.lock + PO.lockDur * 0.62;   // the hinge reaches upright (first overshoot peak) here: the lock-in frame
+
+          function renderAt(t) {
+            let bloom = 0.1, keyBoost = 0, payPin = null;
+            CO.forEach((o) => {
+              const c = o.c, lab = o.lab, a = at(o.pinA, t), lp = at(o.lp, t), t0 = c.land, hang = !!c.hang, pay = !!c.payoff;
+              // plaque: hinges up from the shelf at the lock (back.out overshoot), folds back down on the exit
+              let kP = pay ? eHinge(seg(t, PO.lock, PO.lockDur)) : 0;
+              if (pay && t > c.out) kP *= 1 - eIn(seg(t, c.out, 0.12));
+              // punch on the lock-in frame (1 -> 1.06 -> 1)
+              const pu = pay ? seg(t, LOCKED - 0.03, PO.punch) : 0;
+              const punch = pu <= 0 || pu >= 1 ? 1 : pu < 0.3 ? 1 + 0.06 * eP2(pu / 0.3) : 1.06 - 0.06 * ePunch((pu - 0.3) / 0.7);
+              // the payoff label steps up to hero size as it locks (phone-first: the plaque ends ~67% of the frame width)
+              const sL = pay && c.lockScale ? 1 + (c.lockScale - 1) * eIO(seg(t, PO.lock - 0.04, 0.24)) : 1;
+              const w = lab.width * sL, cap = lab.cap * sL;
+              // label box: centred on the spring point, kept inside the Shorts safe zone (with its plaque, for the payoff label);
+              // shelf under the baseline (or, for a hanging label, an overline above its cap height)
+              const padX = pay ? (PL.padX + 10) * sL : 22, padT = pay ? (PL.padTop + 14) * sL : cap * 0.1;
+              const cx = clamp(lp[0], sf.x0 + w / 2 + padX, sf.x1 - w / 2 - padX), base = clamp(lp[1], sf.y0 + cap + padT, sf.y1 - 40);
+              const textL = cx - w / 2, textR = cx + w / 2, shelfY = hang ? base - cap - 26 : base + 34 * sL;
+              const shPad = 22 + (pay ? ((PL.padX + 8) * sL - 22) * eOut(seg(t, PO.lock - 0.04, 0.16)) : 0);
+              const shL = textL - shPad, shR = textR + shPad;
+              const ex = clamp(a[0] + c.elbowDx, shL + 18, shR - 18), ey = shelfY;
+              // pin: lands with an overshoot and a squash; exit: a little swell, then it pops to nothing
+              let ps = 0, psy = 1;
+              const lpg = seg(t, t0, 0.26);
+              if (t >= t0) { ps = eBack(lpg); psy = 1 + 0.25 * Math.sin(Math.PI * seg(t, t0 + 0.06, 0.16)) * (1 - lpg); }
+              // the payoff pin re-lands on the cut: it snaps to the new shot's subject small and springs up with a squash (the
+              // leader stays attached to the label the whole time, so nothing floats)
+              if (pay && t >= CUT) { const r = seg(t, CUT, 0.24); ps = 0.4 + 0.6 * eBack(r); psy = 1 + 0.22 * Math.sin(Math.PI * seg(t, CUT, 0.14)) * (1 - r); }
+              const ox = c.out + (pay ? 0.08 : 0.06);
+              if (t > ox) ps = ps * (1 + 0.2 * Math.sin(Math.PI * seg(t, ox, 0.04))) * (1 - seg(t, ox + 0.03, 0.04));
+              // the payoff pin: no flare on the subject; its collar just turns green as the charge arrives, with a small tick
+              if (pay) ps *= 1 + 0.08 * Math.sin(Math.PI * seg(t, PO.lock - 0.02, 0.16));
+              Object.assign(o.pin.st, { x: a[0], y: a[1], s: ps, sy: psy, vis: ps > 0.002, glow: 0, col: pay ? eIO(seg(t, PO.lock - 0.04, 0.12)) : 0 });
+              // leader runs pin rim -> elbow, then the shelf runs out both ways from the elbow
+              const dd = Math.hypot(ex - a[0], ey - a[1]) || 1;
+              let u1 = eOut(seg(t, t0 + 0.06, 0.18));
+              const u0 = Math.min(19 * Math.max(ps, 0.6) / dd, 0.9);
+              const dShelf = eOut(seg(t, t0 + 0.16, 0.26));
+              let rShelf = 1;
+              // exit: label sinks, the rail and leader retract into the pin together with it (no leader stub left behind)
+              const sOut = c.out + (pay ? 0.06 : 0.02);
+              if (t > c.out) { rShelf = 1 - eIn(seg(t, sOut, 0.06)); u1 *= 1 - eIn(seg(t, sOut + 0.02, 0.06)); }
+              const showLead = t >= t0 + 0.06 && u1 - u0 > 0.01;
+              const P = (u) => [a[0] + (ex - a[0]) * u, a[1] + (ey - a[1]) * u], p0 = P(u0), p1 = P(Math.max(u0, u1));
+              setTube(o.L.lead, p0[0], p0[1], p1[0], p1[1], showLead);
+              const k = dShelf * rShelf, showS = seg(t, t0 + 0.06, 0.18) >= 1 && k > 0.01;
+              const xL = ex + (shL - ex) * k, xR = ex + (shR - ex) * k;
+              setTube(o.L.shL, ex, ey, xL, ey, showS); setTube(o.L.shR, ex, ey, xR, ey, showS);
+              // end caps: pop on as the rail reaches full length, ride its ends, turn green with the payoff charge
+              const kc = showS ? clamp((k - 0.75) / 0.25, 0, 1) : 0, rc = 10.5 * (kc < 1 ? eBack(kc) : 1);
+              o.K.forEach((n, i) => { n.setAttribute("cx", (i ? xR : xL).toFixed(1)); n.setAttribute("cy", ey.toFixed(1)); n.setAttribute("r", Math.max(0, rc).toFixed(1));
+                n.setAttribute("opacity", kc > 0 ? "1" : "0"); n.setAttribute("fill", pay && t >= PO.pulse + PO.pulseDur * 0.8 ? c.collar2 : c.collar); });
+              // payoff pulse: a light runs pin -> elbow -> out along the shelf (both ways) and charges the line green behind it
+              const pp = pay ? seg(t, PO.pulse, PO.pulseDur) : 0, onP = pp > 0 && pp < 1;
+              const leadLen = dd * (1 - u0), sideLen = Math.max(shR - ex, ex - shL), pos = pp * (leadLen + sideLen + 70);
+              const chLead = clamp(pos / leadLen, 0, 1), chShelf = clamp((pos - leadLen) / sideLen, 0, 1), charged = pay && pos > 0;
+              const pc = P(u0 + (Math.max(u0, u1) - u0) * chLead);
+              setTube(o.L.gLead, p0[0], p0[1], pc[0], pc[1], charged && showLead && chLead > 0.01);
+              setTube(o.L.gShL, ex, ey, ex + (xL - ex) * chShelf, ey, charged && showS && chShelf > 0.01);
+              setTube(o.L.gShR, ex, ey, ex + (xR - ex) * chShelf, ey, charged && showS && chShelf > 0.01);
+              setLine(o.L.pl, p0[0], p0[1], ex, ey, onP && showLead); o.L.pl.setAttribute("stroke-dashoffset", (70 - pos).toFixed(1));
+              setLine(o.L.ps, ex, ey, xR, ey, onP && showS); o.L.ps.setAttribute("stroke-dashoffset", (70 - (pos - leadLen)).toFixed(1));
+              setLine(o.L.pq, ex, ey, xL, ey, onP && showS); o.L.pq.setAttribute("stroke-dashoffset", (70 - (pos - leadLen)).toFixed(1));
+              // pings: two rings on each landing
+              setRing(o.R[0], a[0], a[1], seg(t, t0 + 0.02, 0.5), c.ping[0]); setRing(o.R[1], a[0], a[1], seg(t, t0 + 0.1, 0.5), c.ping[1]);
+              // (no ring and no flare on the re-land or the lock: the pin sits on his hair, so all payoff light goes to the plaque)
+              // label: rises out of its shelf, lands with a squash, sinks back on exit
+              const lt0 = t0 + 0.22;
+              let rise = 1 - eOut(seg(t, lt0, 0.4));
+              const land = seg(t, lt0 + 0.07, 0.22), sq = 1 - 0.07 * Math.sin(Math.PI * land) * (1 - land * 0.5);
+              if (t > c.out) rise = eIn(seg(t, c.out, pay ? 0.1 : 0.08));
+              const ig = pay ? eIO(seg(t, PO.ignite, PO.frontDur)) : 0;
+              const hot = pay && t >= PO.ignite ? 0.95 * (1 - E("power2.in")(seg(t, PO.ignite, PO.frontDur + 0.12))) : 0;
+              const yl = pay && t >= CUT ? 0.1 : 0.25;   // the carried label banks less on its fast glide to the lock slot
+              const vx = lp[2] || 0, wb = seg(t, lt0 + 0.04, 0.42), rock = t >= lt0 ? 0.07 * Math.sin(wb * Math.PI * 2.4) * Math.pow(1 - wb, 2) : 0;
+              // plaque rim flash: 3 frames at the lock-in, then decays
+              const lf = Math.round((t - LOCKED) * FPS), flash = pay ? (lf >= 0 && lf <= 2 ? 1 : lf > 2 ? Math.exp(-(t - LOCKED - 2 / FPS) / 0.18) : 0) : 0;
+              Object.assign(lab.st, { x: cx, y: base, s: sL * punch, sx: 1 + 0.03 * (1 - sq), sy: sq,
+                rx: -0.2, ry: -0.14 - clamp(vx * 0.0003, -yl, yl), rz: clamp(-vx * 0.00005, -yl * 0.2, yl * 0.2) + rock,
+                ignite: ig, hot, spec: pay ? (seg(t, PO.spec, PO.specDur) || -1) : -1, vis: t >= lt0 && rise < 0.999, rise, hang,
+                plate: kP, flash: flash * (t < c.out ? 1 : 0) });
+              if (pay) {
+                // bloom: a 3-frame peak on the lock-in frame, then a lift through the ignite
+                const bt = t - LOCKED, env = bt < 0 ? 0 : bt < 0.1 ? 1 : Math.exp(-(bt - 0.1) / 0.28);
+                const it = t - PO.ignite, ienv = it < 0 ? 0 : Math.exp(-Math.pow((it - 0.12) / 0.14, 2));
+                bloom = Math.max(bloom, 0.1 + 0.7 * Math.max(env, 0.6 * ienv) + (t > PO.ignite && t < c.out ? 0.06 : 0));
+                keyBoost = Math.max(keyBoost, 3.0 * Math.max(env, ienv));
+                payPin = o.pin;
+              }
+            });
+            // the key-light boost lights the plaque and the type; the pin is dimmed by the same amount so it never flares on his hair
+            if (payPin) payPin.st.dim = 2.0 / (2.0 + keyBoost);
+            const ka = -0.9 + 1.7 * eIO(seg(t, PO.ignite - 0.05, 0.9));
+            C3.render({ keyAngle: ka, keyBoost, bloom });
+          }
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, END, (p) => renderAt(p * END));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+          renderAt(0);
+          tl.set({}, {}, END);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

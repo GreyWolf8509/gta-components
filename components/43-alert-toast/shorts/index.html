@@ -1,0 +1,381 @@
+<!doctype html>
+<!-- 43 Alert toast, variant B: phone-style donation alert (9:16). The creators' tier-coloured donation pill (avatar disc, heavy-caps
+     username, right-aligned amount) drops in from the top of the Short like a phone banner; on the beat the amount drops out of the pill
+     and a tray slams open beneath it with the amount seated inside as real Three.js gold numerals (one landing frame: slam, squash,
+     light). The footage is laid out the way GTA Shorts carry landscape gameplay: the 16:9 shot sharp at 1.0x in a full-width window
+     over its own graded blur, with the alert living in the top band.
+     Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). See gta/DESIGN.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+
+      /* ---------- footage: the Shorts layout for landscape gameplay (sharp 16:9 window over its own graded blur) ---------- */
+      #bed { position: absolute; inset: 0; overflow: hidden; background: #0b0a10; }
+      .bedv { position: absolute; left: -70px; top: -70px; width: 1220px; height: 2060px; object-fit: cover;
+        filter: blur(34px) brightness(.68) contrast(1.16) saturate(1.35); }
+      #win { position: absolute; left: 0; top: 840px; width: 1080px; height: 1080px; overflow: hidden; background: #0b0a10;
+        box-shadow: 0 -18px 50px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.12); }
+      .winv { position: absolute; left: -420px; top: 0; width: 1920px; height: 1080px; object-fit: cover; }   /* 1920x1080 source at 1.0x, centre crop */
+      #ov { position: absolute; inset: 0; }
+
+      /* ---------- the alert: a candy tier pill; a tray slides out beneath it ---------- */
+      #card { position: absolute; left: 72px; top: 240px; width: 864px; height: 152px; border-radius: 76px; visibility: hidden; transform-origin: 50% 0; }
+      #cardBg { position: absolute; inset: 0; border-radius: inherit;
+        box-shadow: inset 0 -3px 0 rgba(90,0,40,.35), 0 0 0 1.5px rgba(110,0,45,.28), 0 30px 60px rgba(40,0,20,.5), 0 8px 18px rgba(0,0,0,.28); }
+      #clip { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; }
+      #head { position: absolute; left: 0; top: 0; right: 0; height: 152px; z-index: 2; }
+      #headShade { position: absolute; left: 0; right: 0; top: 152px; height: 26px; z-index: 2; opacity: 0;
+        background: linear-gradient(180deg, rgba(50,0,22,.55), rgba(50,0,22,0)); }
+      #gloss { position: absolute; left: 10px; right: 10px; top: 5px; height: 64px; border-radius: 66px 66px 34px 34px;
+        background: linear-gradient(180deg, rgba(255,255,255,.42) 0%, rgba(255,255,255,.10) 70%, rgba(255,255,255,0) 100%); }
+      #lip { position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 2px 0 rgba(255,255,255,.6), inset 0 0 0 1px rgba(255,255,255,.12); pointer-events: none; }
+      #hSheen { position: absolute; top: -10%; height: 120%; width: 200px; left: 0; opacity: 0; transform: skewX(-18deg);
+        background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.32) 50%, rgba(255,255,255,0)); }
+      #avatar { position: absolute; left: 20px; top: 20px; width: 112px; height: 112px; border-radius: 50%; z-index: 3;
+        background: radial-gradient(80% 70% at 35% 25%, #6A2442 0%, #3E0C22 55%, #230512 100%);
+        box-shadow: 0 0 0 5px #fff, 0 0 0 6.5px rgba(110,0,45,.25), 0 6px 14px rgba(80,0,40,.4), inset 0 -6px 12px rgba(10,0,5,.4); }
+      #avatar span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 900 60px/1 "Inter"; color: #fff; letter-spacing: -0.02em;
+        text-shadow: 0 2px 0 rgba(20,0,10,.55); }
+      #avatar i { position: absolute; left: 16px; top: 9px; width: 62px; height: 30px; border-radius: 50%; background: linear-gradient(180deg, rgba(255,255,255,.5), rgba(255,255,255,0)); }
+      #meta { position: absolute; left: 156px; top: 19px; z-index: 3; white-space: nowrap; font: 800 30px/36px "Inter"; letter-spacing: 0.06em; color: #3B0619; }
+      #meta em { font-style: normal; font-weight: 700; letter-spacing: 0.02em; color: #4A0A22; }
+      #meta b { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #4A0A22; margin: 0 12px 5px; vertical-align: middle; }
+      .tw { position: absolute; overflow: hidden; z-index: 3; }
+      #userW { left: 156px; top: 56px; height: 70px; }
+      #user { display: block; font: 900 54px/70px "Inter"; letter-spacing: -0.015em; color: #2A0312; white-space: nowrap; text-shadow: 0 1px 0 rgba(255,255,255,.22); }
+      #amtW { right: 34px; top: 30px; height: 92px; }
+      #amt { display: block; font: 900 62px/92px "Inter"; letter-spacing: -0.02em; color: #fff; white-space: nowrap; font-feature-settings: "tnum" 1;
+        text-shadow: 0 3px 0 rgba(120,0,45,.55), 0 6px 14px rgba(90,0,40,.35); }
+      #chipW { right: 30px; top: 42px; height: 68px; padding: 0 2px; }
+      #chip { display: block; margin-top: 6px; padding: 0 22px; border-radius: 28px; font: 800 30px/56px "Inter"; letter-spacing: 0.06em; color: #fff; white-space: nowrap;
+        background: linear-gradient(180deg, rgba(90,0,38,.42), rgba(70,0,30,.55)); text-shadow: 0 2px 0 rgba(70,0,28,.5);
+        box-shadow: inset 0 1.5px 0 rgba(255,255,255,.3), inset 0 -2px 0 rgba(40,0,16,.35); }
+
+      /* ---------- the tray (slides out from under the pill, attached to the card's bottom edge) ---------- */
+      #panel { position: absolute; left: 16px; top: 152px; width: 832px; height: 380px; border-radius: 44px; overflow: hidden; z-index: 1; visibility: hidden;
+        box-shadow: inset 0 14px 26px rgba(30,0,14,.6), inset 0 -2px 0 rgba(255,255,255,.16), inset 0 0 0 1px rgba(60,0,26,.4); }
+      #panelGlow { position: absolute; inset: 0; opacity: 0; background: radial-gradient(48% 44% at 50% 47%, rgba(255,200,110,.62) 0%, rgba(255,150,90,.2) 55%, rgba(255,120,120,0) 100%); }
+      #floor { position: absolute; left: 50%; top: 270px; width: 640px; height: 60px; margin-left: -320px; border-radius: 50%; transform-origin: 50% 30%;
+        background: radial-gradient(closest-side, rgba(25,0,10,.7), rgba(25,0,10,0)); filter: blur(5px); }
+      #gl { position: absolute; left: 0; top: 0; width: 832px; height: 380px; display: block; }
+      #pSheen { position: absolute; top: -10%; height: 120%; width: 240px; left: 0; opacity: 0; transform: skewX(-16deg);
+        background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,236,210,.16) 50%, rgba(255,255,255,0)); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.05" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <!-- each shot twice: a graded blur bed (-v) and the sharp 16:9 window (-h at 1.0x). Incoming shots start 2 frames early underneath. -->
+        <div id="bed">
+          <video id="bed1" class="clip shot bedv" style="z-index:4" src="assets/shots/v24-sunset-powerlines-v.mp4" muted playsinline data-start="0" data-duration="1.6" data-media-start="0.05" data-track-index="0"></video>
+          <video id="bed2" class="clip shot bedv" style="z-index:3" src="assets/shots/v44-bridge-skyline-v.mp4" muted playsinline data-start="1.533" data-duration="1.717" data-media-start="0" data-track-index="0"></video>
+          <video id="bed3" class="clip shot bedv" style="z-index:2" src="assets/shots/v39-lowriders-downtown-v.mp4" muted playsinline data-start="3.183" data-duration="1.147" data-media-start="0" data-track-index="0"></video>
+          <video id="bed4" class="clip shot bedv" style="z-index:1" src="assets/shots/v11-yacht-v.mp4" muted playsinline data-start="4.263" data-duration="1.787" data-media-start="0.1" data-track-index="0"></video>
+        </div>
+        <div id="win">
+          <video id="win1" class="clip shot winv" style="z-index:4" src="assets/shots/v24-sunset-powerlines-h.mp4" muted playsinline data-start="0" data-duration="1.6" data-media-start="0.05" data-track-index="1"></video>
+          <video id="win2" class="clip shot winv" style="z-index:3" src="assets/shots/v44-bridge-skyline-h.mp4" muted playsinline data-start="1.533" data-duration="1.717" data-media-start="0" data-track-index="1"></video>
+          <video id="win3" class="clip shot winv" style="z-index:2" src="assets/shots/v39-lowriders-downtown-h.mp4" muted playsinline data-start="3.183" data-duration="1.147" data-media-start="0" data-track-index="1"></video>
+          <video id="win4" class="clip shot winv" style="z-index:1" src="assets/shots/v11-yacht-h.mp4" muted playsinline data-start="4.263" data-duration="1.787" data-media-start="0.1" data-track-index="1"></video>
+        </div>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="6.05" data-track-index="2">
+        <div id="card">
+          <div id="cardBg"></div>
+          <div id="clip">
+            <div id="panel">
+              <div id="panelGlow"></div><div id="floor"></div><div id="pSheen"></div>
+              <canvas id="gl" width="832" height="380"></canvas>
+            </div>
+            <div id="head"><div id="gloss"></div><div id="hSheen"></div></div>
+            <div id="headShade"></div>
+            <div id="avatar"><span></span><i></i></div>
+            <div id="meta"></div>
+            <div id="userW" class="tw"><span id="user"></span></div>
+            <div id="amtW" class="tw"><span id="amt"></span></div>
+            <div id="chipW" class="tw"><span id="chip"></span></div>
+          </div>
+          <div id="lip"></div>
+        </div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        label: "NEW DONATION", when: "now",
+        user: "grove.st.kid", initial: "G",          // shown in caps on the pill, like the stream donation pills
+        amount: 500, currency: "$",
+        tierText: "TOP DONOR",                       // rolls into the amount's slot on the pill once the amount drops into the tray
+        // tier colours by amount, like the stream donation pills (low to high): [pill top, pill mid, pill low, tray top, tray low]
+        tiers: [ { min: 0,   c: ["#6FF0C8", "#35D9A8", "#1FB489", "#0E6E55", "#053A2C"] },
+                 { min: 100, c: ["#FFC27A", "#FFA448", "#F2862A", "#9A4A0E", "#552405"] },
+                 { min: 500, c: ["#FF86C2", "#F5478E", "#E02A72", "#8C1046", "#4C0526"] } ],
+        card: { x: 72, y: 240, w: 864, collapsed: 152, expanded: 548 },
+        // swap = the amount drops out of the pill; open..pop = the tray slides out and slams to its stop (pop = the landing frame, on the cut)
+        timing: { in: 0.3, swap: 1.4, open: 1.5, pop: 1.6, out: 5.2, end: 6.05 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, C = CONFIG.card, $ = (s) => document.querySelector(s);
+        if (!plate) { document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none")); $("#bed").style.display = "none"; $("#win").style.display = "none"; }
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x)), lerp = (a, b, p) => a + (b - a) * p;
+        const seg = (t, a, d) => clamp((t - a) / d, 0, 1), E = (n) => gsap.parseEase(n);
+        const eOut3 = E("power3.out"), eIn3 = E("power3.in"), eIO3 = E("power3.inOut"), eIO2 = E("power2.inOut"), eIn2 = E("power2.in");
+
+        // ---------- DOM content ----------
+        const amt = CONFIG.currency + CONFIG.amount.toLocaleString("en-US");
+        const tier = CONFIG.tiers.filter((x) => CONFIG.amount >= x.min).pop(), TC = tier.c;
+        $("#avatar span").textContent = CONFIG.initial;
+        $("#meta").innerHTML = ""; $("#meta").append(CONFIG.label, document.createElement("b")); const em = document.createElement("em"); em.textContent = CONFIG.when; $("#meta").append(em);
+        $("#user").textContent = CONFIG.user.toUpperCase(); $("#amt").textContent = amt; $("#chip").textContent = CONFIG.tierText;
+        $("#cardBg").style.background = "linear-gradient(180deg, " + TC[1] + " 0px, " + TC[2] + " 150px, " + TC[2] + " 100%)";
+        $("#head").style.background = "radial-gradient(70% 120% at 22% 0%, rgba(255,255,255,.22) 0%, rgba(255,255,255,0) 60%), linear-gradient(180deg, " + TC[0] + " 0%, " + TC[1] + " 45%, " + TC[2] + " 100%)";
+        $("#panel").style.background = "radial-gradient(62% 58% at 50% 46%, rgba(255,255,255,.10) 0%, rgba(255,255,255,0) 72%), linear-gradient(180deg, " + TC[3] + " 0%, " + TC[4] + " 100%)";
+        const card = $("#card"); card.style.left = C.x + "px"; card.style.top = C.y + "px"; card.style.width = C.w + "px";
+
+        // ---------- Three.js: the amount as inflated gold numerals (z = 0 maps 1:1 to canvas px) ----------
+        const W = 832, H = 380, F = window.AMOUNT_GLYPHS;
+        const canvas = $("#gl");
+        const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+        renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 0);
+        // no tone curve: the gold keeps its saturation; hot spots clip warm (yellow-white), never to cream
+        renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;
+        const scene = new THREE.Scene();
+        const FOV = 20, DIST = (H / 2) / Math.tan((FOV / 2) * Math.PI / 180);
+        const camera = new THREE.PerspectiveCamera(FOV, W / H, 10, DIST * 3);
+        camera.position.set(0, 0, DIST); camera.lookAt(0, 0, 0);
+        const CY = 176;                                       // numerals' optical centre, px from the tray top
+        camera.setViewOffset(W, H, 0, (H / 2 - CY), W, H);
+        // gold studio: dark warm room, a big warm-white top softbox, a crisp line light, a white left strip, an amber right kicker,
+        // and a dim gold frontal card, so each round stroke reads bright top band -> rich gold body -> dark brown underside
+        const envScene = new THREE.Scene();
+        envScene.add(new THREE.Mesh(new THREE.SphereGeometry(50, 48, 24), new THREE.ShaderMaterial({
+          side: THREE.BackSide, depthWrite: false,
+          vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 top = vec3(0.62,0.46,0.30), hor = vec3(0.16,0.085,0.035), low = vec3(0.025,0.012,0.006);" +
+            " vec3 c = y > 0.0 ? mix(hor, top, smoothstep(0.0, 0.8, y)) : mix(hor, low, smoothstep(0.0, 0.3, -y)); gl_FragColor = vec4(c, 1.0); }"
+        })));
+        const panel = (w, h, x, y, z, c) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); envScene.add(m); };
+        panel(48, 14, -5, 34, 18, new THREE.Color(5.0, 4.5, 3.6));     // top softbox
+        panel(52, 1.6, 0, 19, 33, new THREE.Color(6.0, 5.6, 4.8));     // line light: the crisp streak across the upper curves
+        panel(4, 34, -34, 6, 16, new THREE.Color(4.2, 3.7, 2.8));      // left strip
+        panel(4, 28, 33, 2, 12, new THREE.Color(3.4, 2.0, 0.8));       // amber kicker, right
+        panel(30, 9, 0, -3, 42, new THREE.Color(1.3, 0.98, 0.55));    // frontal card: flat fronts read rich gold, not white
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        scene.environment = pmrem.fromScene(envScene, 0.0, 0.1, 200).texture;
+        const key = new THREE.DirectionalLight(0xffe7c0, 2.2); key.position.set(-0.6, 0.8, 0.9); scene.add(key);
+        scene.add(new THREE.HemisphereLight(0xffe2b0, 0x2a0a00, 0.25));
+
+        function smooth(geo) {          // merge coincident vertices so the bevels shade smooth
+          const pos = geo.attributes.position, map = new Map(), idx = [], verts = [];
+          for (let i = 0; i < pos.count; i++) {
+            const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), k = Math.round(x * 20) + "," + Math.round(y * 20) + "," + Math.round(z * 20);
+            let j = map.get(k); if (j === undefined) { j = verts.length / 3; map.set(k, j); verts.push(x, y, z); } idx.push(j);
+          }
+          const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3)); g.setIndex(idx); g.computeVertexNormals(); return g;
+        }
+        // geometry keeps a small, clean bevel; the inflated form comes from a distance-field normal map on the front faces
+        const CAP = 196, s = CAP / F.cap, DEPTH = 28, BT = 6, BS = 3, RAD = 22;
+        const pens = []; let pen = 0, track = -0.01 * F.upm;
+        for (const ch of amt) { const g = F.g[ch]; if (!g) continue; pens.push({ ch, x: pen, g }); pen += g[0] + track; }
+        const inkL = pens[0].x + pens[0].g[2], inkR = pens[pens.length - 1].x + pens[pens.length - 1].g[3];
+        const ox = -((inkL + inkR) / 2) * s;
+        const bodyPath = (p) => p.ch === "$" ? "M" + p.g[1].split("M").filter(Boolean).slice(1).join("M") : p.g[1];
+        function shapesFor(d, gx) {
+          const sp = new THREE.ShapePath(), re = /([MLQCZ])([^MLQCZ]*)/g; let m;
+          while ((m = re.exec(d))) {
+            const n = m[2].trim() ? m[2].trim().split(/[\s,]+/).map(Number) : [], P = [];
+            for (let i = 0; i < n.length; i += 2) P.push(ox + (gx + n[i]) * s, -n[i + 1] * s - CAP / 2);
+            if (m[1] === "M") sp.moveTo(P[0], P[1]); else if (m[1] === "L") sp.lineTo(P[0], P[1]);
+            else if (m[1] === "Q") sp.quadraticCurveTo(P[0], P[1], P[2], P[3]); else if (m[1] === "C") sp.bezierCurveTo(P[0], P[1], P[2], P[3], P[4], P[5]);
+          }
+          const clean = (pts) => { const out = []; for (const p of pts) if (!out.length || p.distanceTo(out[out.length - 1]) > 0.6) out.push(p);
+            while (out.length > 3 && out[0].distanceTo(out[out.length - 1]) <= 0.6) out.pop(); return out; };
+          return sp.toShapes(false).map((sh) => { const s2 = new THREE.Shape(clean(sh.getPoints(12))); sh.holes.forEach((h) => s2.holes.push(new THREE.Path(clean(h.getPoints(12))))); return s2; });
+        }
+        // ---- the pillow normal map: rasterise the outlines, exact Euclidean distance transform, quarter-circle profile ----
+        const SC = 2, PAD = 24;
+        const bx0 = ox + inkL * s - PAD, bx1 = ox + inkR * s + PAD, by0 = -CAP / 2 - 0.22 * CAP - PAD, by1 = CAP / 2 + 0.22 * CAP + PAD;
+        const TW = Math.ceil((bx1 - bx0) * SC), TH = Math.ceil((by1 - by0) * SC);
+        const mc = document.createElement("canvas"); mc.width = TW; mc.height = TH; const mg = mc.getContext("2d");
+        mg.fillStyle = "#fff";
+        pens.forEach((p) => { mg.setTransform(s * SC, 0, 0, s * SC, (ox + p.x * s - bx0) * SC, (by1 + CAP / 2) * SC); mg.fill(new Path2D(bodyPath(p))); });
+        const md = mg.getImageData(0, 0, TW, TH).data, N = TW * TH, INF = 1e12;
+        const f = new Float64Array(N); for (let i = 0; i < N; i++) f[i] = md[i * 4 + 3] > 127 ? INF : 0;
+        function edt1(g, off, stride, n, out) {            // Felzenszwalb & Huttenlocher 1D squared distance transform
+          const v = new Int32Array(n), z = new Float64Array(n + 1); let k = 0; v[0] = 0; z[0] = -INF; z[1] = INF;
+          for (let q = 1; q < n; q++) {
+            let sx; const fq = g[off + q * stride];
+            while (true) { const r = v[k]; sx = ((fq + q * q) - (g[off + r * stride] + r * r)) / (2 * q - 2 * r); if (sx <= z[k]) { k--; } else break; }
+            k++; v[k] = q; z[k] = sx; z[k + 1] = INF;
+          }
+          k = 0; for (let q = 0; q < n; q++) { while (z[k + 1] < q) k++; const r = v[k]; out[q] = (q - r) * (q - r) + g[off + r * stride]; }
+        }
+        { const col = new Float64Array(TH); for (let x = 0; x < TW; x++) { edt1(f, x, TW, TH, col); for (let y = 0; y < TH; y++) f[x + y * TW] = col[y]; }
+          const row = new Float64Array(TW); for (let y = 0; y < TH; y++) { edt1(f, y * TW, 1, TW, row); for (let x = 0; x < TW; x++) f[x + y * TW] = row[x]; } }
+        const dist = new Float32Array(N); for (let i = 0; i < N; i++) dist[i] = Math.sqrt(f[i]) / SC;        // px to the nearest edge
+        let hA = new Float32Array(N), hB = new Float32Array(N);
+        for (let i = 0; i < N; i++) { const d = dist[i]; if (d > 0) { const dd = Math.min(d, RAD); hA[i] = Math.sqrt(RAD * RAD - (RAD - dd) * (RAD - dd)); } }
+        function box(src, dst, r, horiz) {
+          const n = horiz ? TW : TH, m = horiz ? TH : TW, st = horiz ? 1 : TW, ln = horiz ? TW : 1;
+          for (let j = 0; j < m; j++) { const o = j * ln; let acc = 0;
+            for (let k = -r; k <= r; k++) acc += src[o + clamp(k, 0, n - 1) * st];
+            for (let q = 0; q < n; q++) { dst[o + q * st] = acc / (2 * r + 1); acc += src[o + clamp(q + r + 1, 0, n - 1) * st] - src[o + clamp(q - r, 0, n - 1) * st]; } }
+        }
+        for (let it = 0; it < 2; it++) { box(hA, hB, 5, true); box(hB, hA, 5, false); }
+        const nrm = new Uint8Array(N * 4), hs = SC / 2;
+        for (let y = 1; y < TH - 1; y++) for (let x = 1; x < TW - 1; x++) {
+          const i = x + y * TW; if (dist[i] <= 0) continue;
+          const dx = (hA[i + 1] - hA[i - 1]) * hs, dy = -(hA[i + TW] - hA[i - TW]) * hs;     // dh/dx, dh/dy in px (word space, +y up)
+          let nx = -dx, ny = -dy, nz = 1; const nl = Math.hypot(nx, ny, nz); nx /= nl; ny /= nl;
+          nrm[i * 4] = Math.round((nx * 0.5 + 0.5) * 255); nrm[i * 4 + 1] = Math.round((ny * 0.5 + 0.5) * 255); nrm[i * 4 + 2] = Math.round(255 * Math.min(1, hA[i] / RAD)); nrm[i * 4 + 3] = 255;
+        }
+        const nrmTex = new THREE.DataTexture(nrm, TW, TH, THREE.RGBAFormat); nrmTex.magFilter = THREE.LinearFilter; nrmTex.minFilter = THREE.LinearFilter; nrmTex.needsUpdate = true;
+        // true gold: metal, warm saturated F0, no clear coat (a dielectric coat reflects untinted and washes gold to cream)
+        const goldOpts = { color: new THREE.Color(1.0, 0.62, 0.17), metalness: 1.0, roughness: 0.24, envMapIntensity: 1.0 };
+        const gold = new THREE.MeshPhysicalMaterial(goldOpts), rodMat = new THREE.MeshStandardMaterial(goldOpts);
+        const uBloom = { value: 0 };
+        gold.onBeforeCompile = (sh) => {
+          sh.uniforms.uNrm = { value: nrmTex }; sh.uniforms.uBox = { value: new THREE.Vector4(bx0, by1, bx1 - bx0, by1 - by0) }; sh.uniforms.uZ = { value: -BT - 0.6 };
+          sh.uniforms.uBloom = uBloom;
+          sh.vertexShader = "varying vec3 vLP;\n" + sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\n vLP = position;");
+          sh.fragmentShader = "varying vec3 vLP; uniform sampler2D uNrm; uniform vec4 uBox; uniform float uZ; uniform float uBloom; uniform mat3 normalMatrix;\n" + sh.fragmentShader
+            .replace("#include <normal_fragment_maps>", "#include <normal_fragment_maps>\n float rimK = 0.25; if (vLP.z > uZ) { vec2 tuv = vec2((vLP.x - uBox.x) / uBox.z, (uBox.y - vLP.y) / uBox.w); vec4 nt = texture2D(uNrm, tuv);" +
+              " if (nt.a > 0.5) { vec3 nO = vec3(nt.rg * 2.0 - 1.0, 0.0); nO.z = sqrt(max(0.0, 1.0 - dot(nO.xy, nO.xy))); normal = normalize(normalMatrix * nO); rimK = pow(1.0 - nO.z, 1.4); } else { rimK = 0.6; } }")
+            .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n totalEmissiveRadiance += uBloom * vec3(1.0, 0.55, 0.12) * (0.15 + rimK);");
+        };
+        // the light rake: a soft additive warm band on each glyph's silhouette, just in front of its face
+        const rakeMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
+          uniforms: { uPos: { value: -1e4 }, uAmp: { value: 0 } },
+          vertexShader: "varying vec2 vW; void main(){ vec4 w = modelMatrix * vec4(position,1.0); vW = w.xy; gl_Position = projectionMatrix * viewMatrix * w; }",
+          fragmentShader: "uniform float uPos; uniform float uAmp; varying vec2 vW; void main(){ float d = dot(vW, normalize(vec2(0.8, -0.6))); float a = uAmp * exp(-pow((d - uPos) / 34.0, 2.0)); gl_FragColor = vec4(1.0, 0.9, 0.66, a); }" });
+        const glyphs = [];
+        pens.forEach((p, i) => {
+          // "$": the font draws it as an S-body plus an overlapping bar; extrude the body and pass a thick round rod behind it
+          const shapes = shapesFor(bodyPath(p), p.x);
+          const geo = smooth(new THREE.ExtrudeGeometry(shapes, { depth: DEPTH, bevelEnabled: true, bevelThickness: BT, bevelSize: BS, bevelOffset: -BS, bevelSegments: 3, curveSegments: 1 }));
+          geo.translate(0, 0, -(DEPTH + BT));
+          // geometry stays in word space (the normal map is looked up there); each glyph pivots on its own baseline centre (squash onto the floor)
+          const cx = ox + (p.x + (p.g[2] + p.g[3]) / 2) * s, cy = -CAP / 2;
+          const pivot = new THREE.Group(); pivot.position.set(cx, cy, 0); scene.add(pivot);
+          const body = new THREE.Group(); body.position.set(-cx, -cy, 0); pivot.add(body);
+          body.add(new THREE.Mesh(geo, gold));
+          if (p.ch === "$") {
+            const bar = p.g[1].split("M").filter(Boolean)[0].match(/-?\d+/g).map(Number);   // x0 y0 x1 y1 ... of the bar rectangle
+            const xs = bar.filter((_, k) => k % 2 === 0), ys = bar.filter((_, k) => k % 2 === 1);
+            const bx = ox + (p.x + (Math.min(...xs) + Math.max(...xs)) / 2) * s, r = (Math.max(...xs) - Math.min(...xs)) * s * 0.5 * 1.45;
+            const yT = -Math.min(...ys) * s - CAP / 2, yB = -Math.max(...ys) * s - CAP / 2;
+            const rod = new THREE.Mesh(new THREE.CapsuleGeometry(r, Math.max(1, yT - yB - 2 * r), 8, 24), rodMat);
+            rod.position.set(bx, (yT + yB) / 2, -(DEPTH + 2 * BT) / 2); body.add(rod);
+          }
+          const rk = new THREE.Mesh(new THREE.ShapeGeometry(shapes, 12), rakeMat); rk.geometry.translate(0, 0, 0.6); rk.renderOrder = 3; body.add(rk);
+          glyphs.push(pivot);
+        });
+
+        function hit3(t, at, d) { const u = t - at; if (u < 0) return 0; return u < 3 / 30 ? 1 : Math.exp(-(u - 3 / 30) / d); }   // full on the landing frame, 3-frame hold, then decay
+        const P0 = T.pop, He = C.expanded, Hc = C.collapsed;
+
+        // ---------- motion: everything is a pure function of t ----------
+        function renderAt(t) {
+          // ---- banner: drops from above the frame on a spring, motion-blurred on the fall ----
+          const d = seg(t, T.in, 0.55), de = E("back.out(1.15)")(d);
+          const x = seg(t, T.out + 0.3, 0.26), xe = eIn3(x);
+          const y = lerp(-(C.y + Hc + 40), 0, de) - xe * (C.y + Hc + 40);
+          const visible = t >= T.in && x < 1 && C.y + y + Hc > 0;          // cut on the frame it clears the top
+          card.style.visibility = visible ? "visible" : "hidden";
+          const sq = 1 + 0.02 * Math.sin(Math.PI * seg(t, T.in + 0.3, 0.22));            // landing squash
+          card.style.transform = "translateY(" + y.toFixed(2) + "px) scale(" + (2 - sq).toFixed(4) + "," + sq.toFixed(4) + ")";
+          const fallBlur = (d > 0 && d < 1 ? 8 * Math.pow(1 - d, 2.5) : 0) + 9 * x * x;     // blur follows speed
+          card.style.filter = fallBlur > 0.3 ? "blur(" + fallBlur.toFixed(2) + "px)" : "none";
+
+          // ---- the amount drops out of the pill (masked roll, down toward the tray) before any numeral is on screen ----
+          const ao = eIn3(seg(t, T.swap, 0.09));
+          $("#amt").style.transform = "translateY(" + (ao * 96).toFixed(2) + "px)";
+          $("#amt").style.visibility = ao < 1 ? "visible" : "hidden";
+          // ---- tier word rolls into the same slot after the landing ----
+          const ci = E("back.out(1.7)")(seg(t, P0 + 0.1, 0.22));
+          $("#chip").style.transform = "translateY(" + ((ci - 1) * 72).toFixed(2) + "px)";
+          $("#chip").style.visibility = ci > 0 ? "visible" : "hidden";
+
+          // ---- the tray: shoots out from under the pill at full speed (numerals in view from its first frame) and slams to its stop on P0; damped bounce; retracts on exit ----
+          const op = seg(t, T.open, P0 - T.open), opE = op > 0 ? 0.19 + 0.81 * op : 0;   // constant speed: 46% / 73% / 100% open on the 3 frames before the stop
+          const rt = seg(t, T.out, 0.24), rtE = eIn2(rt);
+          const open = opE * (1 - rtE);
+          const u = t - P0, bounce = (u >= 0 && rt <= 0) ? 22 * Math.sin(2 * Math.PI * u / 0.24) * Math.exp(-u / 0.08) : 0;
+          const h = Hc + (He - Hc) * open + bounce;
+          card.style.height = h.toFixed(2) + "px";
+          card.style.borderRadius = lerp(Hc / 2, 60, clamp(open, 0, 1)).toFixed(2) + "px";   // the pill opens into a card
+          const pn = $("#panel");
+          pn.style.top = (152 + (h - He)).toFixed(2) + "px";                                 // attached to the card's bottom edge
+          pn.style.visibility = open > 0.001 ? "visible" : "hidden";
+          const slideBlur = op > 0 && op < 1 ? 5 * opE : (rt > 0 && rt < 1 ? 5 * Math.sin(Math.PI * rt) : 0);
+          pn.style.filter = slideBlur > 0.3 ? "blur(" + slideBlur.toFixed(2) + "px)" : "none";
+          $("#headShade").style.opacity = clamp(open * 3, 0, 1).toFixed(3);
+
+          // ---- the landing frame P0: tray slams, numerals squash onto the floor, bevel bloom + key spike + rake, all on the same frame ----
+          const heat = hit3(t, P0, 0.16);
+          $("#panelGlow").style.opacity = (u >= 0 ? 0.16 + 0.6 * heat : 0).toFixed(3);
+          const hs2 = seg(t, P0, 0.42);
+          $("#hSheen").style.opacity = hs2 > 0 && hs2 < 1 ? Math.min(1, 4 * Math.sin(Math.PI * hs2)).toFixed(3) : 0;
+          $("#hSheen").style.transform = "translateX(" + lerp(-160, 900, eOut3(hs2)).toFixed(1) + "px) skewX(-18deg)";
+          const shp = seg(t, P0, 0.4);
+          $("#pSheen").style.opacity = shp > 0 && shp < 1 ? Math.min(1, 4 * Math.sin(Math.PI * shp)).toFixed(3) : 0;
+          $("#pSheen").style.transform = "translateX(" + lerp(-120, 860, eOut3(shp)).toFixed(1) + "px) skewX(-16deg)";
+
+          const squash = u >= 0 ? 1 - 0.1 * Math.cos(2 * Math.PI * u / 0.22) * Math.exp(-u / 0.09) : 1 + 0.05 * opE;   // stretch in flight, squash on contact
+          $("#floor").style.transform = "scaleX(" + (1 + (1 - squash) * 0.8).toFixed(4) + ")";
+          $("#floor").style.opacity = (u >= 0 ? 1 : 0.6 + 0.4 * opE).toFixed(3);
+          const idle = seg(t, P0 + 0.45, 0.6);
+          glyphs.forEach((g, i) => {
+            g.scale.set(1 + (1 - squash) * 0.6, squash, 1);
+            g.position.y = -CAP / 2 + idle * 3.5 * Math.sin((t - P0) * 2.4 + i * 0.9);
+            g.rotation.y = idle * 0.07 * Math.sin((t - P0) * 1.7 + i * 1.3);
+            g.visible = t >= T.open && rt < 1;
+          });
+          // key light: spikes on the landing frame and swings left -> rest, so the specular travels across the strokes
+          const sw = seg(t, P0, 0.36);
+          key.position.set(lerp(-1.6, -0.6, eOut3(sw)), 0.8, 0.9);
+          key.intensity = 2.2 + 2.0 * heat;
+          uBloom.value = 0.42 * heat;
+          // the rake: full strength from the landing frame, crossing the numerals in 0.3 s; a slower second pass mid-hold
+          const rk = seg(t, P0, 0.3), rk2 = seg(t, 3.55, 0.6);
+          if (u >= 0 && rk < 1) { rakeMat.uniforms.uPos.value = lerp(-215, 440, eOut3(rk)); rakeMat.uniforms.uAmp.value = 0.62 * (1 - eIn3(rk)); }
+          else if (u >= 0 && rk2 > 0 && rk2 < 1) { rakeMat.uniforms.uPos.value = lerp(-440, 440, eIO2(rk2)); rakeMat.uniforms.uAmp.value = 0.32 * Math.sin(Math.PI * rk2); }
+          else rakeMat.uniforms.uAmp.value = 0;
+          renderer.render(scene, camera);
+        }
+        window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+
+        const FACES = ["900 100px Inter", "800 100px Inter", "700 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const tl = gsap.timeline({ paused: true });
+          renderAt(0);
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          if (plate) {
+            Look.push(tl, ".shot", 0, T.end, { from: 1, to: 1.03 });
+            Look.impact(tl, P0, { shake: "#shake", amp: 4, dur: 0.26, flash: 0, zoom: 1.01 });
+          }
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,222 @@
+<!doctype html>
+<!-- 14 Callout label, variant A (16:9, 1920x1080, 30 fps): "Leader callout".
+     A price callout pinned to a car with a bead pin and an elbow leader, tracking the car as it moves. On the cut to the
+     rare car it re-targets: the leader re-draws to the new pin, the price rolls on a 3D drum ($90K -> $4.7M), the label
+     ignites from white enamel to polished gold and a RARE CAR stamp slams on. Variable: bg "plate" / "none". See README.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <script src="media/tracks.js"></script>
+    <script src="media/callout3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      #lines { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: visible; filter: drop-shadow(2px 5px 5px rgba(0,0,0,.42)); }
+      #gl { position: absolute; inset: 0; }
+      .tag { position: absolute; left: 0; top: 0; height: 58px; padding: 0 22px; display: flex; align-items: center; white-space: nowrap;
+        font: 800 36px/1 "Inter"; letter-spacing: 0.035em; color: #fff; border-radius: 13px; border: 3.5px solid #0E0F13;
+        transform-origin: 0% 50%; visibility: hidden; text-shadow: 0 2px 0 rgba(0,0,0,.28); }
+      .tag.stock { background: linear-gradient(180deg, #5B6270 0%, #3A404B 48%, #23272F 100%);
+        box-shadow: inset 0 2.5px 0 rgba(255,255,255,.32), inset 0 -5px 0 rgba(0,0,0,.28), 0 7px 12px rgba(0,0,0,.45); }
+      .tag.rare { background: linear-gradient(180deg, #FF6A72 0%, #FF2E3A 42%, #C8102E 100%);
+        box-shadow: inset 0 3px 0 rgba(255,255,255,.5), inset 0 -6px 0 rgba(90,0,10,.35), 0 8px 14px rgba(0,0,0,.5); overflow: hidden; }
+      .tag.rare .gl { position: absolute; top: -20px; bottom: -20px; width: 46px; left: 0; transform: skewX(-20deg);
+        background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.55), rgba(255,255,255,0)); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="4" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="shotCar" class="clip shot" src="assets/shots/v57-gp-red-car-highway-h.mp4" muted playsinline data-start="0" data-duration="2.0333" data-media-start="0" data-track-index="0"></video>
+        <video id="shotRare" class="clip shot" src="assets/shots/v17-deluxo-sunset-h.mp4" muted playsinline data-start="2.0333" data-duration="1.6" data-media-start="0" data-track-index="0"></video>
+        <video id="shotTail" class="clip shot" src="assets/shots/v07-biplane-sunset-h.mp4" muted playsinline data-start="3.6333" data-duration="0.3667" data-media-start="0.4" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="4" data-track-index="1">
+        <svg id="lines" viewBox="0 0 1920 1080">
+          <g id="pings"></g>
+          <g id="ink" stroke="#0E0F13" stroke-width="14" stroke-linecap="round" fill="none"></g>
+          <g id="core" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" fill="none"></g>
+          <g id="pulse" stroke="#FFE9A8" stroke-width="7" stroke-linecap="round" fill="none"></g>
+        </svg>
+        <div id="gl"></div>
+        <div class="tag stock" id="tagStock">STOCK</div>
+        <div class="tag rare" id="tagRare" data-layout-allow-overflow>RARE CAR<span class="gl" id="tagGlint" data-layout-allow-overflow></span></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        // the two callouts: one per shot. The label rolls from `price` to `price2` on the cut and ignites.
+        price: "$90K", price2: "$4.7M", tag: "STOCK", tag2: "RARE CAR",
+        size: 150, depth: 30, bevel: 4.5,                  // label type size (px), extrusion and bevel (px)
+        colors: {
+          base: ["#FFFFFF", "#D9E0E8"], baseSide: ["#A3ACB8", "#3A414B"],                    // white enamel state
+          face: ["#FFF2C2", "#F6C453", "#D7860F"], side: ["#B8741A", "#4A2606"], lip: "#FFE7A6", hot: "#FFF3D2",   // gold state
+          pin: "#FFFFFF", collar: "#FF2E3A", line: "#FFFFFF", ink: "#0E0F13", pulse: "#FFE9A8"
+        },
+        // pins: which track, where on the car the bead sits (px offset from the tracked point), and where the label elbow sits
+        shots: [
+          { track: "car", from: 0, frames: 61, pinOff: [0, -4], elbowOff: [-130, -168] },
+          { track: "deluxo", from: 61, frames: 48, pinOff: [-20, -58], elbowOff: [-176, -112] }
+        ],
+        safe: { x0: 96, y0: 64, x1: 1824, y1: 1026 },
+        timing: {
+          land: 0.14,          // pin lands on the first car
+          cut: 61 / 30,        // the cut to the rare car (frame 61)
+          reland: 61 / 30 + 0.03, roll: 61 / 30 + 0.02, rollDur: 0.26,
+          ignite: 2.27, frontDur: 0.42, stamp: 2.32, spec: 2.85, specDur: 0.7,
+          out: 3.36,           // label sinks back into its shelf, the leader retracts into the pin, the pin pops by 3.62
+          end: 4.0
+        }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, CC = CONFIG.colors, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+        const seg = (t, a, d) => clamp((t - a) / d, 0, 1);
+        const E = (n) => gsap.parseEase(n);
+        const eOut = E("expo.out"), eIn = E("power3.in"), eIO = E("power2.inOut"), eBack = E("back.out(2.2)"), eP2 = E("power2.out");
+        const NS = "http://www.w3.org/2000/svg";
+        const mk = (tag, attrs, parent) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); parent.appendChild(n); return n; };
+
+        const FACES = ["900 100px Inter", "800 100px Inter", "700 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          $("#tagStock").firstChild.textContent = CONFIG.tag; $("#tagRare").firstChild.textContent = CONFIG.tag2;
+          const W = 1920, H = 1080, FPS = 30, NF = Math.round(T.end * FPS) + 1;
+          const C3 = Callout3D({ W, H, glyphs: window.CALLOUT_GLYPHS, inkPx: 6, inkColor: CC.ink, shadow: 0.6, shadowOff: 10, shadowOffX: 4 });
+          $("#gl").appendChild(C3.canvas);
+          const lab = C3.add({ text: CONFIG.price, drum: CONFIG.price2, size: CONFIG.size, depth: CONFIG.depth, bevel: CONFIG.bevel, tracking: -0.012,
+            colors: { base: CC.base, baseSide: CC.baseSide, face: CC.face, side: CC.side, lip: CC.lip, hot: CC.hot } });
+          const pin = C3.addPin({ r: 13, bead: CC.pin, collar: CC.collar });
+
+          // ---------- anchor per frame (pin), label elbow target, and a damped spring that carries the label ----------
+          const TR = window.CALLOUT_TRACKS;
+          const anchor = [], elbowT = [];
+          for (let i = 0; i < NF; i++) {
+            let sh = CONFIG.shots[0]; for (const s of CONFIG.shots) if (i >= s.from) sh = s;
+            const k = clamp(i - sh.from, 0, sh.frames - 1), p = TR[sh.track][k];
+            const a = [p[0] + sh.pinOff[0], p[1] + sh.pinOff[1]];
+            anchor.push(a); elbowT.push([a[0] + sh.elbowOff[0], a[1] + sh.elbowOff[1]]);
+          }
+          const elbow = []; { let x = elbowT[0][0], y = elbowT[0][1], vx = 0, vy = 0; const w = 15, z = 0.62, sub = 8, dt = 1 / FPS / sub;
+            for (let i = 0; i < NF; i++) { for (let j = 0; j < sub; j++) { const ax = w * w * (elbowT[i][0] - x) - 2 * z * w * vx, ay = w * w * (elbowT[i][1] - y) - 2 * z * w * vy; vx += ax * dt; vy += ay * dt; x += vx * dt; y += vy * dt; } elbow.push([x, y, vx, vy]); } }
+          const at = (arr, t) => { const f = clamp(t * FPS, 0, NF - 1), i = Math.floor(f), j = Math.min(NF - 1, i + 1), u = f - i; return arr[i].map((v, n) => v + (arr[j][n] - v) * u); };
+
+          // ---------- SVG: leader (pin -> elbow) + shelf (under the label), ink under a white core; pings; a light pulse ----------
+          const ink = $("#ink"), core = $("#core"), pulse = $("#pulse"), pings = $("#pings");
+          const lineSet = (g) => ({ lead: mk("line", { x1: 0, y1: 0, x2: 0, y2: 0, opacity: "1" }, g), shL: mk("line", { x1: 0, y1: 0, x2: 0, y2: 0, opacity: "1" }, g) });
+          const LI = lineSet(ink), LC = lineSet(core), LP = { lead: mk("line", { x1: 0, y1: 0, x2: 0, y2: 0, opacity: "0", "stroke-dasharray": "60 4000" }, pulse), shL: mk("line", { x1: 0, y1: 0, x2: 0, y2: 0, opacity: "0", "stroke-dasharray": "60 4000" }, pulse) };
+          pulse.setAttribute("filter", "none");
+          const ring = (c) => ({ ink: mk("circle", { cx: 0, cy: 0, r: 0, fill: "none", stroke: CC.ink, "stroke-width": 9, opacity: "0" }, pings), col: mk("circle", { cx: 0, cy: 0, r: 0, fill: "none", stroke: c, "stroke-width": 4.5, opacity: "0" }, pings) });
+          const RINGS = [ring(CC.collar), ring("#FFFFFF"), ring(CC.collar), ring("#FFFFFF"), ring(CC.pulse)];
+          const setLine = (L, x1, y1, x2, y2, show) => { L.setAttribute("x1", x1.toFixed(1)); L.setAttribute("y1", y1.toFixed(1)); L.setAttribute("x2", x2.toFixed(1)); L.setAttribute("y2", y2.toFixed(1)); L.setAttribute("opacity", show ? "1" : "0"); };
+          const setRing = (R, x, y, p, rMax) => { const on = p > 0 && p < 1, r = 16 + (rMax - 16) * eOut(p), o = on ? (1 - p) * 0.95 : 0;
+            [R.ink, R.col].forEach((c) => { c.setAttribute("cx", x.toFixed(1)); c.setAttribute("cy", y.toFixed(1)); c.setAttribute("r", r.toFixed(1)); c.setAttribute("opacity", o.toFixed(3)); }); };
+          const tagS = $("#tagStock"), tagR = $("#tagRare"), glint = $("#tagGlint");
+
+          // ---------- the frame at time t: every element is a pure function of t ----------
+          function renderAt(t) {
+            const a = at(anchor, t), el = at(elbow, t);
+            const shot2 = t >= T.cut - 1e-4;
+            const t0 = shot2 ? T.reland : T.land;              // this shot's pin landing
+            // label geometry: text right-aligned 30 px left of the elbow, baseline 24 px above the shelf; width follows the drum
+            const drum = shot2 ? eIO(seg(t, T.roll, T.rollDur)) : 0;
+            const wNow = lab.width + (lab.width2 - lab.width) * drum;
+            let ex = el[0], ey = el[1];
+            // keep the whole label inside title-safe (the leader stretches instead)
+            const cap = lab.cap, sf = CONFIG.safe;
+            ex = clamp(ex, sf.x0 + wNow + 52, sf.x1); ey = clamp(ey, sf.y0 + cap * 1.12 + 34, sf.y1 - 70);
+            const textR = ex - 30, textL = textR - wNow, base = ey - 34, shL = textL - 22;
+            // ---- pin: lands with overshoot + squash; second pin re-lands on the cut; pops on exit ----
+            let ps = 0, psy = 1, pglow = 0;
+            const lp = seg(t, t0, 0.3);
+            if (t >= t0) { ps = eBack(lp); psy = 1 + 0.25 * Math.sin(Math.PI * seg(t, t0 + 0.08, 0.16)) * (1 - lp); }
+            if (!shot2 && t > T.cut - 0.08) ps *= 1 - seg(t, T.cut - 0.08, 0.07);      // first pin snaps off just before the cut
+            const ox = T.out + 0.1;                                                     // exit chain
+            if (t > ox + 0.06) ps = ps * (1 + 0.25 * Math.sin(Math.PI * seg(t, ox + 0.06, 0.1))) * (1 - seg(t, ox + 0.1, 0.06));
+            pglow = shot2 ? Math.exp(-Math.pow((t - T.ignite - 0.05) / 0.12, 2)) : 0;
+            Object.assign(pin.st, { x: a[0], y: a[1], s: ps, sy: psy, vis: ps > 0.002, glow: pglow });
+            // ---- leader + shelf draw ----
+            const dLead = eP2(seg(t, t0 + 0.06, 0.2)), dShelf = eOut(seg(t, t0 + 0.2, 0.3));
+            let rLead = 1, rShelf = 1;                                              // retract on exit
+            if (t > T.out) { rShelf = 1 - eIn(seg(t, T.out + 0.08, 0.1)); rLead = 1 - eIn(seg(t, T.out + 0.12, 0.08)); }
+            if (!shot2 && t > T.cut - 0.1) { rShelf = 1 - seg(t, T.cut - 0.1, 0.06); rLead = 1 - seg(t, T.cut - 0.08, 0.06); }
+            const lx = a[0] + (ex - a[0]) * dLead * rLead, ly = a[1] + (ey - a[1]) * dLead * rLead;
+            const showLead = t >= t0 + 0.06 && dLead * rLead > 0.01;
+            // the leader starts at the bead's rim, not its centre
+            const dd = Math.hypot(ex - a[0], ey - a[1]) || 1, rx0 = a[0] + (ex - a[0]) / dd * 20 * ps, ry0 = a[1] + (ey - a[1]) / dd * 20 * ps;
+            [LI, LC].forEach((L) => setLine(L.lead, rx0, ry0, lx, ly, showLead));
+            const sx2 = ex + (shL - ex) * dShelf * rShelf, showShelf = dLead >= 1 && dShelf * rShelf > 0.01;
+            [LI, LC].forEach((L) => setLine(L.shL, ex, ey, sx2, ey, showShelf));
+            // light pulse: on the re-target the energy runs pin -> elbow -> along the shelf into the label, then ignites it
+            const pp = shot2 ? seg(t, T.ignite - 0.2, 0.26) : 0, onP = pp > 0 && pp < 1;
+            const leadLen = Math.hypot(ex - a[0], ey - a[1]), shelfLen = ex - shL, tot = leadLen + shelfLen, pos = pp * (tot + 60);
+            // the pulse only travels on line that is already drawn (no stray dash ahead of the re-drawing leader or shelf)
+            setLine(LP.lead, a[0], a[1], lx, ly, onP && showLead); LP.lead.setAttribute("stroke-dashoffset", (60 - pos).toFixed(1));
+            setLine(LP.shL, ex, ey, sx2, ey, onP && showShelf); LP.shL.setAttribute("stroke-dashoffset", (60 - (pos - leadLen)).toFixed(1));
+            // pings: two rings on each landing, one on the ignite
+            setRing(RINGS[0], a[0], a[1], shot2 ? 0 : seg(t, T.land + 0.02, 0.5), 92); setRing(RINGS[1], a[0], a[1], shot2 ? 0 : seg(t, T.land + 0.1, 0.5), 70);
+            setRing(RINGS[2], a[0], a[1], shot2 ? seg(t, T.reland + 0.02, 0.5) : 0, 92); setRing(RINGS[3], a[0], a[1], shot2 ? seg(t, T.reland + 0.1, 0.5) : 0, 70);
+            setRing(RINGS[4], a[0], a[1], shot2 ? seg(t, T.ignite, 0.55) : 0, 120);
+            // ---- label: rises out of its shelf (clipped at the baseline), lands with a squash; rolls; ignites; sinks back on exit ----
+            const lt0 = T.land + 0.3;
+            let rise = 1 - eOut(seg(t, lt0, 0.42)), sq = 1;
+            const land = seg(t, lt0 + 0.07, 0.22); sq = 1 - 0.07 * Math.sin(Math.PI * land) * (1 - land * 0.5);
+            if (t > T.out) rise = eIn(seg(t, T.out, 0.13));
+            const stamp = shot2 ? seg(t, T.stamp, 0.2) : 0, thud = Math.sin(Math.PI * seg(t, T.stamp + 0.1, 0.14));
+            const ig = shot2 ? E("power2.inOut")(seg(t, T.ignite, T.frontDur)) : 0;
+            const hot = shot2 && t >= T.ignite ? 3.0 * (1 - E("power2.in")(seg(t, T.ignite, T.frontDur + 0.12))) : 0;
+            // the glide on the cut tilts the slab into the move (inertia): yaw and lean from the spring's velocity
+            const vel = el[2] || 0, velY = el[3] || 0;
+            Object.assign(lab.st, {
+              x: textL + wNow / 2, y: base + 3 * thud, s: 1, sx: 1 + 0.03 * (1 - sq), sy: sq,
+              rx: -0.2 - 0.00012 * velY, ry: -0.16 - clamp(vel * 0.00016, -0.35, 0.35), rz: clamp(-vel * 0.000025, -0.06, 0.06),
+              drum, ignite: ig, hot, spec: shot2 ? seg(t, T.spec, T.specDur) : -1, vis: t >= lt0 && rise < 0.999, rise
+            });
+            lab.U.uBaseGain.value = 1;
+            // ---- tags: STOCK pops on shot 1 and collapses before the cut; RARE CAR stamps after the roll ----
+            const tagY = ey + 20, tagX = textL + 4;
+            const sIn = seg(t, T.land + 0.62, 0.28), sOut = seg(t, T.cut - 0.12, 0.08);
+            const stS = sIn <= 0 || sOut >= 1 ? 0 : E("back.out(2.6)")(sIn) * (1 - sOut);
+            tagS.style.visibility = stS > 0.01 ? "visible" : "hidden";
+            tagS.style.transform = "translate(" + tagX.toFixed(1) + "px," + tagY.toFixed(1) + "px) rotate(-2.5deg) scale(" + stS.toFixed(3) + "," + (stS * (1 - sOut)).toFixed(3) + ")";
+            let rS = 0, rRot = -3, rY = 0;
+            if (shot2 && t >= T.stamp) { const e = eOut(stamp); rS = 1.75 - 0.75 * e; rRot = -11 + 8 * e; rY = -30 * (1 - e); if (stamp >= 1) rS = 1 - 0.06 * thud; }
+            if (t > T.out - 0.02) rS *= 1 - eIn(seg(t, T.out - 0.02, 0.1));
+            tagR.style.visibility = rS > 0.01 ? "visible" : "hidden";
+            tagR.style.transform = "translate(" + tagX.toFixed(1) + "px," + (tagY + rY).toFixed(1) + "px) rotate(" + rRot.toFixed(2) + "deg) scale(" + rS.toFixed(3) + ")";
+            glint.style.transform = "translateX(" + (-60 + 420 * eIO(seg(t, T.spec + 0.1, 0.5))).toFixed(1) + "px) skewX(-20deg)";
+            // ---- light: the key rakes across the bevels through the ignite; bloom peaks for 3 frames, settles to a glint ----
+            const bt = t - T.ignite, env = !shot2 || bt < 0 ? 0 : bt < 0.1 ? 1 : Math.exp(-(bt - 0.1) / 0.3);
+            const ka = -0.9 + 1.7 * eIO(seg(t, T.ignite - 0.05, 0.9));
+            C3.render({ keyAngle: ka, keyBoost: 3.2 * env, bloom: 0.1 + 0.75 * env + (shot2 && bt > 0 ? 0.08 : 0) });
+          }
+
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+          renderAt(0);
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

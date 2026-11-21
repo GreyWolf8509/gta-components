@@ -1,0 +1,200 @@
+<!doctype html>
+<!-- 68 Settings label, variant B: one big setting label for a Short (9:16, 1080x1920, 30 fps, 5.0 s). Overlay.
+     The setting name sits top-centre; its level is a real 3D reel (media/level3d.js) that rolls LOW -> MEDIUM -> ULTRA on the cuts.
+     Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). See gta/DESIGN.md and ../DECISIONS.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="media/glyphs.js"></script>
+    <script src="media/level3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scale(1.03); }
+      #ov { position: absolute; inset: 0; }
+      #glow { position: absolute; border-radius: 50%; pointer-events: none; opacity: 0; mix-blend-mode: screen; }
+      #gl { position: absolute; pointer-events: none; }
+      /* setting name: heavy Archivo caps, white, crisp dark edge + soft shadow, each line rises in its own window */
+      .ln { position: absolute; left: 0; width: 1080px; overflow: hidden; text-align: center; padding: 14px 0 30px; }
+      .ln .li { display: inline-block; white-space: nowrap; font-family: "Archivo", "Inter", sans-serif; font-weight: 900; font-stretch: 90%;
+        text-transform: uppercase; color: #FFFFFF; letter-spacing: -0.01em; line-height: 1;
+        paint-order: stroke fill; -webkit-text-stroke: 8px #07080B; text-shadow: 0 4px 0 rgba(0,0,0,.32), 0 8px 18px rgba(0,0,0,.45); }
+      .ln .ch { display: inline-block; will-change: transform; }
+      /* slider fraction: white Inter tabular superscript, rolls in its own window on every level change */
+      .fw { position: absolute; overflow: hidden; padding: 8px 10px 18px 8px; }
+      .fw .fi { display: block; white-space: nowrap; font: 800 76px/1 "Inter"; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; color: #FFFFFF;
+        paint-order: stroke fill; -webkit-text-stroke: 7px #07080B; text-shadow: 0 3px 0 rgba(0,0,0,.3), 0 6px 14px rgba(0,0,0,.42); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <!-- the same shot replayed per setting (as comparison Shorts do); each incoming take starts 2 frames early underneath -->
+        <video id="s1" class="clip shot" src="assets/shots/v11-yacht-v.mp4" muted playsinline data-start="0" data-duration="1.5" data-media-start="0" data-track-index="0" style="z-index:3; filter: blur(4.2px) saturate(.72) contrast(.94)"></video>
+        <video id="s2" class="clip shot" src="assets/shots/v11-yacht-v.mp4" muted playsinline data-start="1.4333" data-duration="1.5667" data-media-start="0" data-track-index="1" style="z-index:2; filter: blur(1.8px) saturate(.86)"></video>
+        <video id="s3" class="clip shot" src="assets/shots/v11-yacht-v.mp4" muted playsinline data-start="2.9333" data-duration="2.0667" data-media-start="0" data-track-index="2" style="z-index:1; filter: saturate(1.08) contrast(1.04)"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="5" data-track-index="3">
+        <div id="glow"></div>
+        <div id="names"></div>
+        <div id="gl"></div>
+        <div id="fracs"></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        name: ["Texture", "Quality:"],          // setting name, 1-2 lines (a trailing colon hangs outside the centring)
+        levels: [                               // each level shows from its cut; the last one is the payoff
+          { text: "Low",    color: "LOW",    frac: "1/4", at: 0 },
+          { text: "Medium", color: "MEDIUM", frac: "2/4", at: 1.5 },
+          { text: "Ultra",  color: "ULTRA",  frac: "4/4", at: 3.0 }
+        ],
+        palette: {                              // colour-coded enamel per level (face top/mid/bottom, side near/far, bevel lip, hot light)
+          LOW:    { face: ["#FF7A82", "#FF2E3A", "#C8102E"], side: ["#9E0A1E", "#2A0207"], lip: "#FF6A73", hot: "#FFB0B6", em: 0.5, glow: "255,46,58" },
+          MEDIUM: { face: ["#FFE15C", "#FFD23C", "#E59A0C"], side: ["#A87204", "#2E1C00"], lip: "#FFE47A", hot: "#FFF0A8", em: 0.46, glow: "255,210,60" },
+          ULTRA:  { face: ["#86F8AE", "#38E07B", "#10A048"], side: ["#0A7432", "#011A0A"], lip: "#7CF5A8", hot: "#9DFFC0", em: 0.5, glow: "56,224,123" }
+        },
+        layout: { axis: 442, nameTop: 236, nameSize: 116, lineGap: 100, levelY: 560, levelSize: 205, maxInk: 700, fracGap: 12 },
+        reel: { depth: 44, bevel: 9, tilt: 0.3, ink: 4, shadow: 0.6, shadowOff: 12 },
+        timing: { in: 0.10, out: 4.5, end: 5.0 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, Lay = CONFIG.layout, LV = CONFIG.levels, PAL = CONFIG.palette, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+
+        // ---------- time helpers (pure functions of t) ----------
+        const TAU = Math.PI * 2, clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+        const eo3 = (x) => 1 - Math.pow(1 - clamp(x), 3), ei3 = (x) => Math.pow(clamp(x), 3), sio = (x) => 0.5 - 0.5 * Math.cos(Math.PI * clamp(x));
+        const spring = (t, f, z) => { if (t <= 0) return 0; const w = TAU * f, wd = w * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + (z * w / wd) * Math.sin(wd * t)); };
+        const kick = (t, f, z) => (t <= 0 ? 0 : Math.exp(-z * TAU * f * t) * Math.sin(TAU * f * Math.sqrt(1 - z * z) * t));
+        const flash = (t, a, hold = 3 / 30, dec = 0.4) => { const u = t - a; if (u < 0) return 0; if (u < 1 / 30) return u * 30; if (u < 1 / 30 + hold) return 1; return Math.exp(-(u - 1 / 30 - hold) / dec); };
+
+        // the reel: face 0 blank, faces 1..n the levels, face n+1 blank (exit). Each step rolls up one face on a spring.
+        // one flip = one level step: the old word tips back to edge-on with an ease-in (visible over 3 frames), then the new word comes
+        // over the top on a damped spring that starts with the same speed, overshoots a few degrees and locks
+        const turn = (u, A = 0.09, f = 2.6, z = 0.74) => {
+          if (u <= 0) return 0; if (u < A) { const x = u / A; return 0.5 * x * x; }
+          const v0 = 2 / A, w = TAU * f, wd = w * Math.sqrt(1 - z * z), t2 = u - A;
+          return 0.5 + 0.5 * (1 - Math.exp(-z * w * t2) * (Math.cos(wd * t2) + ((z * w - v0) / wd) * Math.sin(wd * t2)));
+        };
+        const N = LV.length, LEAD = 0.14;
+        const steps = LV.map((l, k) => (k === 0 ? T.in + 0.14 : l.at - LEAD));
+        const PAY = LV[N - 1].at;                                  // the payoff cut
+        const reelPos = (t) => { let p = 0; steps.forEach((s) => { p += turn(t - s); }); p += ei3((t - T.out) / 0.24); return p; };
+
+        const FACES = ["900 100px Archivo", "800 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          // ---------- the setting name ----------
+          const nameLines = CONFIG.name.map((txt, i) => {
+            const ln = document.createElement("div"); ln.className = "ln"; ln.setAttribute("data-layout-allow-overflow", "");
+            ln.style.top = (Lay.nameTop + i * Lay.lineGap - 14) + "px";
+            const li = document.createElement("div"); li.className = "li"; li.setAttribute("data-layout-allow-overflow", ""); li.style.fontSize = Lay.nameSize + "px";
+            const chars = [];
+            txt.toUpperCase().split("").forEach((c) => { const s = document.createElement("span"); s.className = "ch"; s.setAttribute("data-layout-allow-occlusion", ""); s.setAttribute("data-layout-allow-overflow", ""); s.textContent = c === " " ? " " : c; li.appendChild(s); chars.push(s); });
+            ln.appendChild(li); $("#names").appendChild(ln);
+            return { ln, li, chars, txt };
+          });
+          // centre each line on the level's axis, the trailing colon hanging outside
+          nameLines.forEach((L) => {
+            const w = L.li.getBoundingClientRect().width, last = L.chars[L.chars.length - 1];
+            const hang = /[:.]/.test(L.txt.slice(-1)) ? last.getBoundingClientRect().width : 0;
+            L.ln.style.textAlign = "left"; L.li.style.marginLeft = (Lay.axis - (w - hang) / 2).toFixed(1) + "px";
+          });
+
+          // ---------- the level reel (Three.js) ----------
+          const GL = { left: 40, top: Lay.levelY - 190, W: 1000, H: 380 };
+          const gl = $("#gl"); gl.style.left = GL.left + "px"; gl.style.top = GL.top + "px"; gl.style.width = GL.W + "px"; gl.style.height = GL.H + "px";
+          const R3 = CONFIG.reel;
+          const faces = [null].concat(LV.map((l) => ({ text: l.text, color: l.color, size: Lay.levelSize, maxInk: Lay.maxInk }))).concat([null]);
+          const L3 = Level3D({ W: GL.W, H: GL.H, glyphs: window.PAYOFF_GLYPHS, px: Lay.axis - GL.left, py: Lay.levelY - GL.top,
+            depth: R3.depth, bevel: R3.bevel, tilt: R3.tilt, tracking: -0.005, inkPx: R3.ink, inkColor: "#07080B", shadow: R3.shadow, shadowOff: R3.shadowOff,
+            palette: PAL,
+            drums: [{ x: Lay.axis - GL.left, y: Lay.levelY - GL.top, align: "center", faces }] });
+          gl.appendChild(L3.canvas);
+
+          // ---------- the slider fraction, one window per level, top-aligned to that level's cap ----------
+          const fr = LV.map((l, k) => {
+            const f = L3.face(0, k + 1);
+            const w = document.createElement("div"); w.className = "fw"; w.setAttribute("data-layout-allow-overflow", "");
+            w.style.left = (GL.left + f.right + Lay.fracGap - 8).toFixed(1) + "px";
+            w.style.top = (GL.top + f.top - 8 - 0.0).toFixed(1) + "px";
+            const i = document.createElement("div"); i.className = "fi"; i.setAttribute("data-layout-allow-overflow", ""); i.setAttribute("data-layout-allow-occlusion", ""); i.textContent = l.frac; w.appendChild(i); $("#fracs").appendChild(w);
+            return { w, i };
+          });
+
+          // ---------- the payoff glow: a localised colour light behind the level word ----------
+          const glow = $("#glow"), gc = PAL[LV[N - 1].color].glow, GW = 980, GH = 420;
+          glow.style.cssText += ";left:" + (Lay.axis - GW / 2) + "px;top:" + (Lay.levelY - GH / 2) + "px;width:" + GW + "px;height:" + GH + "px;" +
+            "background:radial-gradient(closest-side, rgba(" + gc + ",.5), rgba(" + gc + ",.18) 52%, rgba(" + gc + ",0))";
+
+          // ---------- per-frame 3D state ----------
+          const renderAt = (t) => {
+            const pos = reelPos(t);
+            const lit = {};
+            LV.forEach((l, i) => {
+              const j = i + 1, at = i === 0 ? steps[0] + 0.16 : l.at, pay = i === N - 1;
+              const e = { boost: (pay ? 0.16 : 0.12) * flash(t, at + 0.02, 3 / 30, pay ? 0.35 : 0.22) };
+              if (pay) {
+                const hp = (t - at) / 0.34; if (hp > 0 && hp < 1.4) { e.hot = eo3(hp); e.hotAmp = 0.8 * (1 - clamp(hp / 1.4)); }
+                const sp = (t - (at + 0.12)) / 0.55; if (sp > 0 && sp < 1) { e.spec = sio(sp); e.specAmp = 0.38 * Math.sin(Math.PI * sp); }
+              } else if (i > 0) {
+                const sp = (t - (at + 0.04)) / 0.42; if (sp > 0 && sp < 1) { e.spec = sio(sp); e.specAmp = 0.28 * Math.sin(Math.PI * sp); }
+              }
+              lit[j] = e;
+            });
+            const s = 1 + 0.16 * kick(t - (PAY + 0.02), 2.3, 0.36);
+            const hold = clamp((t - PAY) / Math.max(0.5, T.out - PAY));
+            const ry = t > PAY ? -0.05 + 0.1 * sio(hold) : -0.05 * clamp(t / 0.5);
+            const rk = sio((t - PAY + 0.06) / 0.7);
+            L3.render([{ pos, s, ry, lit }], {
+              bloom: 0.14 + 0.45 * flash(t, PAY + 0.02, 3 / 30, 0.3) + 0.15 * flash(t, LV[1] ? LV[1].at + 0.02 : 99, 2 / 30, 0.2),
+              th: 1.25, keyA: t < PAY - 0.1 ? -0.7 : -0.9 + 1.8 * rk, keyI: 2.0 + 0.8 * Math.exp(-Math.pow((t - PAY - 0.1) / 0.16, 2))
+            });
+          };
+
+          const tl = gsap.timeline({ paused: true });
+          // name: each line's letters rise in their window, 18 ms apart
+          nameLines.forEach((L, i) => {
+            gsap.set(L.chars, { yPercent: 170 });
+            tl.to(L.chars, { yPercent: 0, duration: 0.5, ease: "expo.out", stagger: 0.018 }, T.in + i * 0.07);
+          });
+          // fractions: old rolls out up, new rolls in from below, no overlap
+          fr.forEach((f, k) => {
+            gsap.set(f.i, { yPercent: 160 });
+            const tin = k === 0 ? steps[0] + 0.12 : LV[k].at - 0.02;
+            tl.to(f.i, { yPercent: 0, duration: k === N - 1 ? 0.42 : 0.34, ease: k === N - 1 ? "back.out(2)" : "expo.out" }, tin);
+            const tout = k < N - 1 ? LV[k + 1].at - 0.14 : T.out;
+            tl.to(f.i, { yPercent: -160, duration: 0.14, ease: "power2.in" }, tout);
+            tl.set(f.w, { visibility: "hidden" }, tout + 0.16);
+          });
+          // payoff: localised colour light behind the word (1-frame attack, 3-frame hold, decay), small plate hit on the cut
+          Look.drive(tl, 0, T.end, (p) => { const t = p * T.end; glow.style.opacity = Math.min(1, flash(t, PAY + 0.02, 3 / 30, 0.45) * 0.85 + 0.22 * clamp((t - PAY) / 0.4) * (1 - clamp((t - T.out) / 0.2))).toFixed(3); });
+          if (plate) Look.impact(tl, PAY + 0.02, { flash: 0, shake: "#shake", amp: 6, dur: 0.3, zoom: 1.01 });
+          // exit: the reel rolls the word up out of its window, the name lines and the fraction roll up out of theirs
+          nameLines.forEach((L, i) => { tl.to(L.chars, { yPercent: -170, duration: 0.26, ease: "power3.in", stagger: 0.012 }, T.out + 0.04 + i * 0.05); });
+          tl.set(["#names", "#fracs"], { visibility: "hidden" }, T.out + 0.5);
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          renderAt(0);
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

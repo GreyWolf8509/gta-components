@@ -1,0 +1,505 @@
+<!doctype html>
+<!-- 26 Transformation meter, variant A "Badge + fill" (16:9, 1920x1080, 30 fps).
+     Hexagon portrait badge + wavy glass tube with a liquid gradient fill, docked top-left (evidence: yt-EP_LdrobwPg).
+     Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). See gta/DESIGN.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+
+      /* the meter: docked top-left, 44/40 px from the edges (evidence x 2-37%, y 3-25%) */
+      #meter, #bloom { position: absolute; left: 44px; top: 40px; width: 820px; height: 300px; transform-origin: 0 0; }
+      /* MAX payoff light, localised on the badge (DESIGN 22): screen-blended bloom that tracks the meter's scale */
+      #bloom { mix-blend-mode: screen; opacity: 0; pointer-events: none; }
+      #bloomCore { position: absolute; left: -222px; top: -205px; width: 660px; height: 660px;
+        background: radial-gradient(circle closest-side, rgba(255,242,196,.95), rgba(255,210,120,.55) 38%, rgba(255,170,70,.16) 70%, rgba(255,160,60,0)); }
+      #bloomTube { position: absolute; left: 150px; top: -40px; width: 700px; height: 330px;
+        background: radial-gradient(closest-side, rgba(255,226,150,.42), rgba(255,190,90,.12) 60%, rgba(255,170,60,0)); }
+      /* milky, desaturated glass: the footage behind the empty track reads as frost, never as fill */
+      #glass { position: absolute; left: 0; top: 0; width: 820px; height: 300px;
+        -webkit-backdrop-filter: blur(10px) saturate(.35) brightness(1.25); backdrop-filter: blur(10px) saturate(.35) brightness(1.25); }
+      #tube { position: absolute; left: -30px; top: -70px; width: 900px; height: 440px; }
+      #hexWrap { position: absolute; left: 0; top: 0; width: 216px; height: 250px; transform-origin: 108px 125px; }
+      #hex { position: absolute; inset: 0; transform-origin: 108px 125px; }
+      .hexsvg { position: absolute; left: -40px; top: -40px; width: 296px; height: 330px; overflow: visible; }
+
+      /* LV chip under the badge: masked level roll */
+      #chip { position: absolute; left: 38px; top: 211px; width: 140px; height: 56px; border-radius: 28px; transform-origin: 70px 28px;
+        background: linear-gradient(180deg, #A47BFF 0%, #7436EE 48%, #4E1CB8 100%);
+        box-shadow: 0 0 0 3px #fff, 0 0 0 5px rgba(23,7,51,.85), 0 8px 16px rgba(0,0,0,.45), inset 0 2px 0 rgba(255,255,255,.5), inset 0 -4px 6px rgba(20,0,60,.35); }
+      #chipGold { position: absolute; inset: 0; border-radius: 28px; opacity: 0;
+        background: linear-gradient(180deg, #FFF1B5 0%, #F6C453 42%, #E59A1C 78%, #B86E0C 100%);
+        box-shadow: inset 0 2px 0 rgba(255,255,255,.75), inset 0 -4px 6px rgba(120,60,0,.35); }
+      #chipMask { position: absolute; left: 0; top: 0; width: 140px; height: 56px; overflow: hidden; border-radius: 28px; }
+      #chipStrip { position: absolute; left: 0; top: 0; width: 140px; }
+      #chipStrip div { height: 56px; display: flex; align-items: center; justify-content: center;
+        font: 900 34px/1 "Inter"; letter-spacing: .01em; color: #fff; font-feature-settings: "tnum" 1, "lnum" 1;
+        text-shadow: 0 2px 0 rgba(30,0,80,.55), 0 0 10px rgba(255,255,255,.25); padding-top: 1px; }
+      #chipStrip div.max { color: #4A2200; text-shadow: 0 1px 0 rgba(255,255,255,.6); letter-spacing: .04em; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="7" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="s1" class="clip shot" src="assets/shots/v49-gp-franklin-mural-h.mp4" muted playsinline data-start="0" data-duration="1.23" data-media-start="0.2" data-track-index="0"></video>
+        <video id="s2" class="clip shot" src="assets/shots/v06-franklin-lamar-portrait-h.mp4" muted playsinline data-start="1.23" data-duration="1.6" data-media-start="0" data-track-index="0"></video>
+        <video id="s3" class="clip shot" src="assets/shots/v08-trevor-rifle-h.mp4" muted playsinline data-start="2.83" data-duration="0.77" data-media-start="0.15" data-track-index="0"></video>
+        <video id="s4" class="clip shot" src="assets/shots/v30-street-explosion-h.mp4" muted playsinline data-start="3.6" data-duration="0.95" data-media-start="0.3" data-track-index="0"></video>
+        <video id="s5" class="clip shot" style="transform: scale(1.08); transform-origin: 0 50%;" src="assets/shots/v09-juggernaut-minigun-h.mp4" muted playsinline data-start="4.55" data-duration="1.2" data-media-start="0" data-track-index="0"></video>
+        <video id="s6" class="clip shot" style="transform: scale(1.12); transform-origin: 0 0;" src="assets/shots/v23-minigun-park-h.mp4" muted playsinline data-start="5.75" data-duration="1.25" data-media-start="0.03" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="7" data-track-index="1">
+        <div id="bloom" data-layout-allow-occlusion data-layout-allow-overflow><div id="bloomTube"></div><div id="bloomCore"></div></div>
+        <div id="meter">
+          <div id="glass"></div>
+          <canvas id="tube" width="1800" height="880" data-layout-allow-occlusion data-layout-allow-overflow></canvas>
+          <div id="hexWrap">
+            <div id="hex"></div>
+          </div>
+          <div id="chip">
+            <div id="chipGold"></div>
+            <div id="chipMask" data-layout-allow-occlusion data-layout-allow-overflow><div id="chipStrip" data-layout-allow-occlusion data-layout-allow-overflow></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        // one entry per form; the meter starts on forms[0] and swaps on each stage it reaches. The last form is the MAX form.
+        forms: [
+          { label: "LV 1", portrait: "media/p1-franklin.jpg" },
+          { label: "LV 2", portrait: "media/p2-lamar.jpg" },
+          { label: "LV 3", portrait: "media/p3-trevor.jpg" },
+          { label: "MAX",  portrait: "media/p4-juggernaut.jpg" }
+        ],
+        // liquid gradient along the tube (evidence: lime -> yellow -> orange -> red)
+        liquid: ["#5CFF1C", "#B8F51A", "#FFE11A", "#FF9A14", "#F5451A", "#D8101C"],
+        rim: { light: "#B994FF", mid: "#7233EA", dark: "#3E14A0" },
+        gold: { light: "#FFF2B8", mid: "#F2B634", dark: "#A8600A" },
+        // LV 1 level after the first pour (fraction of the tube), so the first form already reads as "charged a bit"
+        start: 0.2,
+        // the fill steps: [start of surge, level reached]. Levels are fractions of the tube; 1 = MAX. Stage rings sit at each level below 1.
+        surges: [ [1.50, 0.46], [2.72, 0.73], [3.90, 1] ],
+        surgeDur: [0.55, 0.53, 0.65],
+        timing: { in: 0.08, dock: 0.78, pour: 0.85, settle: 5.6, out: 6.15, end: 7.0 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, $ = (s) => document.querySelector(s), H = Look.hash;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+        const sm = (a, b, x) => { const k = clamp((x - a) / (b - a)); return k * k * (3 - 2 * k); };
+        const EZ = {}; const ez = (n) => EZ[n] || (EZ[n] = gsap.parseEase(n));
+        const track = (keys) => (t) => {
+          if (t <= keys[0][0]) return keys[0][1];
+          for (let i = 1; i < keys.length; i++) if (t <= keys[i][0]) {
+            const [t0, v0] = keys[i - 1], [t1, v1, e] = keys[i];
+            return v0 + (v1 - v0) * ez(e || "none")((t - t0) / Math.max(1e-6, t1 - t0));
+          }
+          return keys[keys.length - 1][1];
+        };
+        const hexRGB = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+        const mix = (a, b, k) => { const A = hexRGB(a), B = hexRGB(b); return "rgb(" + A.map((v, i) => Math.round(v + (B[i] - v) * k)).join(",") + ")"; };
+
+        /* ---------------- stage timing ---------------- */
+        const SURGE = CONFIG.surges.map((s, i) => ({ t0: s[0], t1: s[0] + CONFIG.surgeDur[i], to: s[1], ease: i === CONFIG.surges.length - 1 ? "back.in(1.25)" : "back.inOut(1.35)" }));
+        // the hit = the moment the front first reaches the stage level (back eases overshoot before landing)
+        SURGE.forEach((s, i) => {
+          const from = i ? SURGE[i - 1].to : CONFIG.start, E = ez(s.ease); s.hit = s.t1;
+          for (let k = 0; k <= 400; k++) { const v = from + (s.to - from) * E(k / 400); if (v >= s.to - 0.004) { s.hit = s.t0 + (s.t1 - s.t0) * k / 400; break; } }
+        });
+        const TMAX = SURGE[SURGE.length - 1].hit;
+        const fillKeys = [[0, 0], [T.pour, 0], [T.pour + 0.5, CONFIG.start, "power3.out"]];
+        SURGE.forEach((s, i) => { fillKeys.push([s.t0, i ? SURGE[i - 1].to : CONFIG.start]); fillKeys.push([s.t1, s.to, s.ease]); });
+        const FILL = track(fillKeys);
+        // tube grows out of the collar on entrance; on exit it retracts back into it before the badge collapses
+        const REVEAL = track([[0, 0], [0.32, 0], [0.86, 1, "expo.out"], [T.out + 0.04, 1], [T.out + 0.34, 0, "power3.in"]]);
+        const COLLAR = track([[0, 0], [0.24, 0], [0.4, 1, "back.out(2)"], [T.out + 0.3, 1], [T.out + 0.4, 0, "power2.in"]]);
+        const GOLD = track([[0, 0], [TMAX - 0.02, 0], [TMAX + 0.16, 1, "power1.inOut"]]);   // purple -> white-hot -> gold, under the rim flash
+        const SWEEP = (t) => clamp((t - TMAX - 0.02) / 0.35);                               // the one specular band across the tube at MAX
+
+        /* ---------------- hexagon badge (SVG) ---------------- */
+        const HX = 108, HY = 125;
+        function hexD(cx, cy, R, rc) {
+          const P = []; for (let i = 0; i < 6; i++) { const a = (-90 + 60 * i) * Math.PI / 180; P.push([cx + R * Math.cos(a), cy + R * Math.sin(a)]); }
+          let d = "";
+          for (let i = 0; i < 6; i++) {
+            const p = P[i], a = P[(i + 5) % 6], b = P[(i + 1) % 6], L = Math.hypot(a[0] - p[0], a[1] - p[1]);
+            const p1 = [p[0] + (a[0] - p[0]) / L * rc, p[1] + (a[1] - p[1]) / L * rc], p2 = [p[0] + (b[0] - p[0]) / L * rc, p[1] + (b[1] - p[1]) / L * rc];
+            d += (i ? "L" : "M") + p1[0].toFixed(2) + "," + p1[1].toFixed(2) + " Q" + p[0].toFixed(2) + "," + p[1].toFixed(2) + " " + p2[0].toFixed(2) + "," + p2[1].toFixed(2) + " ";
+          }
+          return d + "Z";
+        }
+        // every later form sits on top of the one before, hidden behind a circular iris (r = 0) that opens on its stage
+        const R0 = 125, imgs = CONFIG.forms.map((f, i) =>
+          `<image class="pt" id="pt${i}" href="${f.portrait}" x="${HX - 108}" y="${HY - 108}" width="216" height="216" preserveAspectRatio="xMidYMid slice"${i ? ` clip-path="url(#iris${i})"` : ""}/>`).join("");
+        const irises = CONFIG.forms.map((f, i) => i ? `<clipPath id="iris${i}"><circle id="irisC${i}" cx="${HX}" cy="${HY}" r="0"/></clipPath>` : "").join("");
+        $("#hex").innerHTML = `
+          <svg class="hexsvg" viewBox="-40 -40 296 330">
+            <defs>
+              <linearGradient id="rimP" x1="0" y1="0" x2="0.25" y2="1"><stop offset="0" stop-color="${CONFIG.rim.light}"/><stop offset=".42" stop-color="${CONFIG.rim.mid}"/><stop offset="1" stop-color="${CONFIG.rim.dark}"/></linearGradient>
+              <linearGradient id="rimG" x1="0" y1="0" x2="0.25" y2="1"><stop offset="0" stop-color="${CONFIG.gold.light}"/><stop offset=".38" stop-color="${CONFIG.gold.mid}"/><stop offset=".8" stop-color="#D98A16"/><stop offset="1" stop-color="${CONFIG.gold.dark}"/></linearGradient>
+              <linearGradient id="bevel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/></linearGradient>
+              <linearGradient id="bevelD" x1="0" y1="0" x2="0" y2="1"><stop offset=".55" stop-color="#12002e" stop-opacity="0"/><stop offset="1" stop-color="#12002e" stop-opacity=".55"/></linearGradient>
+              <linearGradient id="ringW" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".6" stop-color="#F1ECFF"/><stop offset="1" stop-color="#C9BCF0"/></linearGradient>
+              <radialGradient id="vig" cx=".5" cy=".46" r=".62"><stop offset=".55" stop-color="#05021a" stop-opacity="0"/><stop offset="1" stop-color="#05021a" stop-opacity=".62"/></radialGradient>
+              <linearGradient id="gloss" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset=".38" stop-color="#fff" stop-opacity=".06"/><stop offset=".39" stop-color="#fff" stop-opacity="0"/></linearGradient>
+              <linearGradient id="sheenG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".85"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+              <clipPath id="clipIn"><path d="${hexD(HX, HY, 101, 9)}"/></clipPath>
+              ${irises}
+              <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="9"/></filter>
+              <filter id="glow4" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4"/></filter>
+              <linearGradient id="flashG" x1="0" y1="0" x2="0.25" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".5" stop-color="#FFF4D2"/><stop offset="1" stop-color="#FFD98A"/></linearGradient>
+            </defs>
+            <path d="${hexD(HX, HY + 9, R0 + 2, 16)}" fill="#0a0018" opacity=".55" filter="url(#soft)"/>
+            <path d="${hexD(HX, HY, R0 + 1.5, 16)}" fill="#14062b"/>
+            <path d="${hexD(HX, HY, R0, 15)}" fill="url(#rimP)"/>
+            <path id="rimGold" d="${hexD(HX, HY, R0, 15)}" fill="url(#rimG)" opacity="0"/>
+            <path id="rimFlash" d="${hexD(HX, HY, R0, 15)}" fill="url(#flashG)" opacity="0"/>
+            <path d="${hexD(HX, HY, R0 - 2, 14)}" fill="none" stroke="url(#bevel)" stroke-width="3"/>
+            <path d="${hexD(HX, HY, R0 - 2, 14)}" fill="none" stroke="url(#bevelD)" stroke-width="4"/>
+            <path d="${hexD(HX, HY, 111, 11)}" fill="#1a0840"/>
+            <path d="${hexD(HX, HY, 109, 10)}" fill="url(#ringW)"/>
+            <g clip-path="url(#clipIn)">
+              <rect x="0" y="0" width="216" height="250" fill="#0B1846"/>
+              ${imgs}
+              <rect x="0" y="0" width="216" height="250" fill="url(#vig)"/>
+              <circle id="irisGlow" cx="${HX}" cy="${HY}" r="0" fill="none" stroke="#FFD878" stroke-width="9" opacity="0" filter="url(#glow4)"/>
+              <circle id="irisRing" cx="${HX}" cy="${HY}" r="0" fill="none" stroke="#FFF6DC" stroke-width="2.5" opacity="0"/>
+              <path d="M0,0 L216,0 L216,40 L0,150 Z" fill="url(#gloss)"/>
+              <rect id="hexSheen" x="-140" y="-40" width="70" height="340" fill="url(#sheenG)" transform="rotate(18 108 125)" opacity="0"/>
+            </g>
+            <path d="${hexD(HX, HY, 101, 9)}" fill="none" stroke="#000" stroke-opacity=".35" stroke-width="2.5"/>
+          </svg>`;
+        $("#chipStrip").innerHTML = CONFIG.forms.map((f, i) => `<div class="${i === CONFIG.forms.length - 1 ? "max" : ""}" data-layout-allow-occlusion data-layout-allow-overflow>${f.label}</div>`).join("");
+
+        /* ---------------- tube geometry (meter coords) ---------------- */
+        const X0 = 196, X1 = 742, CY = 125, AMP = 24, LAMBDA = (X1 - X0) / 1.75, R = 44, RIM = 10;
+        const P = [];
+        for (let x = X0; x <= X1 + 1e-6; x += 2) P.push({ x, y: CY + AMP * sm(X0 + 4, X0 + 110, x) * Math.sin(2 * Math.PI * (x - X0) / LAMBDA) });
+        let acc = 0;
+        P.forEach((p, i) => {
+          const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
+          p.tx = dx / L; p.ty = dy / L; p.nx = -p.ty; p.ny = p.tx;
+          if (i) acc += Math.hypot(p.x - P[i - 1].x, p.y - P[i - 1].y); p.s = acc;
+        });
+        const SEND = acc;
+        function at(s) {
+          if (s <= 0) { const p = P[0]; return { x: p.x + p.tx * s, y: p.y + p.ty * s, nx: p.nx, ny: p.ny, tx: p.tx, ty: p.ty }; }
+          if (s >= SEND) { const p = P[P.length - 1], d = s - SEND; return { x: p.x + p.tx * d, y: p.y + p.ty * d, nx: p.nx, ny: p.ny, tx: p.tx, ty: p.ty }; }
+          let lo = 0, hi = P.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (P[m].s <= s) lo = m; else hi = m; }
+          const a = P[lo], b = P[hi], k = (s - a.s) / (b.s - a.s || 1);
+          let nx = a.nx + (b.nx - a.nx) * k, ny = a.ny + (b.ny - a.ny) * k; const nl = Math.hypot(nx, ny); nx /= nl; ny /= nl;
+          return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, nx, ny, tx: ny, ty: -nx };
+        }
+        let SV = 0; for (const p of P) if (p.x >= 212) { SV = p.s; break; }  // visible start (hex right edge)
+        const SFULL = SEND + R + 10, SA = -24;   // SA: the tube body starts under the badge, so it can retract fully inside the collar
+        const sOf = (f) => SV - 6 + f * (SFULL - SV + 6);
+        // glass clip-path for the backdrop blur: follows the revealed tube interior
+        let lastGlass = -1;
+        function glass(s1) {
+          const key = Math.round(s1); if (key === lastGlass) return; lastGlass = key;
+          const el = $("#glass"); if (s1 < SA + 2) { el.style.clipPath = "inset(100%)"; return; }
+          let d = ""; const r = R + 1;
+          for (let s = SA; ; s += 6) { const ss = Math.min(s, s1), p = at(ss); d += (s > SA ? "L" : "M") + (p.x - p.nx * r).toFixed(1) + "," + (p.y - p.ny * r).toFixed(1); if (ss >= s1) break; }
+          const e = at(s1); for (let k = 0; k <= 12; k++) { const a = Math.atan2(-e.ny, -e.nx) + Math.PI * k / 12; d += "L" + (e.x + Math.cos(a) * r).toFixed(1) + "," + (e.y + Math.sin(a) * r).toFixed(1); }
+          for (let s = s1; ; s -= 6) { const ss = Math.max(s, SA), p = at(ss); d += "L" + (p.x + p.nx * r).toFixed(1) + "," + (p.y + p.ny * r).toFixed(1); if (ss <= SA) break; }
+          el.style.clipPath = "path('" + d + "Z')";
+        }
+
+        /* ---------------- canvas renderer ---------------- */
+        const DPR = 2, OX = 30, OY = 70, cv = $("#tube"), c = cv.getContext("2d");
+        const GX0 = 212, GX1 = X1 + R + RIM - 6, grad = c.createLinearGradient(GX0, 0, GX1, 0);
+        CONFIG.liquid.forEach((col, i) => grad.addColorStop(i / (CONFIG.liquid.length - 1), col));
+        const liquidAt = (x) => { // sample the liquid gradient (for sparks)
+          const L = CONFIG.liquid, u = clamp((x - GX0) / (GX1 - GX0)) * (L.length - 1), i = Math.min(L.length - 2, Math.floor(u));
+          return hexRGB(L[i]).map((v, j) => Math.round(v + (hexRGB(L[i + 1])[j] - v) * (u - i)));
+        };
+        function line(s0, s1, off, step) {
+          c.beginPath(); step = step || 4; let first = true;
+          for (let s = s0; ; s += step) { const ss = Math.min(s, s1), p = at(ss), o = typeof off === "function" ? off(ss) : off;
+            if (first) { c.moveTo(p.x + p.nx * o, p.y + p.ny * o); first = false; } else c.lineTo(p.x + p.nx * o, p.y + p.ny * o);
+            if (ss >= s1) break; }
+        }
+        function interior(s1, r) {
+          c.beginPath();
+          for (let s = SA; s <= s1; s += 4) { const p = at(s); s > SA ? c.lineTo(p.x - p.nx * r, p.y - p.ny * r) : c.moveTo(p.x - p.nx * r, p.y - p.ny * r); }
+          const e = at(s1); c.arc(e.x, e.y, r, Math.atan2(-e.ny, -e.nx), Math.atan2(e.ny, e.nx), false);
+          for (let s = s1; s >= SA; s -= 4) { const p = at(s); c.lineTo(p.x + p.nx * r, p.y + p.ny * r); }
+          const b = at(SA); c.arc(b.x, b.y, r, Math.atan2(b.ny, b.nx), Math.atan2(-b.ny, -b.nx) + 2 * Math.PI, false);
+          c.closePath();
+        }
+        function region(sf, bulge, tilt) {
+          c.beginPath(); const r = R + 8;
+          for (let s = -40; s < sf; s += 4) { const p = at(s); s > -40 ? c.lineTo(p.x - p.nx * r, p.y - p.ny * r) : c.moveTo(p.x - p.nx * r, p.y - p.ny * r); }
+          const f = at(sf), A = { x: f.x - f.nx * r, y: f.y - f.ny * r }, B = { x: f.x + f.nx * r, y: f.y + f.ny * r };
+          c.lineTo(A.x, A.y); c.quadraticCurveTo(f.x + f.tx * bulge * 2 + f.nx * tilt, f.y + f.ty * bulge * 2 + f.ny * tilt, B.x, B.y);
+          for (let s = sf; s >= -40; s -= 4) { const p = at(s); c.lineTo(p.x + p.nx * r, p.y + p.ny * r); }
+          c.closePath();
+        }
+        // embers: a few additive motes lifting off the fill head on each stage, and off the full tube's end at MAX
+        const EMB = [];
+        SURGE.forEach((sg, i) => {
+          const last = i === SURGE.length - 1;
+          for (let j = 0; j < 7; j++) {
+            const h = (k) => H(i * 577 + j * 41 + k + 3000);
+            EMB.push({ t: sg.hit + h(1) * 0.08, s: last ? SEND - 26 : sOf(sg.to), along: -6 - h(2) * 30, across: (h(3) - 0.5) * 1.5 * R,
+              vx: (h(4) - 0.25) * 70, vy: -(80 + h(5) * 90), life: 0.65 + h(6) * 0.45, r: 2.3 + h(7) * 2.2, ph: h(8) * 6.28 });
+          }
+        });
+        for (let k = 0; k < 10; k++) {   // slow trickle while it holds at MAX
+          const h = (q) => H(9000 + k * 17 + q);
+          EMB.push({ t: TMAX + 0.45 + k * 0.17 + h(1) * 0.08, s: SEND - 20 - h(2) * 50, along: 0, across: (h(3) - 0.5) * 1.4 * R,
+            vx: (h(4) - 0.3) * 40, vy: -(60 + h(5) * 60), life: 0.7 + h(6) * 0.4, r: 1.8 + h(7) * 1.8, ph: h(8) * 6.28 });
+        }
+        function draw(t) {
+          c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, cv.width, cv.height);
+          const rev = REVEAL(t), cl = COLLAR(t); if (rev <= 0.001) glass(SA - 10); if (rev <= 0.001 && cl <= 0.001) return;
+          c.setTransform(DPR, 0, 0, DPR, OX * DPR, OY * DPR); c.lineCap = "round"; c.lineJoin = "round";
+          const S1 = SA + rev * (SEND - SA), f = FILL(t), sf = sOf(f), gk = GOLD(t);
+          const vel = (FILL(t + 1 / 60) - FILL(t - 1 / 60)) * 30;                         // tube-fractions per second
+          let since = 99; SURGE.forEach((s) => { if (t >= s.hit) since = Math.min(since, t - s.hit); });
+          const slosh = Math.exp(-since * 5.5) * Math.sin(since * 26);
+          const bulge = 9 + clamp(Math.abs(vel) * 26, 0, 26) + slosh * 11 + Math.sin(t * 7.3) * 1.5;
+          const tilt = slosh * 16 + Math.sin(t * 5.1) * 3;
+          const agit = clamp(Math.abs(vel) * 1.6) + Math.exp(-since * 3) * 0.8;
+          const maxT = t - TMAX, maxOn = maxT >= 0 ? 1 : 0;
+          const aura = maxOn * (0.78 + 0.22 * Math.exp(-maxT * 2.2)) * (1 - sm(T.out, T.out + 0.3, t));
+          const hot = Math.sin(Math.PI * gk) * 0.85, heat = (a, b) => { const m = mix(a, b, gk).match(/\d+/g).map(Number); return "rgb(" + m.map((v) => Math.round(v + (255 - v) * hot)).join(",") + ")"; };
+          const rimMid = heat(CONFIG.rim.mid, CONFIG.gold.mid), rimLight = heat(CONFIG.rim.light, CONFIG.gold.light), rimDark = heat(CONFIG.rim.dark, CONFIG.gold.dark);
+          const W = 2 * (R + RIM);
+          tube: { if (rev <= 0.001) break tube; glass(S1);
+          // 1 aura (MAX overcharge)
+          if (aura > 0.01) { c.save(); c.filter = `blur(${18 * DPR}px)`; c.globalAlpha = aura * 0.85; line(SA, S1, 0); c.lineWidth = W + 18; c.strokeStyle = grad; c.stroke(); c.restore(); }
+          // 2 contact shadow
+          c.save(); c.translate(0, 8); c.filter = `blur(${8 * DPR}px)`; line(SA, S1, 0); c.lineWidth = W + 2; c.strokeStyle = "rgba(10,0,28,.5)"; c.stroke(); c.restore();
+          // 3 rim
+          line(SA, S1, 0); c.lineWidth = W + 3; c.strokeStyle = "#14062b"; c.stroke();
+          c.lineWidth = W; c.strokeStyle = rimMid; c.stroke();
+          const sEdge = Math.max(SA, S1 - 8);
+          line(SA, sEdge, -(R + RIM * 0.52)); c.lineWidth = RIM * 0.62; c.strokeStyle = rimLight; c.stroke();
+          line(SA, sEdge, (R + RIM * 0.5)); c.lineWidth = RIM * 0.66; c.strokeStyle = rimDark; c.stroke();
+          line(SA, sEdge, -(R + RIM * 0.86)); c.lineWidth = 1.6; c.strokeStyle = "rgba(255,255,255,.6)"; c.stroke();
+          // end-cap highlight (the rim light wraps round the cap)
+          { const e = at(S1); c.beginPath(); c.arc(e.x, e.y, R + RIM * 0.5, Math.atan2(-e.ny, -e.nx), Math.atan2(-e.ny, -e.nx) + 1.1); c.lineWidth = RIM * 0.6; c.strokeStyle = rimLight; c.stroke(); }
+          line(SA, S1, 0); c.lineWidth = 2 * R + 3; c.strokeStyle = "rgba(14,3,36,.9)"; c.stroke();
+          // 4 glass: cut the interior, then frosted white track
+          c.save(); c.globalCompositeOperation = "destination-out"; line(SA, S1, 0); c.lineWidth = 2 * R; c.strokeStyle = "#000"; c.stroke(); c.restore();
+          c.save(); interior(S1, R); c.clip();
+          c.fillStyle = "rgba(255,255,255,.38)"; c.fillRect(150, 0, 760, 260);                       // milky base
+          c.save(); c.filter = `blur(${5 * DPR}px)`; line(SA, S1, -R * 0.82); c.lineWidth = R * 0.5; c.strokeStyle = "rgba(24,8,70,.2)"; c.stroke(); c.restore();
+          line(SA, S1, -(R - 1)); c.lineWidth = 2; c.strokeStyle = "rgba(26,8,64,.55)"; c.stroke();      // 2 px inner top shadow (glass thickness)
+          line(SA, S1, R - 1.5); c.lineWidth = 1.5; c.strokeStyle = "rgba(255,255,255,.55)"; c.stroke();   // and the lit inner bottom lip
+          // 5 liquid
+          if (sf > SV - 4) {
+            c.save(); region(sf, bulge, tilt); c.clip();
+            c.fillStyle = grad; c.fillRect(150, 0, 760, 260);
+            if (maxOn) { c.fillStyle = `rgba(255,255,240,${(0.04 + 0.22 * Math.exp(-maxT * 4)) * aura})`; c.fillRect(150, 0, 760, 260); }
+            // flowing streaks (light and dark), travelling downstream
+            for (let k = 0; k < 7; k++) {
+              const base = -0.62 + 1.24 * H(k * 13 + 5), amp = 0.12 + 0.12 * H(k * 13 + 6), fq = 0.02 + 0.025 * H(k * 13 + 7), sp = 2.2 + 2.6 * H(k * 13 + 8) + agit * 3;
+              line(SV - 10, sf + 20, (s) => R * (base + amp * Math.sin(s * fq - t * sp + k * 2.1)), 5);
+              c.lineWidth = 4 + 9 * H(k * 13 + 9);
+              c.globalCompositeOperation = k % 2 ? "multiply" : "screen";
+              c.strokeStyle = k % 2 ? "rgba(120,10,0,.19)" : "rgba(255,255,210,.13)"; c.stroke();
+            }
+            c.globalCompositeOperation = "source-over";
+            // cylinder shading: belly shadow, top light, sharp specular on the liquid surface
+            c.save(); c.filter = `blur(${7 * DPR}px)`; c.globalCompositeOperation = "multiply"; line(SV - 30, sf + 30, R * 0.66); c.lineWidth = R * 0.74; c.strokeStyle = "rgba(90,0,30,.55)"; c.stroke(); c.restore();
+            c.save(); c.filter = `blur(${6 * DPR}px)`; c.globalCompositeOperation = "screen"; line(SV - 30, sf + 30, -R * 0.05); c.lineWidth = R * 0.42; c.strokeStyle = "rgba(255,250,190,.16)"; c.stroke(); c.restore();
+            c.save(); c.filter = `blur(${5 * DPR}px)`; c.globalCompositeOperation = "screen"; line(SV - 30, sf + 30, -R * 0.5); c.lineWidth = R * 0.3; c.strokeStyle = "rgba(255,255,255,.34)"; c.stroke(); c.restore();
+            line(SV, sf - 6, -R * 0.56); c.lineWidth = 2; c.strokeStyle = "rgba(255,255,255,.42)"; c.stroke();
+            // bubbles: rise from the belly to the top wall and pop
+            const NB = 34 + Math.round(agit * 18);
+            for (let i = 0; i < NB; i++) {
+              const h1 = H(i * 7 + 101), h2 = H(i * 7 + 102), h3 = H(i * 7 + 103), h4 = H(i * 7 + 104);
+              const per = (1.1 + h2 * 1.5) / (1 + agit * 0.9), u = ((t / per + h1) % 1 + 1) % 1;
+              const s = SV + 4 + h3 * Math.max(0, sf - SV - 18) + u * 22;
+              const off = R * 0.74 - u * R * 1.46 + Math.sin(t * 6 + h4 * 9) * 2.5, p = at(s);
+              const rb = 1.8 + h4 * 5 + u * 1.4, a = sm(0, 0.12, u) * (1 - sm(0.82, 1, u)) * (i >= 34 ? agit : 1);
+              if (a < 0.02 || s > sf - 6) continue;
+              const bx = p.x + p.nx * off, by = p.y + p.ny * off;
+              c.beginPath(); c.arc(bx, by, rb, 0, 6.2832); c.fillStyle = `rgba(255,255,255,${0.16 * a})`; c.fill();
+              c.lineWidth = 1.3; c.strokeStyle = `rgba(255,255,255,${0.7 * a})`; c.stroke();
+              c.beginPath(); c.arc(bx - rb * 0.35, by - rb * 0.38, rb * 0.3, 0, 6.2832); c.fillStyle = `rgba(255,255,255,${0.95 * a})`; c.fill();
+            }
+            c.restore();
+            // meniscus front: bright rim line + light spilling ahead into the empty glass
+            if (f < 0.985) {
+              const fp = at(sf), r = R, A = { x: fp.x - fp.nx * r, y: fp.y - fp.ny * r }, B = { x: fp.x + fp.nx * r, y: fp.y + fp.ny * r };
+              const cx2 = fp.x + fp.tx * bulge * 2 + fp.nx * tilt, cy2 = fp.y + fp.ty * bulge * 2 + fp.ny * tilt;
+              const col = liquidAt(fp.x);
+              const g = c.createRadialGradient(fp.x + fp.tx * bulge, fp.y + fp.ty * bulge, 4, fp.x + fp.tx * bulge, fp.y + fp.ty * bulge, 70 + agit * 30);
+              g.addColorStop(0, `rgba(${col},${0.55 + agit * 0.3})`); g.addColorStop(1, `rgba(${col},0)`);
+              c.save(); c.globalCompositeOperation = "lighter"; c.fillStyle = g; c.fillRect(fp.x - 120, fp.y - 120, 240, 240); c.restore();
+              c.save(); c.beginPath(); c.moveTo(A.x, A.y); c.quadraticCurveTo(cx2, cy2, B.x, B.y);
+              c.shadowColor = `rgba(${col},1)`; c.shadowBlur = 16 * DPR; c.lineWidth = 3.2; c.strokeStyle = `rgba(${col.map((v) => Math.round(v * 0.4 + 153)).join(",")},.95)`; c.stroke();
+              c.shadowBlur = 0; c.lineWidth = 1.3; c.strokeStyle = "rgba(255,255,255,.9)"; c.stroke(); c.restore();
+              // foam at the front
+              for (let i = 0; i < 9; i++) { const v = (i / 8) * 2 - 1, q = 1 - v * v, fx = fp.x + fp.nx * v * r * 0.9 + fp.tx * (bulge * 2 * q - 6 - 5 * H(i + 900)) , fy = fp.y + fp.ny * v * r * 0.9 + fp.ty * (bulge * 2 * q - 6);
+                c.beginPath(); c.arc(fx, fy, 1.6 + 2.4 * H(i + 950), 0, 6.2832); c.fillStyle = "rgba(255,255,255,.75)"; c.fill(); }
+            }
+          }
+          // 6 measuring scale on the inner bottom wall (skips the stage rings)
+          for (let k = 1; k < 20; k++) {
+            if (SURGE.some((sg) => Math.abs(sg.to - k / 20) < 0.03)) continue; const p = at(sOf(k / 20)), major = k % 5 === 0;
+            if (sOf(k / 20) > S1 - 20) continue;
+            c.beginPath(); c.moveTo(p.x + p.nx * R * (major ? 0.5 : 0.68), p.y + p.ny * R * (major ? 0.5 : 0.68)); c.lineTo(p.x + p.nx * R * 0.95, p.y + p.ny * R * 0.95);
+            c.lineWidth = major ? 2.2 : 1.6; c.strokeStyle = "rgba(255,255,255,.5)"; c.stroke();
+          }
+          // 7 glass highlights
+          c.save(); c.filter = `blur(${4 * DPR}px)`; line(SV, S1 - 20, -R * 0.42); c.lineWidth = R * 0.3; c.strokeStyle = "rgba(255,255,255,.16)"; c.stroke(); c.restore();
+          [[0, 0.24], [0.28, 0.52], [0.56, 0.78], [0.82, 0.97]].forEach(([a, b]) => {
+            const s0 = SV + a * (SEND - SV), s1 = Math.min(S1 - R * 0.5, SV + b * (SEND - SV)); if (s1 <= s0) return;
+            line(s0, s1, -R * 0.66); c.lineWidth = 4; c.strokeStyle = "rgba(255,255,255,.62)"; c.stroke();
+          });
+          line(SV, S1 - R * 0.4, R * 0.76); c.lineWidth = 2; c.strokeStyle = "rgba(255,255,255,.3)"; c.stroke();
+          // travelling glint on the top specular: after the dock, on each stage, and on MAX
+          [0.98].concat(SURGE.slice(0, -1).map((s) => s.hit)).forEach((tg) => {
+            const u = t - tg; if (u < 0 || u > 0.75) return; const sg = SV + u * (SEND - SV + 120) / 0.6, a = 1 - sm(0.45, 0.75, u);
+            for (let k = -10; k <= 10; k++) { const s = sg + k * 6; if (s < SV || s > S1 - 30) continue; const p = at(s), w = Math.pow(1 - Math.abs(k) / 10.5, 2);
+              c.beginPath(); c.arc(p.x - p.nx * R * 0.66, p.y - p.ny * R * 0.66, 2.6 + 2.4 * w, 0, 6.2832); c.fillStyle = `rgba(255,255,255,${0.9 * w * a})`; c.fill(); }
+          });
+          c.restore(); // interior clip
+          // stage rings across the whole tube (rim notches + glass ring); flash gold when reached
+          SURGE.slice(0, -1).forEach((s) => {
+            if (sOf(s.to) > S1 - 12) return;
+            const p = at(sOf(s.to)), u = t - s.hit, fl = u >= 0 ? Math.exp(-u * 3.2) : 0, lit = u >= 0 ? 1 : 0;
+            c.save(); c.beginPath(); c.moveTo(p.x - p.nx * (R + RIM - 1), p.y - p.ny * (R + RIM - 1)); c.lineTo(p.x + p.nx * (R + RIM - 1), p.y + p.ny * (R + RIM - 1));
+            if (fl > 0.02) { c.shadowColor = "rgba(255,214,90,1)"; c.shadowBlur = 22 * fl * DPR; }
+            c.lineWidth = 4 + fl * 3; c.strokeStyle = lit ? `rgba(255,${Math.round(236 - 20 * fl)},${Math.round(170 - 60 * fl)},${0.75 + 0.25 * fl})` : "rgba(255,255,255,.6)"; c.stroke();
+            c.shadowBlur = 0; c.lineWidth = 1.4; c.strokeStyle = "rgba(255,255,255,.95)"; c.stroke(); c.restore();
+          });
+          } // tube
+          // 8 MAX: one specular band (screen, skewed 30 deg) sweeps the whole tube, clipped to its outer silhouette
+          const sw = SWEEP(t);
+          if (sw > 0 && sw < 1) {
+            const e = ez("power2.inOut")(sw), bx = GX0 - 160 + e * (GX1 - GX0 + 320), k30 = Math.tan(Math.PI / 6), a = Math.sin(Math.PI * sw);
+            c.save(); interior(S1, R + RIM); c.clip(); c.globalCompositeOperation = "screen";
+            const g = c.createLinearGradient(bx - 46, 0, bx + 46, 0);
+            g.addColorStop(0, "rgba(255,255,255,0)"); g.addColorStop(0.5, `rgba(255,252,236,${0.95 * a})`); g.addColorStop(1, "rgba(255,255,255,0)");
+            c.translate(0, CY); c.transform(1, 0, -k30, 1, 0, 0); c.translate(0, -CY);
+            c.fillStyle = g; c.fillRect(bx - 46, CY - 140, 92, 280);
+            c.fillStyle = `rgba(255,255,255,${0.9 * a})`; c.fillRect(bx - 4, CY - 140, 5, 280);
+            c.restore();
+          }
+          // 9 collar: a metal sleeve where the tube leaves the badge; it hides the tube's start cap at all times
+          if (cl > 0.001) {
+            const cs0 = SV - 30, cs1 = SV - 30 + (54 * cl), hw = R + RIM + 6;
+            const sleeve = (o0, o1) => { c.beginPath();
+              for (let s = cs0; s <= cs1 + 0.01; s += 3) { const p = at(Math.min(s, cs1)); s === cs0 ? c.moveTo(p.x - p.nx * o0, p.y - p.ny * o0) : c.lineTo(p.x - p.nx * o0, p.y - p.ny * o0); }
+              for (let s = cs1; s >= cs0 - 0.01; s -= 3) { const p = at(Math.max(s, cs0)); c.lineTo(p.x + p.nx * o1, p.y + p.ny * o1); }
+              c.closePath(); };
+            c.save(); c.translate(0, 6); c.filter = `blur(${6 * DPR}px)`; sleeve(hw, hw); c.fillStyle = "rgba(10,0,28,.5)"; c.fill(); c.restore();
+            sleeve(hw + 1.5, hw + 1.5); c.fillStyle = "#14062b"; c.fill();
+            // cylindrical metal shading across the sleeve (top = -normal)
+            const pc = at((cs0 + cs1) / 2), cg = c.createLinearGradient(pc.x - pc.nx * hw, pc.y - pc.ny * hw, pc.x + pc.nx * hw, pc.y + pc.ny * hw);
+            cg.addColorStop(0, rimDark); cg.addColorStop(0.1, rimMid); cg.addColorStop(0.23, rimLight); cg.addColorStop(0.28, "rgba(255,255,255,.88)");
+            cg.addColorStop(0.34, rimMid); cg.addColorStop(0.6, rimMid); cg.addColorStop(0.88, rimDark); cg.addColorStop(1, "#14062b");
+            // the sleeve's own shadow on the tube just past its lip
+            { const p = at(cs1 + 3); c.beginPath(); c.moveTo(p.x - p.nx * (R + RIM), p.y - p.ny * (R + RIM)); c.lineTo(p.x + p.nx * (R + RIM), p.y + p.ny * (R + RIM));
+              c.save(); c.filter = `blur(${2 * DPR}px)`; c.lineWidth = 6; c.strokeStyle = "rgba(14,3,36,.55)"; c.stroke(); c.restore(); }
+            sleeve(hw, hw); c.fillStyle = cg; c.fill();
+            // two machined grooves + the lit outer lip
+            [10, 22].forEach((d) => { if (cs0 + d > cs1 - 3) return; const p = at(cs0 + d);
+              c.beginPath(); c.moveTo(p.x - p.nx * (hw - 3), p.y - p.ny * (hw - 3)); c.lineTo(p.x + p.nx * (hw - 3), p.y + p.ny * (hw - 3));
+              c.lineWidth = 3; c.strokeStyle = "rgba(20,4,48,.55)"; c.stroke();
+              c.save(); c.translate(1.6, 0); c.lineWidth = 1.2; c.strokeStyle = "rgba(255,255,255,.5)"; c.stroke(); c.restore(); });
+            { const p = at(cs1); c.beginPath(); c.moveTo(p.x - p.nx * hw, p.y - p.ny * hw); c.lineTo(p.x + p.nx * hw, p.y + p.ny * hw);
+              c.lineWidth = 2.4; c.strokeStyle = "rgba(255,255,255,.75)"; c.stroke(); }
+            sleeve(hw - 1, hw - 1); c.lineWidth = 1.2; c.strokeStyle = "rgba(255,255,255,.35)"; c.stroke();
+          }
+          // 10 embers off the fill head
+          c.save(); c.globalCompositeOperation = "lighter";
+          EMB.forEach((m) => {
+            const u = t - m.t; if (u < 0 || u > m.life || m.s > S1 + 10) return;
+            const p = at(m.s + m.along), d = (1 - Math.exp(-2.4 * u)) / 2.4;
+            const x = p.x + p.nx * m.across + m.vx * d + Math.sin(u * 8 + m.ph) * 4, y = p.y + p.ny * m.across + m.vy * d;
+            const k = u / m.life, a = Math.pow(1 - k, 1.4) * Math.min(1, u * 30) * (0.75 + 0.25 * Math.sin(u * 37 + m.ph));
+            const col = liquidAt(p.x).map((v) => Math.round(v * 0.55 + 115)).join(","), rr = m.r * (1 - 0.4 * k);
+            const g = c.createRadialGradient(x, y, 0, x, y, rr * 4.5); g.addColorStop(0, `rgba(${col},${0.7 * a})`); g.addColorStop(1, `rgba(${col},0)`);
+            c.fillStyle = g; c.fillRect(x - rr * 4.5, y - rr * 4.5, rr * 9, rr * 9);
+            c.beginPath(); c.arc(x, y, rr, 0, 6.2832); c.fillStyle = `rgba(255,253,240,${a})`; c.fill();
+          });
+          c.restore();
+        }
+
+        /* ---------------- timeline ---------------- */
+        Promise.all(["900 34px Inter"].map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const tl = gsap.timeline({ paused: true });
+          const D = T.end;
+          Look.drive(tl, 0, D, (p) => draw(p * D));
+          // entrance: big, then dock
+          gsap.set(["#meter", "#bloom"], { scale: 1.42 });
+          tl.fromTo(["#meter", "#bloom"], { scale: 1.42 }, { scale: 1, duration: 0.56, ease: "back.out(1.3)", immediateRender: false }, T.dock);
+          // nothing ghost-fades in (DESIGN 23): opacity is cut to 1 on the first frame, the spring/blur carries the entrance
+          gsap.set("#hexWrap", { opacity: 0, scale: 0.35, rotation: -140, filter: "blur(14px)" });
+          tl.set("#hexWrap", { opacity: 1 }, T.in);
+          tl.fromTo("#hexWrap", { scale: 0.35, rotation: -140, filter: "blur(14px)" },
+            { scale: 1, rotation: 0, filter: "blur(0px)", duration: 0.6, ease: "back.out(1.7)", immediateRender: false }, T.in);
+          tl.set("#hexWrap", { filter: "none" }, T.in + 0.6);
+          tl.fromTo("#hexSheen", { attr: { x: -140, opacity: 0.55 } }, { attr: { x: 300, opacity: 0.55 }, duration: 0.55, ease: "power2.inOut", immediateRender: false }, T.in + 0.28);
+          tl.set("#hexSheen", { attr: { opacity: 0 } }, T.in + 0.84);
+          gsap.set("#chip", { opacity: 0, y: -26, scale: 0.6 });
+          tl.set("#chip", { opacity: 1 }, T.in + 0.5);
+          tl.fromTo("#chip", { y: -26, scale: 0.6 }, { y: 0, scale: 1, duration: 0.45, ease: "back.out(2.6)", immediateRender: false }, T.in + 0.5);
+
+          // stages: scale punch + radial iris from the old form to the new one, light from the rim, chip roll + slam
+          SURGE.forEach((s, i) => {
+            const at = s.hit, last = i === SURGE.length - 1, n = i + 1, IR = 150;
+            tl.fromTo("#hexWrap", { scale: 1 }, { scale: last ? 1.22 : 1.18, duration: 0.07, ease: "power2.out", immediateRender: false }, at - 0.02);
+            tl.to("#hexWrap", { scale: 1, duration: 0.35, ease: "back.out(2.2)" }, at + 0.05);
+            // iris: the new portrait opens from the centre over the old one, settling in from a slight push
+            tl.fromTo("#irisC" + n, { attr: { r: 0 } }, { attr: { r: IR }, duration: 0.13, ease: "power1.in", immediateRender: false }, at + 0.02);
+            tl.fromTo("#pt" + n, { scale: 1.16, svgOrigin: HX + " " + HY }, { scale: 1, svgOrigin: HX + " " + HY, duration: 0.42, ease: "power3.out", immediateRender: false }, at + 0.02);
+            tl.fromTo("#pt" + i, { scale: 1, svgOrigin: HX + " " + HY }, { scale: 0.9, svgOrigin: HX + " " + HY, duration: 0.13, ease: "power2.in", immediateRender: false }, at + 0.02);
+            ["#irisRing", "#irisGlow"].forEach((id) => {
+              tl.fromTo(id, { attr: { r: 0, opacity: 0.9 } }, { attr: { r: IR, opacity: 0.9 }, duration: 0.13, ease: "power1.in", immediateRender: false }, at + 0.02);
+              tl.set(id, { attr: { opacity: 0, r: 0 } }, at + 0.15);
+            });
+            // the rim itself takes the hit: white-gold flash off the metal, decaying
+            tl.fromTo("#rimFlash", { attr: { opacity: 0.95 } }, { attr: { opacity: 0 }, duration: last ? 0.55 : 0.4, ease: "power2.out", immediateRender: false }, at + 0.01);
+            tl.fromTo("#chipStrip", { y: -56 * i }, { y: -56 * n, duration: 0.24, ease: "back.out(1.6)", immediateRender: false }, at + 0.04);
+            tl.fromTo("#chip", { scale: 1.5 }, { scale: 1, duration: 0.42, ease: "back.out(3)", immediateRender: false }, at + 0.14);
+            Look.impact(tl, at, { shake: "#shake", amp: last ? 14 : 5, dur: last ? 0.4 : 0.22, flash: 0, zoom: last ? 1.045 : 1.015 });
+          });
+          // MAX payoff: rim goes gold under the flash, the meter pops larger, exposure hit; the specular band + embers are on the canvas
+          tl.set("#rimGold", { attr: { opacity: 1 } }, TMAX + 0.03);
+          tl.fromTo("#chipGold", { opacity: 0 }, { opacity: 1, duration: 0.06, ease: "none", immediateRender: false }, TMAX + 0.03);
+          tl.fromTo(["#meter", "#bloom"], { scale: 1 }, { scale: 1.16, duration: 0.62, ease: "elastic.out(1,0.5)", immediateRender: false }, TMAX);
+          tl.fromTo(["#meter", "#bloom"], { scale: 1.16 }, { scale: 1, duration: 0.42, ease: "power3.inOut", immediateRender: false }, T.settle);
+          // payoff light stays on the object (DESIGN 22): bloom on the badge + tube, peak held 3 frames, no frame-wide exposure
+          tl.fromTo("#bloom", { opacity: 0 }, { opacity: plate ? 1 : 0.55, duration: 1 / 30, ease: "none", immediateRender: false }, TMAX);
+          tl.fromTo("#bloom", { opacity: plate ? 1 : 0.55 }, { opacity: 0, duration: 0.55, ease: "power2.out", immediateRender: false }, TMAX + 4 / 30);
+
+          // exit (DESIGN 14): chip collapses into the badge, tube retracts into the collar, collar slides under, badge spins down to a point
+          tl.fromTo("#chip", { scale: 1, y: 0, filter: "blur(0px)" }, { scale: 0, y: -40, filter: "blur(6px)", duration: 0.18, ease: "power3.in", immediateRender: false }, T.out);
+          tl.set("#chip", { opacity: 0 }, T.out + 0.18);
+          tl.fromTo("#hexWrap", { scale: 1 }, { scale: 1.08, duration: 0.07, ease: "power2.out", immediateRender: false }, T.out + 0.32);
+          tl.fromTo("#hexWrap", { scale: 1.08, rotation: 0, filter: "blur(0px)" }, { scale: 0, rotation: 120, filter: "blur(8px)", duration: 0.18, ease: "power3.in", immediateRender: false }, T.out + 0.39);
+          tl.set("#hexWrap", { opacity: 0 }, T.out + 0.57);
+
+          tl.set({}, {}, D);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

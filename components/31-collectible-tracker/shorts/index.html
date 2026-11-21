@@ -1,0 +1,428 @@
+<!doctype html>
+<!-- 31 Collectible tracker, variant B (9:16, 1080x1920, 30 fps): "Death counter".
+     The creators' death tally, top-left: a real 3D bone skull (bevelled ivory, hinged jaw, sockets that flare red) with an
+     extruded "x N" multiplier. Each failed attempt flips the count over, shakes the skull and snaps its jaw.
+     Variable bg: "plate" / "none". -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #gl { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; pointer-events: none; z-index: 2; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.3" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <video id="s0" class="clip shot" src="assets/shots/v51-gp-police-desert-v.mp4" muted playsinline data-start="0" data-duration="0.5" data-media-start="0.1" data-track-index="0"></video>
+        <video id="s1" class="clip shot" src="assets/shots/v56-gp-truck-crash-v.mp4" muted playsinline data-start="0.5" data-duration="2.3" data-media-start="0" data-track-index="0"></video>
+        <video id="s2" class="clip shot" src="assets/shots/v30-street-explosion-v.mp4" muted playsinline data-start="2.8" data-duration="1.6" data-media-start="0" data-track-index="0"></video>
+        <video id="s3" class="clip shot" src="assets/shots/v36-hills-city-view-v.mp4" muted playsinline data-start="4.4" data-duration="1.9" data-media-start="0" data-track-index="0"></video>
+      </div></div>
+      <canvas id="gl" data-layout-allow-occlusion width="1080" height="1920"></canvas>
+    </div>
+    <script>
+      const CONFIG = {
+        start: 1,                            // count shown on entrance
+        deaths: [1.6, 2.9],                  // each failed attempt ticks the count up by one (seconds; put them on your crash frames). The last one is the big beat.
+        skull: { x: 204, y: 446, size: 1.25 },             // skull centre on the 1080x1920 canvas, scale
+        number: { x: 352, cap: 150 },                      // multiplier: left edge of the "x", digit cap height
+        bone: "#F4ECDD", boneSide: "#C9B99C", ink: "#140607", digit: "#FFFFFF", digitSide: "#A30D1C", red: "#FF2E3A",
+        dock: { at: 3.75, dur: 0.55, scale: 0.8, dx: -22, dy: -30 },   // after the last death the tally settles smaller into the corner
+        timing: { in: 0.15, num: 0.4, out: 5.6, end: 6.3 }
+      };
+
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const C = CONFIG, T = C.timing, $ = (s) => document.querySelector(s), W = 1080, H = 1920;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x)), seg = (t, a, d) => clamp((t - a) / d, 0, 1), lerp = (a, b, k) => a + (b - a) * k;
+        const E = (n) => gsap.parseEase(n);
+        const wx = (x) => x - W / 2, wy = (y) => H / 2 - y;
+
+        // ---------- renderer: z = 0 maps 1:1 to canvas px ----------
+        const canvas = $("#gl");
+        const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+        renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 0);
+        renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15;
+        renderer.localClippingEnabled = true;
+        const scene = new THREE.Scene();
+        const FOV = 22, DIST = (H / 2) / Math.tan((FOV / 2) * Math.PI / 180);
+        const camera = new THREE.PerspectiveCamera(FOV, W / H, 10, DIST * 3);
+        camera.position.set(0, 0, DIST); camera.lookAt(0, 0, 0);
+
+        // studio environment: soft overhead box, cool strip left, warm bounce low, dark floor
+        const envScene = new THREE.Scene();
+        envScene.add(new THREE.Mesh(new THREE.SphereGeometry(50, 48, 24), new THREE.ShaderMaterial({
+          side: THREE.BackSide, depthWrite: false,
+          vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 top = vec3(0.8,0.78,0.74), hor = vec3(0.2,0.17,0.16), low = vec3(0.02,0.012,0.012);" +
+            " vec3 c = y > 0.0 ? mix(hor, top, smoothstep(0.1, 0.9, y)) : mix(hor, low, smoothstep(0.0, 0.35, -y)); gl_FragColor = vec4(c, 1.0); }"
+        })));
+        const panel = (w, h, x, y, z, c) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); envScene.add(m); };
+        panel(40, 10, -4, 30, 26, new THREE.Color(4.0, 3.9, 3.7));
+        panel(5, 34, -30, 4, 22, new THREE.Color(2.2, 2.5, 3.0));
+        panel(34, 6, 6, -6, 34, new THREE.Color(1.4, 0.7, 0.6));
+        panel(14, 26, 32, 8, 10, new THREE.Color(2.0, 1.6, 1.4));
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        scene.environment = pmrem.fromScene(envScene, 0.0, 0.1, 200).texture;
+        const key = new THREE.DirectionalLight(0xfff4ea, 1.6); key.position.set(-0.75, 0.85, 0.75); scene.add(key); scene.add(key.target);   // raking key, top-left ~35 deg
+        const warmRim = new THREE.DirectionalLight(0xffc98a, 1.5); warmRim.position.set(1.0, 0.3, -0.3); scene.add(warmRim);
+        const redRim = new THREE.DirectionalLight(0xff2433, 0.0); redRim.position.set(0.9, -0.2, 0.5); scene.add(redRim);
+        scene.add(new THREE.HemisphereLight(0xfff6ee, 0x22100c, 0.55));
+
+        // ---------- materials ----------
+        // bone: a vertical ramp (lit crown -> shadowed jaw); UVs of the extruded faces are skull-local px
+        const BC = document.createElement("canvas"); BC.width = 4; BC.height = 256; { const g = BC.getContext("2d"), lg = g.createLinearGradient(0, 0, 0, 256);
+          lg.addColorStop(0, "#FFFCF4"); lg.addColorStop(0.45, C.bone); lg.addColorStop(1, "#C7B494"); g.fillStyle = lg; g.fillRect(0, 0, 4, 256); }
+        const boneTex = new THREE.CanvasTexture(BC); boneTex.colorSpace = THREE.SRGBColorSpace;
+        boneTex.repeat.set(1, 1 / 236); boneTex.offset.set(0, 130 / 236);
+        const boneMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: boneTex, roughness: 0.36, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.09, envMapIntensity: 1.0, sheen: 0.3, sheenColor: new THREE.Color("#fff3e0"), sheenRoughness: 0.5 });
+        const boneSide = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.boneSide), roughness: 0.4, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.12, envMapIntensity: 0.9 });
+        const inkMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(C.ink), roughness: 0.6, metalness: 0 });
+        // socket floor: near-black, with a red ember at each pupil that flares white-hot on a death
+        const eyeMat = new THREE.ShaderMaterial({ toneMapped: false, uniforms: { uK: { value: 0 }, uHot: { value: 0 } },
+          vertexShader: "varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "uniform float uK; uniform float uHot; varying vec2 vP; void main(){ vec2 c = vec2(abs(vP.x), vP.y) - vec2(36.0, 8.0); float r2 = dot(c, c);" +
+            " vec3 col = vec3(0.03, 0.008, 0.01) + vec3(1.0, 0.1, 0.12) * uK * exp(-r2 / 260.0) + vec3(1.0, 0.8, 0.7) * uHot * exp(-r2 / 40.0);" +
+            " gl_FragColor = vec4(min(col, vec3(1.0)), 1.0); }" });
+        const digFace = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.digit), roughness: 0.24, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 0.9, emissive: new THREE.Color(C.red), emissiveIntensity: 0 });
+        const digSide = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.digitSide), roughness: 0.3, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 0.85 });
+        // the counter window: digits roll through it (top + bottom clip planes, in numRig space, pushed to world each frame)
+        const winLocal = [new THREE.Plane(new THREE.Vector3(0, -1, 0), 0), new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)], winWorld = [new THREE.Plane(), new THREE.Plane()];
+        digFace.clippingPlanes = winWorld; digSide.clippingPlanes = winWorld;
+        const digInk = new THREE.MeshStandardMaterial({ color: new THREE.Color(C.ink), roughness: 0.6, metalness: 0, clippingPlanes: winWorld });
+        const xFace = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.red), roughness: 0.26, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 0.9 });
+
+        // ---------- skull: one bevelled ivory extrusion (cranium, cheeks, upper teeth) + a hinged jaw ----------
+        function skullShape(P) {
+          const p = P || new THREE.Shape();
+          p.moveTo(-40, -60); p.lineTo(-58, -42);
+          p.bezierCurveTo(-74, -30, -92, -4, -92, 22);
+          p.bezierCurveTo(-92, 80, -52, 106, 0, 106);
+          p.bezierCurveTo(52, 106, 92, 80, 92, 22);
+          p.bezierCurveTo(92, -4, 74, -30, 58, -42);
+          p.lineTo(40, -60); p.quadraticCurveTo(0, -64, -40, -60);
+          p.closePath(); return p;
+        }
+        const eyeC = [[-38, 10], [38, 10]];
+        function eyePath(i) { const h = new THREE.Path(), s = i ? 1 : -1, cx = eyeC[i][0], cy = eyeC[i][1];
+          // a rounded socket, a touch heavier at the outer-bottom (reads as a skull, not two circles)
+          h.moveTo(cx, cy + 27);
+          h.bezierCurveTo(cx + s * 22, cy + 27, cx + s * 30, cy + 10, cx + s * 29, cy - 6);
+          h.bezierCurveTo(cx + s * 28, cy - 22, cx + s * 14, cy - 29, cx, cy - 28);
+          h.bezierCurveTo(cx - s * 16, cy - 27, cx - s * 27, cy - 18, cx - s * 27, cy - 2);
+          h.bezierCurveTo(cx - s * 27, cy + 16, cx - s * 18, cy + 27, cx, cy + 27);
+          return h; }
+        function nosePath() { const h = new THREE.Path();
+          h.moveTo(0, -22); h.quadraticCurveTo(-5, -22, -10, -36); h.quadraticCurveTo(-11, -42, -5, -41); h.lineTo(0, -38); h.lineTo(5, -41);
+          h.quadraticCurveTo(11, -42, 10, -36); h.quadraticCurveTo(5, -22, 0, -22); return h; }
+        function tooth(x0, x1, yTop, yBot, rb) {   // rounded at the biting edge
+          const p = new THREE.Shape(); p.moveTo(x0, yTop); p.lineTo(x1, yTop);
+          if (yBot < yTop) { p.lineTo(x1, yBot + rb); p.quadraticCurveTo(x1, yBot, x1 - rb, yBot); p.lineTo(x0 + rb, yBot); p.quadraticCurveTo(x0, yBot, x0, yBot + rb); }
+          else { p.lineTo(x1, yBot - rb); p.quadraticCurveTo(x1, yBot, x1 - rb, yBot); p.lineTo(x0 + rb, yBot); p.quadraticCurveTo(x0, yBot, x0, yBot - rb); }
+          p.closePath(); return p; }
+        const TW = 19.5, TG = 3.5, teethX = (i) => -44 + i * (TW + TG);
+        const sk = skullShape(); sk.holes.push(eyePath(0), eyePath(1), nosePath());
+        const DEPTH = 24, BT = 8, BS = 6;
+        const skGeo = new THREE.ExtrudeGeometry(sk, { depth: DEPTH, bevelEnabled: true, bevelThickness: BT, bevelSize: BS, bevelOffset: -BS, bevelSegments: 7, curveSegments: 20 });
+        skGeo.translate(0, 0, -DEPTH / 2);
+        const skull = new THREE.Mesh(skGeo, [boneMat, boneSide]);
+        const upperTeeth = new THREE.Group();
+        for (let i = 0; i < 4; i++) { const g = new THREE.ExtrudeGeometry(tooth(teethX(i), teethX(i) + TW, -52, -84, 6), { depth: 14, bevelEnabled: true, bevelThickness: 3, bevelSize: 2.5, bevelOffset: -2.5, bevelSegments: 4, curveSegments: 6 });
+          g.translate(0, 0, -7); upperTeeth.add(new THREE.Mesh(g, [boneMat, boneSide])); }
+        const teethInk = new THREE.Mesh(new THREE.ExtrudeGeometry(tooth(-44, 44, -52, -84, 6), { depth: 4, bevelEnabled: true, bevelThickness: 1, bevelSize: 8, bevelSegments: 2, curveSegments: 6 }), inkMat);
+        teethInk.position.z = -DEPTH / 2 - BT - 10;
+        const skInk = new THREE.Mesh(new THREE.ExtrudeGeometry(skullShape(), { depth: 6, bevelEnabled: true, bevelThickness: 2, bevelSize: 8, bevelSegments: 3, curveSegments: 20 }), inkMat);
+        skInk.position.z = -DEPTH / 2 - BT - 10;
+        // socket glow: red emissive discs sitting deep in the eye and nose holes
+        const glowGeo = new THREE.ShapeGeometry([eyePath(0), eyePath(1)].map((p) => new THREE.Shape(p.getPoints(24))), 12);
+        const eyeGlow = new THREE.Mesh(glowGeo, eyeMat); eyeGlow.position.z = -DEPTH / 2 - BT - 1;   // between the skull's back cap and the ink plate
+        // jaw: a rounded mandible block with four lower teeth, hinged at the top of the teeth
+        const HINGE = -88;
+        function jawShape(P) { const p = P || new THREE.Shape();
+          p.moveTo(-46, -100); p.lineTo(46, -100); p.lineTo(46, -108);
+          p.bezierCurveTo(46, -122, 30, -128, 0, -128); p.bezierCurveTo(-30, -128, -46, -122, -46, -108);
+          p.closePath(); return p; }
+        function jawOutline() { const p = new THREE.Shape(); p.moveTo(-46, -88); p.lineTo(46, -88); p.lineTo(46, -108);
+          p.bezierCurveTo(46, -122, 30, -128, 0, -128); p.bezierCurveTo(-30, -128, -46, -122, -46, -108); p.closePath(); return p; }
+        const jawGeo = new THREE.ExtrudeGeometry(jawShape(), { depth: DEPTH - 4, bevelEnabled: true, bevelThickness: BT - 1, bevelSize: BS - 1, bevelOffset: -(BS - 1), bevelSegments: 6, curveSegments: 16 });
+        jawGeo.translate(0, -HINGE, -(DEPTH - 4) / 2);
+        const jaw = new THREE.Group(); jaw.add(new THREE.Mesh(jawGeo, [boneMat, boneSide]));
+        for (let i = 0; i < 4; i++) { const g = new THREE.ExtrudeGeometry(tooth(teethX(i), teethX(i) + TW, -106, -88, 6), { depth: 14, bevelEnabled: true, bevelThickness: 3, bevelSize: 2.5, bevelOffset: -2.5, bevelSegments: 4, curveSegments: 6 });
+          g.translate(0, -HINGE, -7); jaw.add(new THREE.Mesh(g, [boneMat, boneSide])); }
+        const jawInk = new THREE.Mesh(new THREE.ExtrudeGeometry(jawOutline(), { depth: 4, bevelEnabled: true, bevelThickness: 1, bevelSize: 8, bevelSegments: 2, curveSegments: 16 }), inkMat);
+        jawInk.geometry.translate(0, -HINGE, 0); jawInk.position.z = -DEPTH / 2 - BT - 10; jaw.add(jawInk);
+        jaw.position.y = HINGE;
+
+        // ---------- baked bone surface: a domed normal map (cranium, cheeks, each tooth, jaw) + cavity shading in the colour map ----------
+        // Cap UVs are skull-local px, so one 240x260 box (x -120..120, y -140..120) covers skull, teeth and jaw.
+        (function bakeBone() {
+          const BX = -120, BY = 120, BW = 240, BH = 260, CW = 480, CH = 520, k = CW / BW;
+          const mk = () => { const c = document.createElement("canvas"); c.width = CW; c.height = CH; return c; };
+          const path = (x, shp) => { const pts = shp.getPoints(24); pts.forEach((p, i) => { const X = (p.x - BX) * k, Y = (BY - p.y) * k; i ? x.lineTo(X, Y) : x.moveTo(X, Y); }); x.closePath(); };
+          const sil = mk(), sx = sil.getContext("2d");
+          sx.fillStyle = "#000"; sx.fillRect(0, 0, CW, CH); sx.fillStyle = "#fff";
+          sx.beginPath(); path(sx, skullShape()); sx.fill();
+          sx.fillStyle = "#000"; sx.beginPath(); path(sx, eyePath(0)); path(sx, eyePath(1)); path(sx, nosePath()); sx.fill();
+          sx.fillStyle = "#fff";
+          for (let i = 0; i < 4; i++) { sx.beginPath(); path(sx, tooth(teethX(i), teethX(i) + TW, -60, -84, 6)); sx.fill(); sx.beginPath(); path(sx, tooth(teethX(i), teethX(i) + TW, -106, -88, 6)); sx.fill(); }
+          sx.beginPath(); path(sx, jawShape()); sx.fill();
+          const blurOf = (src, r) => { const c = mk(), x = c.getContext("2d"); x.fillStyle = "#000"; x.fillRect(0, 0, CW, CH); x.filter = "blur(" + r + "px)"; x.drawImage(src, 0, 0); return x.getImageData(0, 0, CW, CH).data; };
+          const wide = blurOf(sil, 34), mid = blurOf(sil, 10), tight = blurOf(sil, 3);
+          // height = wide dome + mid shoulder + tight edge roll, each with its own slope gain
+          const h = new Float32Array(CW * CH);
+          for (let i = 0; i < CW * CH; i++) h[i] = (0.55 * 45 * wide[i * 4] + 0.3 * 18 * mid[i * 4] + 0.15 * 8 * tight[i * 4]) / 255;
+          const nC = mk(), nx = nC.getContext("2d"), nd = nx.createImageData(CW, CH), cC = mk(), cx = cC.getContext("2d"), cd = cx.createImageData(CW, CH);
+          const S = 1, ramp = [[0, [255, 252, 244]], [0.45, [244, 236, 221]], [1, [196, 178, 146]]];
+          const rampAt = (v) => { for (let j = 1; j < ramp.length; j++) if (v <= ramp[j][0]) { const a = ramp[j - 1], b = ramp[j], u = (v - a[0]) / (b[0] - a[0]); return a[1].map((q, n) => q + (b[1][n] - q) * u); } return ramp[ramp.length - 1][1]; };
+          for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) {
+            const i = y * CW + x, xl = Math.max(0, x - 1), xr = Math.min(CW - 1, x + 1), yu = Math.max(0, y - 1), yd = Math.min(CH - 1, y + 1);
+            const dx = h[y * CW + xr] - h[y * CW + xl], dy = h[yd * CW + x] - h[yu * CW + x];
+            let X = -dx * S, Y = dy * S, Z = 1; const L = Math.hypot(X, Y, Z); X /= L; Y /= L; Z /= L;
+            nd.data[i * 4] = (X * 0.5 + 0.5) * 255; nd.data[i * 4 + 1] = (Y * 0.5 + 0.5) * 255; nd.data[i * 4 + 2] = (Z * 0.5 + 0.5) * 255; nd.data[i * 4 + 3] = 255;
+            const cav = 0.6 + 0.4 * Math.min(1, Math.max(0, (mid[i * 4] / 255 - 0.3) / 0.5));   // darker into the sockets, teeth gaps and edges
+            const rc = rampAt(y / CH);
+            cd.data[i * 4] = rc[0] * cav; cd.data[i * 4 + 1] = rc[1] * cav; cd.data[i * 4 + 2] = rc[2] * cav * 0.97; cd.data[i * 4 + 3] = 255;
+          }
+          nx.putImageData(nd, 0, 0); cx.putImageData(cd, 0, 0);
+          const nTex = new THREE.CanvasTexture(nC), cTex = new THREE.CanvasTexture(cC); cTex.colorSpace = THREE.SRGBColorSpace;
+          [nTex, cTex].forEach((tx) => { tx.repeat.set(1 / BW, 1 / BH); tx.offset.set(-BX / BW, (BH - BY) / BH); });
+          boneMat.map = cTex; boneMat.normalMap = nTex; boneMat.clearcoatNormalMap = nTex;
+          boneMat.normalScale.set(1, 1); boneMat.clearcoatNormalScale.set(1, 1); boneMat.needsUpdate = true;
+        })();
+
+        // ---------- the crack: grows from the crown on the first death, splits across the dome on the last ----------
+        const CRK = { x0: -100, y0: -10, w: 200, h: 120, k: 5 };
+        const crackCanvas = document.createElement("canvas"); crackCanvas.width = CRK.w * CRK.k; crackCanvas.height = CRK.h * CRK.k;
+        const crackTex = new THREE.CanvasTexture(crackCanvas); crackTex.colorSpace = THREE.SRGBColorSpace;
+        const crack = new THREE.Mesh(new THREE.PlaneGeometry(CRK.w, CRK.h), new THREE.MeshBasicMaterial({ map: crackTex, transparent: true, depthWrite: false, toneMapped: false }));
+        crack.position.set(CRK.x0 + CRK.w / 2, CRK.y0 + CRK.h / 2, DEPTH / 2 + BT + 0.4); crack.renderOrder = 2;
+        const CR1 = [[9, 105], [3, 95], [12, 85], [5, 73], [14, 62]];
+        const CR2 = [[14, 62], [6, 51], [13, 43], [8, 37]], CRA = [[12, 85], [25, 91], [37, 87], [50, 94]], CRB = [[6, 51], [-7, 57], [-17, 51], [-28, 56]];
+        let crackKey = "";
+        function drawCrack(p1, p2) {
+          const key = p1.toFixed(3) + "|" + p2.toFixed(3); if (key === crackKey) return; crackKey = key;
+          const x = crackCanvas.getContext("2d"), K = CRK.k; x.clearRect(0, 0, crackCanvas.width, crackCanvas.height);
+          const P = (q) => [(q[0] - CRK.x0) * K, (CRK.y0 + CRK.h - q[1]) * K];
+          const stroke = (pts, prog, w0, w1) => {
+            if (prog <= 0) return; const n = pts.length - 1, upto = prog * n;
+            for (let pass = 0; pass < 2; pass++) for (let i = 0; i < n && i < upto; i++) {
+              const f = Math.min(1, upto - i), a = P(pts[i]), b0 = P(pts[i + 1]), b = [a[0] + (b0[0] - a[0]) * f, a[1] + (b0[1] - a[1]) * f];
+              const w = (w0 + (w1 - w0) * ((i + 0.5) / n)) * K;
+              x.lineCap = "round"; x.lineJoin = "round"; x.beginPath();
+              if (pass === 0) { x.moveTo(a[0] + 0.9 * K, a[1] + 0.9 * K); x.lineTo(b[0] + 0.9 * K, b[1] + 0.9 * K); x.strokeStyle = "rgba(255,250,238,0.85)"; x.lineWidth = w * 0.55; }
+              else { x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]); x.strokeStyle = "rgba(44,26,14,0.96)"; x.lineWidth = w; }
+              x.stroke();
+            }
+          };
+          stroke(CR1, p1, 5.2, 3.4); stroke(CR2, p2, 3.6, 1.5); stroke(CRA, p2, 3.0, 1.1); stroke(CRB, p2, 2.8, 1.0);
+          crackTex.needsUpdate = true;
+        }
+        drawCrack(0, 0);
+
+        // ---------- bone chips knocked off the crack on the last death ----------
+        const chipShapes = [[[0, 0], [9, 2], [7, 9], [-1, 7]], [[0, 0], [7, -1], [10, 6], [3, 9], [-2, 5]], [[0, 0], [6, 0], [4, 7]], [[0, 0], [8, 3], [5, 8], [-1, 6]]];
+        const chips = chipShapes.map((pts) => { const sh = new THREE.Shape(pts.map((p) => new THREE.Vector2(p[0] - 4, p[1] - 4)));
+          const g = new THREE.ExtrudeGeometry(sh, { depth: 4, bevelEnabled: true, bevelThickness: 1.5, bevelSize: 1.2, bevelSegments: 2 }); g.translate(0, 0, -2);
+          const m = new THREE.Mesh(g, [boneMat, boneSide]); m.visible = false; return m; });
+        const CHIPV = [[-170, 300, 9], [140, 360, -11], [230, 200, 14], [-60, 420, -7]];
+
+        // soft drop shadow that lands on the footage
+        function shadowPlane(drawFn, w, h, blur) {
+          const SC = document.createElement("canvas"); SC.width = 512; SC.height = Math.round(512 * h / w); const x = SC.getContext("2d");
+          x.filter = "blur(" + Math.round(blur * 512 / w) + "px)"; x.fillStyle = "#000"; drawFn(x, SC.width / w); x.fill();
+          const tex = new THREE.CanvasTexture(SC); tex.colorSpace = THREE.SRGBColorSpace;
+          const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.5, depthWrite: false, color: 0x080203 }));
+          m.renderOrder = -1; return m;
+        }
+        const shSkull = shadowPlane((x, k) => { x.beginPath();
+          skullShape().getPoints(20).forEach((p, i) => { const X = (p.x + 150) * k, Y = (150 - p.y) * k; i ? x.lineTo(X, Y) : x.moveTo(X, Y); }); x.closePath();
+          jawOutline().getPoints(12).forEach((p, i) => { const X = (p.x + 150) * k, Y = (150 - p.y) * k; i ? x.lineTo(X, Y) : x.moveTo(X, Y); }); x.closePath(); }, 300, 300, 12);
+
+        // red halo behind the skull on each death (normal blending: survives the transparent render)
+        const haloMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, toneMapped: false, uniforms: { uA: { value: 0 } },
+          vertexShader: "varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "uniform float uA; varying vec2 vU; void main(){ float r = length(vU - 0.5) * 2.0; float a = (exp(-r * r * 4.5) * 0.75 + exp(-r * r * 16.0) * 0.35) * uA; gl_FragColor = vec4(1.0, 0.14, 0.18, clamp(a, 0.0, 1.0)); }" });
+        const halo = new THREE.Mesh(new THREE.PlaneGeometry(440, 440), haloMat); halo.position.set(0, 0, -60); halo.renderOrder = 0;
+
+        const skullRig = new THREE.Group(); [skInk, teethInk, eyeGlow, skull, crack, upperTeeth, jaw].forEach((o) => skullRig.add(o)); chips.forEach((c) => skullRig.add(c));
+        const skullSpin = new THREE.Group(); skullSpin.add(skullRig);
+        const skullPos = new THREE.Group(); skullPos.add(halo); skullPos.add(skullSpin); shSkull.position.set(12, -18, -80); skullPos.add(shSkull);
+        const counter = new THREE.Group(); counter.add(skullPos); scene.add(counter);
+        const SX = wx(C.skull.x), SY = wy(C.skull.y);
+        counter.position.set(SX, SY, 0); skullPos.scale.setScalar(C.skull.size);
+
+        // ---------- the multiplier: traced Archivo (wdth 80, wght 900) glyphs, italic shear, bevelled extrusion + ink outline ----------
+        const F = window.NUM_GLYPHS, SKEW = 0.16, MIN_SEG = 0.6, CURVE_SEG = 7;
+        function glyphShapes(d, ox, oy, s) {
+          const sp = new THREE.ShapePath(); const re = /([MLQCZ])([^MLQCZ]*)/g; let m;
+          while ((m = re.exec(d))) {
+            const n = m[2].trim() ? m[2].trim().split(/[\s,]+/).map(Number) : [];
+            const P = []; for (let i = 0; i < n.length; i += 2) P.push(ox + (n[i] - SKEW * n[i + 1]) * s, oy - n[i + 1] * s);
+            if (m[1] === "M") sp.moveTo(P[0], P[1]);
+            else if (m[1] === "L") sp.lineTo(P[0], P[1]);
+            else if (m[1] === "Q") sp.quadraticCurveTo(P[0], P[1], P[2], P[3]);
+            else if (m[1] === "C") sp.bezierCurveTo(P[0], P[1], P[2], P[3], P[4], P[5]);
+          }
+          const clean = (pts) => { const out = []; for (const p of pts) if (!out.length || p.distanceTo(out[out.length - 1]) > MIN_SEG) out.push(p);
+            while (out.length > 3 && out[0].distanceTo(out[out.length - 1]) <= MIN_SEG) out.pop(); return out; };
+          return sp.toShapes(false).map((sh) => { const s2 = new THREE.Shape(clean(sh.getPoints(CURVE_SEG)));
+            sh.holes.forEach((h) => s2.holes.push(new THREE.Path(clean(h.getPoints(CURVE_SEG))))); return s2; });
+        }
+        const CAP = C.number.cap, NS = CAP / F.cap, TRACK = -30, GD = 16;
+        function glyphGroup(str, x0, base, s, faceMat) {   // group pivot at its ink centre; returns {grp, w}
+          const grp = new THREE.Group(), geos = [], inks = [], all = []; let pen = 0;
+          for (const ch of str) {
+            const g = F.g[ch]; if (!g) continue;
+            const shapes = glyphShapes(g[1], x0 + pen * s, base, s); all.push(...shapes);
+            geos.push(new THREE.ExtrudeGeometry(shapes, { depth: GD, bevelEnabled: true, bevelThickness: 4, bevelSize: 3, bevelOffset: -3, bevelSegments: 5, curveSegments: 1 }));
+            inks.push(new THREE.ExtrudeGeometry(shapes, { depth: 4, bevelEnabled: true, bevelThickness: 1, bevelSize: 7, bevelSegments: 2, curveSegments: 1 }));
+            pen += g[0] + TRACK;
+          }
+          const box = new THREE.Box3(); geos.forEach((g) => { g.computeBoundingBox(); box.union(g.boundingBox); });
+          const cx = (box.min.x + box.max.x) / 2, cy = (box.min.y + box.max.y) / 2;
+          geos.forEach((geo) => { geo.translate(-cx, -cy, -GD / 2); geo.computeVertexNormals(); grp.add(new THREE.Mesh(geo, [faceMat, digSide])); });
+          inks.forEach((geo) => { geo.translate(-cx, -cy, -GD / 2 - 9); grp.add(new THREE.Mesh(geo, digInk)); });
+          // soft drop shadow traced from the glyph outlines themselves (no box behind the type)
+          const pad = 34, sw = box.max.x - box.min.x + 2 * pad, sh = box.max.y - box.min.y + 2 * pad, k = 2;
+          const SC = document.createElement("canvas"); SC.width = Math.ceil(sw * k); SC.height = Math.ceil(sh * k);
+          const x = SC.getContext("2d"); x.filter = "blur(" + 9 * k + "px)"; x.fillStyle = "#000"; x.beginPath();
+          const trace = (pts) => { pts.forEach((p, i) => { const X = (p.x - box.min.x + pad) * k, Y = (box.max.y + pad - p.y) * k; i ? x.lineTo(X, Y) : x.moveTo(X, Y); }); x.closePath(); };
+          all.forEach((shp) => { trace(shp.getPoints(4)); shp.holes.forEach((h) => trace(h.getPoints(4))); });
+          x.fill("evenodd");
+          const stex = new THREE.CanvasTexture(SC); stex.colorSpace = THREE.SRGBColorSpace;
+          const shm = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), new THREE.MeshBasicMaterial({ map: stex, transparent: true, opacity: 0.5, depthWrite: false, color: 0x080203 }));
+          shm.position.set((box.min.x + box.max.x) / 2 - cx + 9, (box.min.y + box.max.y) / 2 - cy - 13, -GD / 2 - 40); shm.renderOrder = -1; grp.add(shm);
+          grp.position.set(cx, cy, 0); grp.userData = { cy, shadow: shm }; return { grp, x1: box.max.x };
+        }
+        // layout in counter-local px (origin = skull centre); baseline puts the digits' optical centre on the skull's eye line
+        const base = -CAP / 2 + 4, nx0 = C.number.x - C.skull.x;
+        const XS = 0.62, xg = F.g["×"];
+        const xMark = glyphGroup("×", nx0 - xg[2] * NS * XS, base + CAP / 2 - 264 * NS * XS, NS * XS, xFace);   // x centred on the digits' cap height
+        const dX0 = xMark.x1 + 14;
+        const counts = []; for (let k = 0; k <= C.deaths.length; k++) counts.push(glyphGroup(String(C.start + k), dX0 - F.g[String(C.start + k)[0]][2] * NS, base, NS, digFace).grp);
+        const numRig = new THREE.Group(); numRig.add(xMark.grp); counts.forEach((g) => numRig.add(g));
+        const numPos = new THREE.Group(); numPos.add(numRig); counter.add(numPos);
+
+        // ---------- motion: a pure function of t ----------
+        const eBack = E("back.out(1.8)"), eIn3 = E("power3.in"), eOut3 = E("power3.out"), eEl = E("elastic.out(1,0.38)"), eFlip = E("back.out(2.4)");
+        const D = C.deaths;
+        function renderAt(t) {
+          // entrance: the skull spins in on Y (real thickness shows), drops 70 px and lands with a squash; the jaw lags and clacks
+          const ti = t - T.in, ui = seg(ti, 0, 0.5);
+          const out = seg(t, T.out, 0.3), eo = E("back.in(1.6)")(out);
+          // a swing in on Y (never past 75 deg, so the side shows and the back never does), landing with overshoot
+          let sScale = ti < 0 ? 0 : 0.2 + 0.8 * eBack(ui);
+          sScale *= Math.max(0, 1 - eo);
+          skullSpin.rotation.y = -1.3 * (1 - E("back.out(1.4)")(ui)) + 1.25 * eIn3(out);
+          skullSpin.rotation.z = 0.3 * (1 - eOut3(ui)) - 0.2 * eo;
+          skullSpin.position.y = 80 * (1 - eOut3(ui));
+          skullSpin.scale.setScalar(Math.max(0.0001, sScale));
+          shSkull.scale.setScalar(Math.max(0.0001, sScale)); shSkull.material.opacity = 0.5 * clamp(sScale, 0, 1);
+          skullPos.visible = ti >= 0 && sScale > 0.002;
+          let jawOpen = ti < 0 ? 0 : ti < 0.34 ? 0.55 * E("power2.out")(seg(ti, 0.04, 0.22)) : 0.55 * Math.exp(-7 * (ti - 0.34)) * Math.abs(Math.cos(2 * Math.PI * 1.9 * (ti - 0.34)));
+
+          // number slams in from the camera side, then rides with the skull
+          const tn = t - T.num, un = seg(tn, 0, 0.32);
+          let nS = tn < 0 ? 0 : lerp(2.4, 1, eOut3(un)) * (1 - eo), nZ = tn < 0 ? 0 : 300 * (1 - eOut3(un));
+          const land = tn - 0.26; if (land > 0) nS *= 1 + 0.08 * Math.exp(-9 * land) * Math.cos(2 * Math.PI * 2.4 * land);
+          numPos.visible = tn >= 0 && nS > 0.002;
+          numPos.scale.setScalar(Math.max(0.0001, nS)); numPos.position.set(-80 * eo, 0, nZ);
+          numRig.rotation.z = 0.12 * (1 - eOut3(un));
+
+          // deaths escalate: the first is a hit (hairline crack, eyes light), the last is the payoff (crack splits, chips fly,
+          // the counter punches 1.22x, eyes go white-hot for 3 frames, a 1.6x red halo, the hardest shake)
+          let shx = 0, shy = 0, shr = 0, flare = 0, hot = 0, ember = 0, digHot = 0, nPunch = 1, cPunch = 1, haloA = 0, haloS = 1, p1 = 0, p2 = 0;
+          D.forEach((td, k) => {
+            const dt = t - td; if (dt < 0) return;
+            const last = k === D.length - 1, big = last ? 1 : 0.62;
+            const env = Math.exp(-7 * dt) * (dt < 0.5 ? 1 : 0), f = Math.floor(dt * 30);
+            shx += (Look.hash(97 * k + f * 3) * 2 - 1) * 14 * big * env; shy += (Look.hash(97 * k + f * 3 + 1) * 2 - 1) * 11 * big * env;
+            shr += (Look.hash(97 * k + f * 3 + 2) * 2 - 1) * 0.17 * big * env;
+            jawOpen += (last ? 1.25 : 0.75) * Math.exp(-5 * dt) * Math.max(0, Math.cos(2 * Math.PI * 1.9 * dt)) * (dt < 0.03 ? dt / 0.03 : 1);
+            const pk = dt < 0.033 ? dt / 0.033 : dt < (last ? 0.133 : 0.08) ? 1 : Math.exp(-(dt - (last ? 0.133 : 0.08)) / 0.16);
+            flare += (last ? 1.0 : 0.55) * pk; hot = Math.max(hot, (last ? 1.0 : 0.25) * pk);
+            ember = Math.max(ember, (last ? 0.55 : 0.4) * seg(dt, 0.05, 0.3));
+            haloA = Math.max(haloA, (last ? 0.95 : 0.45) * pk); if (last && dt < 0.6) haloS = 1 + 0.6 * E("power2.out")(seg(dt, 0, 0.25));
+            digHot += 1.6 * Math.exp(-Math.max(0, dt - 0.1) / 0.22) * (dt > 0.1 ? 1 : 0);
+            nPunch *= 1 + 0.16 * big * Math.exp(-6 * Math.max(0, dt - 0.08)) * Math.cos(2 * Math.PI * 1.7 * Math.max(0, dt - 0.08)) * (dt > 0.08 ? 1 : 0);
+            if (last) cPunch = 1 + 0.22 * Math.min(1, dt / 0.05) * Math.exp(-6.5 * dt) * Math.cos(2 * Math.PI * 1.5 * dt);
+            if (k === 0) p1 = E("power2.out")(seg(dt, 0, 0.14));
+            if (last) p2 = E("power2.out")(seg(dt, 0, 0.16));
+          });
+          if (D.length === 1) { p2 = p1; }
+          drawCrack(p1, p2);
+          // chips: ballistic, spinning, shrink out (no fades)
+          const tl2 = t - D[D.length - 1];
+          chips.forEach((c, i) => {
+            const u = tl2 / 0.6; c.visible = tl2 >= 0 && u < 1;
+            if (!c.visible) return;
+            const v = CHIPV[i]; c.position.set(12 + v[0] * tl2, 62 + v[1] * tl2 - 0.5 * 1500 * tl2 * tl2, DEPTH / 2 + BT + 6);
+            c.rotation.set(v[2] * tl2 * 0.6, v[2] * tl2 * 0.4, v[2] * tl2);
+            c.scale.setScalar(Math.max(0.001, 1.7 * (1 - E("power2.in")(u))));
+          });
+          // dock: after the payoff the tally settles smaller into the corner
+          const dk = E("power3.inOut")(seg(t, C.dock.at, C.dock.dur)), dS = lerp(1, C.dock.scale, dk);
+          counter.position.set(SX + shx + C.dock.dx * dk, SY + shy - C.dock.dy * dk, 0); counter.rotation.z = shr;
+          counter.scale.setScalar(dS * cPunch);
+          jaw.rotation.x = -0.5 * jawOpen; jaw.position.y = HINGE - 16 * jawOpen;
+          eyeMat.uniforms.uK.value = Math.min(1.6, 1.6 * flare + ember * 1.6) * (1 - seg(t, T.out, 0.1)); eyeMat.uniforms.uHot.value = hot;
+          redRim.intensity = 3.0 * flare;
+          haloMat.uniforms.uA.value = haloA; halo.scale.setScalar(haloS);
+          digFace.emissiveIntensity = digHot;
+          numRig.scale.setScalar(nPunch);
+          // count roll: a drum through the counter window: the old number drops out the bottom (tilting on the drum),
+          // the next one comes in from the top with overshoot. Clip planes keep both inside the window; they never overlap.
+          const RH = CAP + 44;
+          counts.forEach((g, k) => {
+            const tIn = k === 0 ? -1 : D[k - 1], tOut = k < D.length ? D[k] : 1e9, cy0 = g.userData.cy;
+            const fo = seg(t, tOut, 0.1), fi = k === 0 ? 1 : seg(t, tIn + 0.1, 0.26);   // strictly sequential: out, then in
+            if (t >= tOut + 0.1 || (k > 0 && t < tIn + 0.1)) { g.visible = false; return; }
+            g.visible = true;
+            if (t >= tOut) { const e = E("power2.in")(fo); g.position.y = cy0 - RH * e; g.rotation.x = 0.7 * e; }
+            else { const e = E("back.out(1.5)")(fi); g.position.y = cy0 + RH * (1 - e); g.rotation.x = -0.7 * (1 - e); }
+            g.userData.shadow.material.opacity = 0.5 * (t >= tOut ? 1 - seg(t, tOut, 0.05) : seg(t, tIn + 0.3, 0.1));
+          });
+          winLocal[0].constant = base + CAP + 13; winLocal[1].constant = -(base - 13);
+          scene.updateMatrixWorld(true);
+          winWorld.forEach((p, i) => p.copy(winLocal[i]).applyMatrix4(numRig.matrixWorld));
+          // the key swings across the bone on each death so the bevels catch it
+          key.intensity = 1.5 + 1.8 * D.reduce((a, td) => a + Math.exp(-Math.pow((t - td - 0.08) / 0.12, 2)), 0);
+          renderer.render(scene, camera);
+        }
+        window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+
+        const FACES = ["900 100px Archivo"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const tl = gsap.timeline({ paused: true });
+          renderAt(0);
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          if (plate) {
+            D.forEach((td, k) => Look.impact(tl, td, { shake: "#shake", amp: k === D.length - 1 ? 12 : 5, dur: k === D.length - 1 ? 0.36 : 0.26, flash: 0, host: "#root", zoom: k === D.length - 1 ? 1.035 : 1.015 }));
+            Look.push(tl, "#push", 0, T.end, { from: 1.0, to: 1.03 });
+          }
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

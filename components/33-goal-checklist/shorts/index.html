@@ -1,0 +1,280 @@
+<!doctype html>
+<!-- 33 Goal checklist, variant B: top checklist for a Short (9:16, 1080x1920, 30 fps, 6.6 s). Overlay.
+     Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). See gta/DESIGN.md and ../DECISIONS.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="media/token3d.js"></script>
+    <script src="media/glyphs.js"></script>
+    <script src="media/title3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      #bloom { position: absolute; width: 980px; height: 520px; border-radius: 50%; pointer-events: none; opacity: 0; mix-blend-mode: screen;
+        background: radial-gradient(closest-side, rgba(70,235,120,.36), rgba(43,214,90,.13) 55%, rgba(43,214,90,0)); }
+      #gl { position: absolute; inset: 0; pointer-events: none; }
+      .cap { font-family: "Archivo", "Inter", sans-serif; font-stretch: 68%; font-weight: 900; text-transform: uppercase; color: #fff;
+        letter-spacing: -0.005em; paint-order: stroke fill; -webkit-text-stroke: 9px rgba(7,9,13,.92);
+        text-shadow: 0 4px 0 rgba(0,0,0,.35), 0 7px 14px rgba(0,0,0,.45); white-space: nowrap; }
+      #caret { position: absolute; left: 0; top: 0; width: 34px; height: 20px; margin-left: -17px; opacity: 0; }
+      #caret svg { display: block; overflow: visible; }
+      #kick, #labw { position: absolute; left: 72px; width: 864px; overflow: hidden; }
+      #kick { height: 58px; }
+      #labw { height: 118px; }
+      .strip { position: relative; }
+      #kickS > div { height: 58px; line-height: 58px; text-align: center; font: 800 44px/58px "Inter"; letter-spacing: .11em; color: #FFD23C; text-transform: uppercase;
+        font-variant-numeric: tabular-nums; paint-order: stroke fill; -webkit-text-stroke: 7px rgba(7,9,13,.9); text-shadow: 0 3px 0 rgba(0,0,0,.35), 0 4px 8px rgba(0,0,0,.4); }
+      #kickS > div.g { color: #5BEA8A; }
+      #labS > div { height: 118px; line-height: 118px; text-align: center; }
+      .lab { position: relative; display: inline-block; font-size: 96px; line-height: 118px; }
+      .lab .txt { position: relative; display: inline-block; }
+      #gold3d { position: absolute; inset: 0; visibility: hidden; pointer-events: none; }
+      #gold3d .t3 { position: absolute; }
+      #gglow { position: absolute; width: 1000px; height: 460px; border-radius: 50%; pointer-events: none; opacity: 0; mix-blend-mode: screen;
+        background: radial-gradient(closest-side, rgba(255,214,110,.48), rgba(246,196,83,.16) 55%, rgba(246,196,83,0)); }
+      .strike { position: absolute; left: -12px; right: -12px; height: 8px; border-radius: 5px; transform-origin: 0 50%; transform: scaleX(0);
+        background: linear-gradient(180deg, #A6FFC4 0%, #4BE883 34%, #22CC57 70%, #12A043 100%);
+        box-shadow: 0 0 0 2.5px rgba(5,22,11,.92), 0 3px 8px rgba(0,0,0,.45), 0 0 22px rgba(43,214,90,.55); }
+      .strike::after { content: ""; position: absolute; right: -6px; top: 50%; width: 34px; height: 34px; margin-top: -17px; border-radius: 50%;
+        background: radial-gradient(closest-side, rgba(235,255,240,.95), rgba(120,255,170,.5) 45%, rgba(43,214,90,0)); opacity: var(--tip, 0); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="7" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <video id="s1" class="clip shot" src="assets/shots/v49-gp-franklin-mural-v.mp4" muted playsinline data-start="0" data-duration="1.5" data-media-start="0.3" data-track-index="0"></video>
+        <video id="s2" class="clip shot" src="assets/shots/v17-deluxo-sunset-v.mp4" muted playsinline data-start="1.5" data-duration="1.5" data-media-start="0.05" data-track-index="0"></video>
+        <video id="s3" class="clip shot" src="assets/shots/v52-gp-police-bridge-v.mp4" muted playsinline data-start="3.0" data-duration="1.5" data-media-start="1.0" data-track-index="0"></video>
+        <video id="s4" class="clip shot" src="assets/shots/v11-yacht-v.mp4" muted playsinline data-start="4.5" data-duration="2.1" data-media-start="0" data-track-index="0"></video>
+        <video id="s5" class="clip shot" src="assets/shots/v45-beach-aerial-v.mp4" muted playsinline data-start="6.6" data-duration="0.4" data-media-start="0.1" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="7" data-track-index="1">
+        <div id="bloom"></div>
+        <div id="gl"></div>
+        <div id="caret"><svg width="34" height="20" viewBox="0 0 34 20"><path d="M3 3 H31 L17 18 Z" fill="#FFD23C" stroke="rgba(7,9,13,.92)" stroke-width="4" stroke-linejoin="round" paint-order="stroke"/></svg></div>
+        <div id="kick"><div class="strip" id="kickS" data-layout-allow-overflow></div></div>
+        <div id="labw"><div class="strip" id="labS" data-layout-allow-overflow></div></div>
+        <div id="gglow"></div>
+        <div id="gold3d"></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        goals: [                           // done: second the goal ticks (0 = already ticked when the row enters, null = never in this clip)
+          { text: "Rob the cash stash",  img: "media/goal-cash.jpg",   done: 0 },
+          { text: "Steal the Deluxo",    img: "media/goal-deluxo.jpg", done: 1.5 },
+          { text: "Lose a 5-star chase", img: "media/goal-police.jpg", done: 3.0 },
+          { text: "Take the superyacht", img: "media/goal-yacht.jpg",  done: 4.5 }
+        ],
+        kicker: "Goal {n} of {N}",         // line above the current goal
+        doneKicker: "All goals done",
+        doneTitle: ["Challenge", "complete"], // gold title that slams in once everything is ticked (1-2 lines)
+        title3d: { size: 156, lineGap: 150, depth: 32, bevel: 6.5, tilt: 0.3, maxInk: 800,   // real extruded glyphs (media/title3d.js): lands white enamel, a light front turns it gold
+          colors: { whiteFace: ["#FFFFFF", "#E4E9F0"], whiteSide: ["#2A2F3A", "#07080B"], goldFace: ["#FFF1A0", "#FFC21E", "#E07F0A"], goldLip: "#F7B23A", goldSide: ["#C46A00", "#3A1400"], hot: "#FFF6D0" } },
+        colors: { ring: "#F4F6F9", done: "#2BD65A", coin: "#1DBE4E", active: "#FFD23C", gold: "linear-gradient(180deg, #FFF7CC 0%, #FFE27E 24%, #F6C453 50%, #E59A1C 76%, #A8640C 100%)" },
+        layout: { cx: 504, cy: 340, R: 76, pitch: 186, kickTop: 468, labTop: 534, goldMid: 676, maxW: 830 },   // cx: centre of the 9:16 safe column (x 72-936)
+        timing: { in: 0.10, out: 6.5, end: 7.0 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, Lay = CONFIG.layout, G = CONFIG.goals, N = G.length, R = Lay.R, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const CX = (i) => Lay.cx + (i - (N - 1) / 2) * Lay.pitch, CY = Lay.cy;
+
+        // ---------- DOM: kicker + label strips (one line per remaining goal, then the done line) ----------
+        $("#kick").style.top = Lay.kickTop + "px"; $("#labw").style.top = Lay.labTop + "px";
+        const done = G.map((g) => g.done), first = G.findIndex((g) => g.done !== 0);
+        const order = []; for (let i = first; i < N; i++) order.push(i);
+        const allDone = done.every((d) => d != null);
+        const lines = order.map((i) => {
+          const k = document.createElement("div"); k.setAttribute("data-layout-allow-occlusion", ""); k.textContent = CONFIG.kicker.replace("{n}", i + 1).replace("{N}", N); $("#kickS").appendChild(k);
+          const l = document.createElement("div"); l.innerHTML = '<div class="lab cap"><span class="txt" data-layout-allow-occlusion></span><i class="strike" data-layout-allow-occlusion></i></div>';
+          l.querySelector(".txt").textContent = G[i].text; $("#labS").appendChild(l);
+          return { i, lab: l.querySelector(".lab"), txt: l.querySelector(".txt"), strike: l.querySelector(".strike") };
+        });
+        const gold3d = $("#gold3d"), gglow = $("#gglow");
+        if (allDone) {
+          const k = document.createElement("div"); k.setAttribute("data-layout-allow-occlusion", ""); k.className = "g"; k.textContent = CONFIG.doneKicker; $("#kickS").appendChild(k);
+        }
+        gglow.style.left = (Lay.cx - 500) + "px"; gglow.style.top = (Lay.goldMid - 230) + "px";
+        // a blank line after the last so the exit can roll everything out upward
+        $("#kickS").appendChild(document.createElement("div")); $("#labS").appendChild(document.createElement("div"));
+        const bloom = $("#bloom"); bloom.style.left = (Lay.cx - 490) + "px"; bloom.style.top = (CY - 230) + "px";
+        const caret = $("#caret");
+
+        // ---------- time helpers (pure functions of t) ----------
+        const TAU = Math.PI * 2, clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+        const eo3 = (x) => 1 - Math.pow(1 - clamp(x), 3), eio = (x) => { x = clamp(x); return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2; };
+        const backIn = (x) => { x = clamp(x); const c1 = 1.70158; return (c1 + 1) * x * x * x - c1 * x * x; };
+        const spring = (t, f, z) => { if (t <= 0) return 0; const w = TAU * f, wd = w * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + (z * w / wd) * Math.sin(wd * t)); };
+        const bell = (t, a, d) => { const u = (t - a) / d; return u <= 0 || u >= 1 ? 0 : Math.sin(Math.PI * u); };
+        const flash = (t, a) => { const u = t - a; if (u < 0) return 0; if (u < 1 / 30) return u * 30; if (u < 4 / 30) return 1; return Math.max(0, 1 - (u - 4 / 30) / 0.42); };
+        const tIn = (i) => T.in + i * 0.075, tOut = (i) => T.out + i * 0.03;
+        const finals = done.filter((d) => d != null), tLast = Math.max(...finals), tLock = (d) => d + 0.3;
+        const STEP = 0.48;                                                             // label rolls to the next goal this long after a tick
+        const activeFrom = (i) => { const prev = i > 0 ? done[i - 1] : null; return (prev == null || prev === 0) ? tIn(N - 1) + 0.4 : prev + STEP; };
+        const isActive = (i, t) => done[i] !== 0 && t >= activeFrom(i) && (done[i] == null || t < done[i] + 0.12) && (i === 0 || done[i - 1] != null);
+        const waveAt = tLock(tLast) + 0.05;
+
+        function tokenState(i, t) {
+          const te = t - tIn(i);
+          const S = { x: CX(i), y: CY, z: 0, s: 0, rx: 0, ry: 0, rz: 0, prog: 0, hot: 0, glow: 0, dim: 1, shadow: 0, tick: { s: 0, ry: 0 }, hy: 0, hg: 0 };
+          if (te < 0) return S;
+          // entrance: drop in from above on a spring, tipped back so the ring's thickness reads
+          const k = spring(te, 2.5, 0.42);
+          S.s = 0.32 + 0.68 * k; S.rx = 70 * (1 - eo3(te / 0.5)); S.y = CY - 80 * (1 - eo3(te / 0.42)); S.rz = 12 * (1 - eo3(te / 0.5));
+          S.shadow = 0.85 * clamp(te / 0.2);
+          const d = done[i];
+          if (d === 0) { S.prog = 1; S.tick.s = spring(te - 0.16, 3.0, 0.4); S.tick.ry = 360 * (1 - eo3((te - 0.16) / 0.5)); }
+          else if (d != null) {
+            const pr = t < d ? eio((t - (d - 0.1)) / 0.1) : 1 - spring(t - d, 3.3, 0.36);
+            S.s *= 1 - 0.1 * pr; S.rx += 16 * pr; S.z -= 16 * pr;
+            S.prog = t <= d ? 0 : eio((t - d) / 0.3);
+            S.hot = t <= d ? 0 : (t < d + 0.3 ? 1 : clamp(1 - (t - d - 0.3) / 0.16));
+            const tt = t - (d + 0.2); S.tick.s = spring(tt, 3.0, 0.38); S.tick.ry = 360 * (1 - eo3(tt / 0.5)); S.tick.rz = -24 * (1 - eo3(tt / 0.4));
+            S.glow = 0.55 * flash(t, tLock(d)); S.hg = 0.95 * flash(t, tLock(d)); S.hgS = 1 + 0.12 * eo3((t - tLock(d)) / 0.5);
+            // a broad specular band crosses ring and glass, upper left to lower right, as the ring locks
+            const bu = (t - (d + 0.14)) / 0.5; if (bu > 0 && bu < 1) { S.band = -1.7 + 3.4 * eio(bu); S.bandAmp = 0.8 * Math.sin(Math.PI * bu); }
+          }
+          // the current goal is lifted and lit: bigger, forward, a breathing gold halo; pending goals sit back
+          const act = isActive(i, t);
+          let lift = 0;
+          if (act) lift = spring(t - activeFrom(i), 2.6, 0.45);
+          if (d != null && d > 0 && t >= d + 0.12) lift = 1 - eio((t - d - 0.12) / 0.35);
+          if (lift > 0) { S.s *= 1 + 0.12 * lift; S.z += 18 * lift; }
+          if (act) { const ta = t - activeFrom(i); S.hy = clamp(ta / 0.18) * (0.6 + 0.2 * Math.sin(TAU * 1.4 * ta)) * (d != null && t > d ? clamp(1 - (t - d) / 0.12) : 1); S.hyS = 1.12; }
+          const isDone = d === 0 || (d != null && t > d);
+          if (!isDone) S.dim = act ? 0.62 + 0.38 * clamp((t - activeFrom(i)) / 0.2) : 0.62;
+          if (allDone && t >= tLock(tLast)) { const u = t - tLock(tLast), p = u < 0.07 ? eo3(u / 0.07) : 1 - spring(u - 0.07, 2.6, 0.4); S.s *= 1 + 0.07 * p; }
+          if (t >= waveAt && allDone) { const w = bell(t, waveAt + i * 0.07, 0.5); S.ry += 24 * w; S.rx -= 6 * w; S.glow += 0.35 * w; S.hg += 0.5 * w; S.y -= 10 * w;
+            const bu = (t - (waveAt + i * 0.07)) / 0.5; if (bu > 0 && bu < 1) { S.band = -1.7 + 3.4 * eio(bu); S.bandAmp = Math.max(S.bandAmp || 0, 0.7 * Math.sin(Math.PI * bu)); } }
+          const tx = t - tOut(i);
+          if (tx > 0) { const a = tx < 0.07 ? 1 + 0.07 * eo3(tx / 0.07) : 1.07 * (1 - backIn((tx - 0.07) / 0.22)); S.s *= Math.max(0, a); S.rx -= 80 * eio(tx / 0.29); S.shadow *= Math.max(0, a); S.hg = 0; S.hy = 0; }
+          return S;
+        }
+        // the selector: a gold ring that rides from goal to goal with a stretch, and a caret that points down at the label
+        function selState(t) {
+          for (let k = 0; k < order.length; k++) {
+            const i = order[k], a = activeFrom(i), d = done[i] == null ? Infinity : done[i];
+            if (t >= a && t < d + 0.12) {
+              // no travel: the ring irises out on the ticked goal and springs in on the next one (0.7 -> 1 with overshoot)
+              const ta = t - a, x = CX(i);
+              let alpha = clamp(ta / 0.05), sc = 0.7 + 0.3 * spring(ta, 2.8, 0.42);
+              if (t > d - 0.1) { const u = clamp((t - (d - 0.1)) / 0.22); sc *= 1 - 0.12 * eio(u); alpha *= 1 - eio(u); }
+              const tok = tokenState(i, t);
+              return { x, y: CY, z: tok.z, s: sc * tok.s, a: alpha, glow: 0.5 + 0.5 * Math.sin(TAU * 1.4 * ta) };
+            }
+          }
+          return null;
+        }
+        function rakeState(t) { return null; }   // light now crosses as a broad band in the ring/glass shaders (S.band)
+
+        const FACES = ["900 100px Archivo", "800 100px Inter"];
+        const imgs = G.map((g) => { const im = new Image(); im.src = g.img; return im; });
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready)
+          .then(() => Promise.all(imgs.map((im) => im.decode()))).then(() => {
+          const GL = { left: Lay.cx - 450, top: CY - 190, W: 900, H: 380 };
+          const T3 = Tokens3D({ left: GL.left, top: GL.top, W: GL.W, H: GL.H, dpr: 2, R, white: CONFIG.colors.ring, green: CONFIG.colors.done, coin: CONFIG.colors.coin, select: CONFIG.colors.active,
+            tokens: G.map((g, i) => ({ img: imgs[i] })) });
+          $("#gl").appendChild(T3.canvas);
+          // fit every label line to the safe width, then park the strike on the cap-height middle
+          document.querySelectorAll("#labS .lab").forEach((lab) => { const w = lab.offsetWidth; if (w > Lay.maxW) lab.style.fontSize = (96 * Lay.maxW / w).toFixed(1) + "px"; });
+          lines.forEach((l) => { l.strike.style.top = (l.lab.offsetHeight / 2 - 4 + 3) + "px"; });
+
+          const renderAt = (t) => {
+            const sel = selState(t);
+            T3.render({ tokens: G.map((g, i) => tokenState(i, t)), sel, rake: rakeState(t) });
+            if (sel && sel.a > 0.004) { caret.style.opacity = Math.min(1, sel.a).toFixed(3); caret.style.transform = "translate(" + sel.x.toFixed(2) + "px," + (CY + R * 1.12 * sel.s + 12).toFixed(2) + "px) scale(" + (0.6 + 0.4 * Math.min(1, sel.s)).toFixed(3) + ")"; }
+            else caret.style.opacity = "0";
+          };
+
+          const tl = gsap.timeline({ paused: true });
+          const LH = 118, KH = 58;
+          // kicker and label rise into their windows
+          gsap.set(["#kickS", "#labS"], { yPercent: 0 });
+          gsap.set("#kickS", { y: KH }); gsap.set("#labS", { y: LH });
+          const tA = tIn(N - 1) + 0.18;
+          tl.to("#kickS", { y: 0, duration: 0.42, ease: "expo.out" }, tA);
+          tl.to("#labS", { y: 0, duration: 0.5, ease: "back.out(1.5)" }, tA + 0.05);
+          // each tick: strike the current goal, then roll both strips to the next line
+          lines.forEach((l, k) => {
+            const d = done[l.i]; if (d == null) return;
+            tl.fromTo(l.strike, { scaleX: 0 }, { scaleX: 1, duration: 0.26, ease: "expo.out", immediateRender: false }, d + 0.2);
+            tl.fromTo(l.strike, { "--tip": 1 }, { "--tip": 0, duration: 0.3, ease: "power2.in", immediateRender: false }, d + 0.2);
+            tl.to(l.txt, { color: "#DDF9E6", duration: 0.14, ease: "none" }, d + 0.24);
+            tl.fromTo(l.lab, { scale: 1 }, { scale: 1.05, duration: 0.08, ease: "power2.out", immediateRender: false }, d + 0.2);
+            tl.to(l.lab, { scale: 1, duration: 0.36, ease: "back.out(2.4)" }, d + 0.28);
+            const at = d + STEP, fin = d === tLast && allDone;
+            tl.to("#kickS", { y: -KH * (k + 1), duration: 0.42, ease: "back.out(1.4)" }, at);
+            tl.to("#labS", { y: -LH * (k + 1), duration: fin ? 0.26 : 0.46, ease: fin ? "power3.in" : "back.out(1.35)" }, at);
+          });
+          if (allDone) {
+            // the payoff title: real extruded, bevelled glyphs (title3d.js) slam in once the struck goal has rolled out, land as white
+            // enamel, then a light front turns them to polished gold with a raking key, one specular sweep and a bloom on the letters
+            const G0 = tLast + STEP + 0.26, TT = CONFIG.title3d, RW = 1000, RH = 280, nGL = CONFIG.doneTitle.length;
+            const titles = CONFIG.doneTitle.map((w, k) => {
+              const ig = G0 + 0.12 + k * 0.07;
+              const P = Payoff3D({ W: RW, H: RH, glyphs: window.PAYOFF_GLYPHS, text: w, size: TT.size, tracking: -0.01, maxInk: TT.maxInk,
+                cx: RW / 2, cy: RH / 2, depth: TT.depth, bevel: TT.bevel, tilt: TT.tilt, inkPx: 7, inkColor: "#07080B", shadow: 0.6, shadowOff: 12,
+                colors: TT.colors, timing: { ignite: ig, frontDur: 0.22, specAt: ig + 0.1, specDur: 0.45, rakeDur: 0.6, holdEnd: T.out } });
+              const wrap = document.createElement("div"); wrap.className = "t3";
+              const cy = Lay.goldMid + (k - (nGL - 1) / 2) * TT.lineGap;
+              wrap.style.cssText = "left:" + (Lay.cx - RW / 2) + "px;top:" + (cy - RH / 2).toFixed(1) + "px;width:" + RW + "px;height:" + RH + "px";
+              wrap.appendChild(P.canvas); gold3d.appendChild(wrap);
+              return { P, wrap };
+            });
+            tl.set(gold3d, { visibility: "visible" }, G0);
+            titles.forEach((o, k) => {
+              const at = G0 + k * 0.07;
+              gsap.set(o.wrap, { scale: 1.45, visibility: "hidden", transformOrigin: "50% 55%" });
+              tl.set(o.wrap, { visibility: "visible" }, at);
+              tl.to(o.wrap, { scale: 1, duration: 0.7, ease: "elastic.out(1, 0.5)" }, at);
+            });
+            tl.fromTo(gglow, { opacity: 0 }, { opacity: 1, duration: 1 / 30, ease: "none", immediateRender: false }, G0 + 0.16);
+            tl.to(gglow, { opacity: 0.3, duration: 0.7, ease: "power2.out" }, G0 + 0.16 + 4 / 30);
+            const X0 = T.out - 0.1;
+            titles.forEach((o, k) => {
+              tl.fromTo(o.wrap, { clipPath: "inset(0px 0px 0px 0px)", y: 0 }, { clipPath: "inset(0px 0px 100% 0px)", y: -40, duration: 0.26, ease: "power3.in", immediateRender: false }, X0 + (nGL - 1 - k) * 0.04);
+            });
+            tl.to(gglow, { opacity: 0, duration: 0.25 }, X0);
+            tl.set(gold3d, { visibility: "hidden" }, X0 + 0.34);
+            Look.drive(tl, 0, T.end, (p) => titles.forEach((o) => o.P.renderAt(p * T.end)));
+            titles.forEach((o) => o.P.renderAt(0));
+            tl.fromTo(bloom, { opacity: 0 }, { opacity: 1, duration: 1 / 30, ease: "none", immediateRender: false }, tLock(tLast));
+            tl.to(bloom, { opacity: 0, duration: 0.6, ease: "power2.out" }, tLock(tLast) + 4 / 30);
+            if (plate) Look.impact(tl, tLock(tLast), { flash: 0, shake: "#shake", amp: 8, dur: 0.3, zoom: 1.012 });
+          }
+          // exit: both strips roll out upward, the tokens fold away
+          const nk = lines.length + (allDone ? 1 : 0);
+          tl.to("#kickS", { y: -KH * nk, duration: 0.3, ease: "power3.in" }, T.out - 0.04);
+          if (!allDone) {
+            tl.to("#labS", { y: -LH * lines.length, duration: 0.32, ease: "power3.in" }, T.out - 0.04);
+          }
+          tl.set(["#kick", "#labw"], { visibility: "hidden" }, T.out + 0.32);
+          if (plate) Look.push(tl, "#push", 0, T.end, { to: 1.04 });
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          renderAt(0);
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

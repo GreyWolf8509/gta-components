@@ -1,0 +1,219 @@
+<!doctype html>
+<!-- 09 Facecam frame, variant A "Corner cam" (16:9, 1920x1080, 30 fps, 6.2 s).
+     The streamer webcam box docked top-right over gameplay, as a physical object: a bevelled gunmetal rim (real Three.js
+     geometry), a caption-yellow lip, a red LIVE plate and a yellow name plate. It scales in with a soft bounce, and on the
+     crash it snaps up to the enlarged reaction size, the lip ignites and a light rakes across the rim, then it settles back.
+     Variable: bg "plate" (sample GTA V footage + facecam stand-in) / "none" (transparent overlay: the frame only, the window
+     is a clean hole for your own cam). See gta/DESIGN.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/gloss3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #cam { position: absolute; transform-origin: 100% 0; will-change: transform; }
+      #shadow { position: absolute; }
+      #win { position: absolute; overflow: hidden; background: #0b0c0f; }
+      #fcv { position: absolute; }
+      #seat, #spill { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; }
+      #spill { opacity: 0; }
+      .pin { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+      .plateTxt { position: absolute; white-space: nowrap; line-height: 1; font-family: "Inter"; font-weight: 800; }
+      #nameTxt { color: #14151A; letter-spacing: 0.02em; text-shadow: 0 1.5px 0 rgba(255,246,200,.55); font-feature-settings: "ss01" 1; }
+      #liveTxt { color: #FFFFFF; letter-spacing: 0.06em; text-shadow: 0 -1px 0 rgba(90,0,8,.55), 0 1px 3px rgba(90,0,8,.35); }
+      #liveDot { position: absolute; border-radius: 50%; background: radial-gradient(circle at 38% 34%, #ffffff 0%, #ffe9ea 45%, #ffc2c6 100%);
+        box-shadow: 0 0 10px rgba(255,255,255,.9), 0 0 22px rgba(255,120,130,.8); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.2" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="shotA" class="clip shot" src="assets/shots/v57-gp-red-car-highway-h.mp4" muted playsinline data-start="0" data-duration="2.0" data-media-start="0" data-track-index="0"></video>
+        <video id="shotB" class="clip shot" src="assets/shots/v56-gp-truck-crash-h.mp4" muted playsinline data-start="2.0" data-duration="2.7" data-media-start="0.1" data-track-index="0"></video>
+        <video id="shotC" class="clip shot" src="assets/shots/v52-gp-police-bridge-h.mp4" muted playsinline data-start="4.7" data-duration="1.5" data-media-start="0.5" data-track-index="0"></video>
+      </div></div>
+      <div id="cam">
+        <div id="shadow"></div>
+        <div id="win">
+          <video id="fcv" class="clip" src="assets/plates/facecam-sample.mp4" muted playsinline data-start="0" data-duration="6.2" data-media-start="0.4" data-track-index="1"></video>
+          <div id="spill"></div>
+          <div id="seat"></div>
+        </div>
+        <div class="pin" id="livePin"><div id="liveDot"></div><div class="plateTxt" id="liveTxt"></div></div>
+        <div class="pin" id="namePin"><div class="plateTxt" id="nameTxt"></div></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        name: "EVERESTCHRIS",            // the name plate
+        live: "LIVE",                    // the badge ("LIVE" or "REC")
+        // geometry at the ENLARGED (reaction) size; the docked size is restScale of it
+        window: { w: 768, h: 576, r: 26 }, // the cam window (4:3)
+        rim: 30,                         // rim width outside the window, px
+        restScale: 0.68,                 // docked: 522 x 392 cam window, frame 563 px wide (29% of frame)
+        dock: { right: 48, top: 48 },    // docked top-right, 48 px from the edges
+        colors: { rim: "#4a4f58", lip: "#FFD23C", plate: "#FFD23C", plateTop: "#FFE680", plateBot: "#F2AE14",
+                  live: "#FF2E3A", liveTop: "#FF5A63", liveBot: "#C8102E" },
+        facecam: { scale: 0.58, x: -158, y: -10 },   // how the cam clip sits in the window (1920x1080 source)
+        timing: { in: 0.35, live: 0.78, name: 0.86, react: 2.9, back: 4.25, out: 5.55, end: 6.2 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video").forEach((v) => (v.style.display = "none"));
+
+        const Wv = CONFIG.window.w, Hv = CONFIG.window.h, ri = CONFIG.window.r, B = CONFIG.rim;
+        const OW = Wv + 2 * B, OH = Hv + 2 * B, PAD = 28, k = CONFIG.restScale;
+        const cam = $("#cam"), win = $("#win"), fcv = $("#fcv");
+        // the outer frame's top-right corner is the anchor (docked and enlarged)
+        cam.style.width = OW + "px"; cam.style.height = OH + "px";
+        cam.style.left = (1920 - CONFIG.dock.right - OW) + "px"; cam.style.top = CONFIG.dock.top + "px";
+        Object.assign($("#shadow").style, { left: "0px", top: "0px", width: OW + "px", height: OH + "px", borderRadius: (ri + B) + "px",
+          boxShadow: "0 3px 6px rgba(0,0,0,.34), 0 16px 34px rgba(0,0,0,.40), 0 34px 70px -10px rgba(0,0,0,.30)" });
+        Object.assign(win.style, { left: B + "px", top: B + "px", width: Wv + "px", height: Hv + "px", borderRadius: ri + "px", background: plate ? "#0b0c0f" : "transparent" });
+        const F = CONFIG.facecam;
+        Object.assign(fcv.style, { width: 1920 * F.scale + "px", height: 1080 * F.scale + "px", left: F.x + "px", top: F.y + "px" });
+        const seat = $("#seat"), spill = $("#spill");
+        seat.style.boxShadow = "inset 0 0 0 2px rgba(0,0,0,.55), inset 0 10px 22px -6px rgba(0,0,0,.55), inset 0 -6px 18px -8px rgba(0,0,0,.45)";
+        spill.style.boxShadow = "inset 0 0 26px 2px rgba(255,214,70,.75), inset 0 0 70px 6px rgba(255,190,40,.35)";
+        if (!plate) { seat.style.display = "none"; spill.style.display = "none"; }
+
+        const FACES = ["800 100px Inter", "900 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f, "EVERESTCHRIS LIVE"))).then(() => document.fonts.ready).then(() => {
+          // ---------- type: measure, then size the plates around it ----------
+          const nameTxt = $("#nameTxt"), liveTxt = $("#liveTxt"), dot = $("#liveDot");
+          nameTxt.textContent = CONFIG.name; nameTxt.style.fontSize = "41px";
+          liveTxt.textContent = CONFIG.live; liveTxt.style.fontSize = "29px";
+          const nW = nameTxt.offsetWidth, lW = liveTxt.offsetWidth;
+          const plateH = 72, plateW = Math.round(nW + 62), plateX = 44, plateY = OH - 30;
+          const liveH = 50, dotD = 15, liveW = Math.round(lW + dotD + 12 + 40), liveX = B + 20, liveY = B + 20;
+          // optical centring: caps sit on the cap-height box, not the line box
+          nameTxt.style.left = (plateX + (plateW - nW) / 2) + "px"; nameTxt.style.top = (plateY + plateH / 2 - 41 * 0.5 - 1) + "px";
+          liveTxt.style.left = (liveX + 20 + dotD + 12) + "px"; liveTxt.style.top = (liveY + liveH / 2 - 29 * 0.5 - 0.5) + "px";
+          Object.assign(dot.style, { width: dotD + "px", height: dotD + "px", left: (liveX + 20) + "px", top: (liveY + (liveH - dotD) / 2) + "px" });
+
+          // ---------- the physical frame: real geometry ----------
+          const CW = OW + 2 * PAD, CH = OH + 2 * PAD + 48;
+          const G = Gloss3D({ W: CW, H: CH, left: -PAD, top: -PAD, pivot: [PAD + OW / 2, PAD + OH / 2], exposure: 1.05, env: { front: 0.5, top: 1.1 } });
+          const X = (x) => x + PAD, Y = (y) => y + PAD;   // frame px -> canvas px
+          const rimM = G.mat("metal", { color: CONFIG.colors.rim });
+          const C = CONFIG.colors;
+          const lipM = G.mat("lacquer", { color: C.lip, toneMapped: false, glow: 0.12, specGain: 0.6, params: { roughness: 0.24 } });
+          // lacquer plates: a vertical ramp (lit top -> deep bottom) under the clearcoat, so the faces aren't one flat fill
+          const plateM = G.mat("lacquer", { color: C.plate, toneMapped: false, glow: 0.04, specGain: 0.8,
+            grad: { top: Y(plateY + 4), bottom: Y(plateY + plateH - 4), colTop: C.plateTop, colBot: C.plateBot } });
+          const liveM = G.mat("lacquer", { color: C.live, toneMapped: false, glow: 0.03, specGain: 0.7,
+            grad: { top: Y(liveY + 3), bottom: Y(liveY + liveH - 3), colTop: C.liveTop, colBot: C.liveBot } });
+          // rim: window outset 7 .. outset B, a rounded tube profile
+          G.add([X(0), Y(0), OW, OH, ri + B], [[X(B - 7), Y(B - 7), Wv + 14, Hv + 14, ri + 7]], { mat: rimM, z: 22, depth: 3, bt: 9, bs: 9, bseg: 7 });
+          // lip: window inset 4 .. outset 10, sits below the rim
+          G.add([X(B - 10), Y(B - 10), Wv + 20, Hv + 20, ri + 10], [[X(B + 4), Y(B + 4), Wv - 8, Hv - 8, ri - 4]], { mat: lipM, z: 9, depth: 2, bt: 3, bs: 3.2, bseg: 4 });
+          // name plate, mounted over the rim's bottom-left edge
+          const plateMesh = G.add([X(plateX), Y(plateY), plateW, plateH, 15], null, { mat: plateM, z: 36, depth: 4, bt: 7, bs: 7, bseg: 6, origin: [X(plateX + plateW / 2), Y(plateY + plateH / 2)] });
+          // LIVE plate, inside the window's top-left corner
+          const liveMesh = G.add([X(liveX), Y(liveY), liveW, liveH, liveH / 2], null, { mat: liveM, z: 14, depth: 3, bt: 5, bs: 5, bseg: 5, origin: [X(liveX + liveW / 2), Y(liveY + liveH / 2)] });
+          G.canvas.id = "frame3d"; G.canvas.style.filter = "drop-shadow(0 3px 4px rgba(0,0,0,.38))";
+          cam.insertBefore(G.canvas, $("#livePin"));
+          // DOM type pinned to the plates' front faces (canvas px + front z), so tilt never slides it off its plate
+          // each plate pops in WITH its type: one spring drives the mesh scale and the pinned DOM scale
+          const pins = [{ el: $("#namePin"), mesh: plateMesh, at: T.name, x: X(plateX + plateW / 2), y: Y(plateY + plateH / 2), z: 36 },
+                        { el: $("#livePin"), mesh: liveMesh, at: T.live, x: X(liveX + liveW / 2), y: Y(liveY + liveH / 2), z: 14 }];
+          pins.forEach((q) => { q.el.style.transformOrigin = (q.x - PAD) + "px " + (q.y - PAD) + "px"; });
+          const popS = (t, at) => (t < at ? 0 : t >= at + 0.5 ? 1 : 0.35 + 0.65 * (1 - Math.exp(-6 * (t - at) / 0.5) * Math.cos(6.2832 * 1.2 * (t - at) / 0.5) * (1 - (t - at) / 0.5)));
+
+          // ---------- 3D state as a pure function of time ----------
+          const clamp = (x, a, b) => Math.min(b, Math.max(a, x)), eIO = gsap.parseEase("power2.inOut"), eO = gsap.parseEase("power3.out");
+          const wob = (t, t0, amp, decay, freq) => (t < t0 ? amp : amp * Math.exp(-decay * (t - t0)) * Math.cos(6.2832 * freq * (t - t0)));
+          const diag = Math.hypot(OW, OH) * 0.62;
+          function renderAt(t) {
+            // tilt: the entrance lands tipped back and wobbles flat; the reaction rakes the rim through the side lights
+            let rx = t < T.in ? 0.13 : wob(t, T.in, 0.13, 6.5, 1.5);
+            let ry = t < T.in ? -0.08 : wob(t, T.in, -0.08, 6.0, 1.3);
+            const rk = clamp((t - T.react) / 0.9, 0, 1);
+            if (t >= T.react) { ry += -0.055 + 0.085 * eIO(rk); rx += wob(t, T.react, -0.045, 7, 1.6); }
+            const bk = clamp((t - T.back) / 0.7, 0, 1);
+            if (t >= T.back) { ry -= 0.03 * eIO(bk); rx += wob(t, T.back, 0.03, 7, 1.6); }
+            G.group.rotation.set(rx, ry, 0);
+            pins.forEach((q) => {
+              const sc = popS(t, q.at), d = G.pinOffset(q.x, q.y, q.z);
+              q.mesh.visible = sc > 0; q.mesh.scale.set(Math.max(sc, 1e-3), Math.max(sc, 1e-3), 1);
+              q.el.style.visibility = sc > 0 ? "visible" : "hidden";
+              q.el.style.transform = "translate(" + d[0].toFixed(2) + "px," + d[1].toFixed(2) + "px) scale(" + Math.max(sc, 1e-3).toFixed(4) + ")";
+            });
+            // specular band: one soft sweep after the landing, one hard rake on the reaction
+            const s1 = clamp((t - (T.in + 0.42)) / 0.75, 0, 1), s2 = clamp((t - (T.react + 0.04)) / 0.62, 0, 1);
+            if (t >= T.react + 0.04 && s2 < 1) { G.U.uSpecX.value = -diag + 2 * diag * eIO(s2); G.U.uSpecAmp.value = 1.5 * Math.sin(Math.PI * s2); G.U.uSpecW.value = 70; }
+            else if (t >= T.in + 0.42 && s1 < 1) { G.U.uSpecX.value = -diag + 2 * diag * eIO(s1); G.U.uSpecAmp.value = 0.8 * Math.sin(Math.PI * s1); G.U.uSpecW.value = 90; }
+            else { G.U.uSpecAmp.value = 0; G.U.uSpecX.value = -1e5; }
+            // the lip ignites on the reaction: 1-frame attack, 3-frame peak, settles hot, cools on the way back
+            let glow = 0.12;
+            if (t >= T.react) {
+              const u = t - T.react;
+              glow = u < 1 / 30 ? 0.12 + 2.1 * u * 30 : u < 4 / 30 ? 2.22 : 0.75 + (2.22 - 0.75) * Math.exp(-(u - 4 / 30) * 5.5);
+              if (t >= T.back) glow = 0.12 + (glow - 0.12) * (1 - eO(clamp((t - T.back) / 0.45, 0, 1)));
+            }
+            lipM.userData.G.uGlow.value = glow;
+            plateM.userData.G.uGlow.value = 0.06 + (glow - 0.12) * 0.12;
+            G.render();
+          }
+
+          // ---------- timeline ----------
+          const tl = gsap.timeline({ paused: true });
+          // soft-bounce spring: ~8% overshoot, settles by 75%
+          const spring = (z, f) => (p) => (p >= 1 ? 1 : 1 - Math.exp(-z * p) * Math.cos(6.2832 * f * p) * (1 - p));
+          // entrance: scale up out of the corner + blur + a 2-frame opacity rise
+          gsap.set(cam, { scale: k * 0.42, opacity: 0, filter: "blur(10px)" });
+          tl.fromTo(cam, { scale: k * 0.42 }, { scale: k, duration: 0.78, ease: spring(5, 1.25), immediateRender: false }, T.in);
+          tl.fromTo(cam, { opacity: 0 }, { opacity: 1, duration: 0.07, ease: "none", immediateRender: false }, T.in);
+          tl.fromTo(cam, { filter: "blur(10px)" }, { filter: "blur(0px)", duration: 0.26, ease: "power2.out", immediateRender: false }, T.in);
+          tl.set(cam, { filter: "none" }, T.in + 0.27);
+          // the cam image settles inside the window (a small rack-in)
+          if (plate) tl.fromTo(fcv, { scale: 1.1, transformOrigin: "50% 30%" }, { scale: 1, duration: 0.9, ease: "expo.out", immediateRender: false }, T.in);
+          // LIVE dot breathes once a second
+          Look.drive(tl, T.live, T.out - T.live, (p) => {
+            const t = T.live + p * (T.out - T.live), ph = ((t - T.live) % 1.0) / 1.0;
+            const a = 0.45 + 0.55 * (0.5 + 0.5 * Math.cos(6.2832 * ph));
+            dot.style.boxShadow = "0 0 " + (6 + 8 * a).toFixed(1) + "px rgba(255,255,255," + (0.55 + 0.4 * a).toFixed(2) + "), 0 0 " + (12 + 16 * a).toFixed(1) + "px rgba(255,120,130," + (0.4 + 0.45 * a).toFixed(2) + ")";
+          });
+
+          // the reaction: snap up to the enlarged size with overshoot, hold, settle back to the dock
+          tl.fromTo(cam, { scale: k }, { scale: 1, duration: 0.55, ease: spring(6, 1.4), immediateRender: false }, T.react);
+          tl.fromTo(cam, { scale: 1 }, { scale: k, duration: 0.6, ease: spring(6.5, 1.3), immediateRender: false }, T.back);
+          if (plate) {
+            tl.fromTo(spill, { opacity: 0 }, { opacity: 1, duration: 1 / 30, ease: "none", immediateRender: false }, T.react);
+            tl.fromTo(spill, { opacity: 1 }, { opacity: 0.38, duration: 0.6, ease: "power2.out", immediateRender: false }, T.react + 4 / 30);
+            tl.fromTo(spill, { opacity: 0.38 }, { opacity: 0, duration: 0.4, ease: "power2.out", immediateRender: false }, T.back);
+            Look.impact(tl, T.react, { shake: "#shake", amp: 9, dur: 0.34, flash: 0, zoom: 1.035 });
+          }
+
+          // exit: collapse into the corner anchor with blur, cut on the zero frame
+          tl.fromTo(cam, { scale: k }, { scale: k * 0.06, duration: 0.3, ease: "power3.in", immediateRender: false }, T.out);
+          tl.fromTo(cam, { filter: "blur(0px)" }, { filter: "blur(8px)", duration: 0.3, ease: "power2.in", immediateRender: false }, T.out);
+          tl.set(cam, { opacity: 0 }, T.out + 0.3);
+
+          if (plate) Look.push(tl, "#push", 0, T.end, { to: 1.04 });
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          renderAt(0);
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

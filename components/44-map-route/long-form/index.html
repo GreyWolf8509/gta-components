@@ -1,0 +1,656 @@
+<!doctype html>
+<!-- 44 Map route, variant A (16:9, 1920x1080): "Tilted 3D map". Three.js r160 global build.
+     A light maps-app style island city (our own procedural drawing) on displaced 3D terrain with extruded towers.
+     The map grows out of the gameplay HUD minimap, the camera flies along as a red route draws pin to pin,
+     pin B lands with a light pulse, a local bloom and a route-time chip, then the camera dives into pin B and an iris opens onto footage.
+     Kind: full (always shows footage). Render from timeline time only (GSAP proxy + hf-seek), never rAF. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #000; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; background: #000; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      #mapwrap { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; transform-origin: 0 0; opacity: 0; }
+      #mapshake { position: absolute; inset: 0; }
+      #gl { position: absolute; inset: 0; width: 1920px; height: 1080px; display: block; }
+      #labels { position: absolute; inset: 0; pointer-events: none; }
+      /* the game's own dark radar frame (not a white PIP border) */
+      #mmframe { position: absolute; left: 0; top: 0; border: 3px solid #0B0D10; border-radius: 6px; opacity: 0; pointer-events: none; }
+      .lab { position: absolute; left: 0; top: 0; will-change: auto; }
+      .lab > span { display: block; white-space: nowrap; }
+      .dist { font: 700 26px/1 "Inter"; letter-spacing: .16em; color: #6A7079; text-transform: uppercase;
+        paint-order: stroke fill; -webkit-text-stroke: 6px rgba(255,255,255,.96); }
+      .sea { font: italic 600 26px/1 "Inter"; letter-spacing: .34em; color: #3F7FB0; text-transform: uppercase;
+        paint-order: stroke fill; -webkit-text-stroke: 5px rgba(222,239,251,.9); }
+      .place { font: 800 50px/1 "Inter"; letter-spacing: -0.015em; color: #17191D;
+        paint-order: stroke fill; -webkit-text-stroke: 9px #fff; filter: drop-shadow(0 3px 8px rgba(30,40,60,.28)); }
+      /* route chip: maps-app style callout that springs out of pin B */
+      #chip { position: absolute; left: 0; top: 0; transform-origin: 100% 50%; display: flex; align-items: center; gap: 18px;
+        padding: 18px 30px 18px 18px; border-radius: 22px;
+        background: linear-gradient(180deg, #FFFFFF 0%, #FFFFFF 55%, #F3F5F8 100%);
+        box-shadow: 0 1px 0 rgba(255,255,255,1) inset, 0 -2px 0 rgba(20,30,50,.06) inset, 0 0 0 1px rgba(20,30,50,.08),
+          0 4px 10px rgba(20,30,50,.16), 0 22px 44px rgba(20,30,50,.24); }
+      #chip::before { content: ""; position: absolute; right: -11px; top: 50%; width: 24px; height: 24px; margin-top: -12px;
+        background: #FCFCFD; transform: rotate(45deg); border-radius: 4px; box-shadow: 2px -2px 3px rgba(20,30,50,.10); }
+      #chip .gl { position: absolute; inset: 0; border-radius: 22px; overflow: hidden; pointer-events: none; }
+      #chip .gl i { position: absolute; top: -20%; left: 0; width: 30%; height: 140%;
+        background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.9) 50%, rgba(255,255,255,0) 100%); mix-blend-mode: overlay; }
+      #chip .car { position: relative; width: 74px; height: 74px; border-radius: 50%; display: grid; place-items: center;
+        background: radial-gradient(circle at 50% 30%, #FF4A57 0%, #E2192C 55%, #B70F21 100%);
+        box-shadow: inset 0 2px 0 rgba(255,255,255,.35), inset 0 -3px 6px rgba(90,0,10,.35), 0 4px 10px rgba(200,16,46,.35); }
+      #chip .car svg { width: 44px; height: 44px; }
+      #chip .t { font: 800 62px/1 "Inter"; letter-spacing: -0.02em; color: #15171B; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      #chip .d { margin-top: 9px; font: 700 26px/1 "Inter"; letter-spacing: .01em; color: #6A7079; white-space: nowrap; }
+      #chip .d b { color: #15171B; font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="7.8" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="shotA" class="clip shot" src="assets/shots/v57-gp-red-car-highway-h.mp4" muted playsinline data-start="0" data-duration="1.1" data-media-start="0.1" data-track-index="0"></video>
+        <video id="shotB" class="clip shot" src="assets/shots/v28-tennis-mansion-h.mp4" muted playsinline data-start="6.9" data-duration="0.9" data-media-start="0" data-track-index="2"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="7.8" data-track-index="1">
+        <div id="mapwrap"><div id="mapshake">
+          <canvas id="gl" width="1920" height="1080" data-layout-allow-overflow></canvas>
+          <div id="labels"></div>
+        </div></div>
+        <div id="mmframe"></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        // Pins and labels (map units: x east, z south; the island spans about x -45..47, z -38..34)
+        from: { name: "Del Perro Pier", at: [-36.6, -3.95] },
+        to:   { name: "Vinewood Hills", at: [9.0, -27.2] },
+        chip: { time: "18 min", dist: "7.4 mi", note: "fastest route" },
+        // The route, drawn along the map's own roads: freeway, then boulevard, then the hill switchbacks
+        route: [
+          [[-36.6,-3.95],[-30,-3.4],[-24,-2.0],[-16,0.3],[-8,2.2],[-3,3.0]],
+          [[-3,3.0],[-2.7,-2],[-2.3,-8],[-2.0,-14],[-1.5,-18.5]],
+          [[-1.5,-18.5],[0.2,-20.4],[3.4,-20.9],[5.8,-21.9],[4.6,-23.1],[2.4,-23.8],[2.6,-25.0],[5.2,-25.6],[7.4,-26.2],[9.0,-27.2]]
+        ],
+        districts: [
+          { t: "Vespucci Beach", at: [-31, 9.5] }, { t: "Rockford Hills", at: [-16, -7.5] },
+          { t: "Little Seoul", at: [-11, 9] }, { t: "Downtown", at: [10, 1.5] }, { t: "Vinewood", at: [6.5, -13.5] },
+          { t: "Mirror Park", at: [29, -12] }, { t: "La Mesa", at: [27, 3.5] }, { t: "Grove Street", at: [5, 19.5] },
+          { t: "Elysian Island", at: [30, 24.5] }
+        ],
+        sea: { t: "Pacific Ocean", at: [-53, 6] },
+        colors: { route: "#D3122B", routeEdge: "#8E0A1B", pin: "#E1192C", land: "#F4F1EA", water: "#A3D3F2" },
+        timing: { mmGlow: 0.36, grow: 0.56, full: 1.1, labels: 1.1, pinA: 2.0, drawStart: 2.06, drawEnd: 4.12,
+          pinB: 4.3, pulse: 4.3, chip: 4.46, out: 6.6, dive: 6.7, fade: 6.95, wipe: 0.3, end: 7.8 }
+      };
+
+      (function () {
+        const W = 1920, H = 1080, T = CONFIG.timing;
+        const $ = (s) => document.querySelector(s);
+        const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+        const lerp = (a, b, k) => a + (b - a) * k;
+        const sstep = (a, b, x) => { const k = clamp((x - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
+
+        // ---------- deterministic noise ----------
+        function hash2(i, j) { let n = (Math.imul(i, 374761393) + Math.imul(j, 668265263)) | 0;
+          n = Math.imul(n ^ (n >>> 13), 1274126177); n = n ^ (n >>> 16); return (n >>> 0) / 4294967296; }
+        function vnoise(x, z) { const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j;
+          const u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz);
+          const a = hash2(i, j), b = hash2(i + 1, j), c = hash2(i, j + 1), d = hash2(i + 1, j + 1);
+          return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; }
+        function ridged(x, z) { let s = 0, a = 0.55, f = 1; for (let o = 0; o < 5; o++) { const n = 1 - Math.abs(vnoise(x * f, z * f) * 2 - 1); s += a * n * n; f *= 2.07; a *= 0.5; } return s; }
+        const hh = (n) => Look.hash(n);
+
+        // ---------- geometry helpers ----------
+        function catmull(pts, closed, per) {
+          const out = [], n = pts.length;
+          const P = (i) => closed ? pts[(i + n) % n] : pts[clamp(i, 0, n - 1)];
+          const segs = closed ? n : n - 1;
+          for (let i = 0; i < segs; i++) {
+            const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2);
+            for (let k = 0; k < per; k++) { const t = k / per, t2 = t * t, t3 = t2 * t;
+              out.push([0, 1].map((c) => 0.5 * ((2 * p1[c]) + (-p0[c] + p2[c]) * t + (2 * p0[c] - 5 * p1[c] + 4 * p2[c] - p3[c]) * t2 + (-p0[c] + 3 * p1[c] - 3 * p2[c] + p3[c]) * t3))); }
+          }
+          if (!closed) out.push(pts[n - 1].slice());
+          return out;
+        }
+        function resample(pts, step) {
+          const out = [pts[0].slice()]; let carry = 0;
+          for (let i = 1; i < pts.length; i++) {
+            const a = pts[i - 1], b = pts[i], L = Math.hypot(b[0] - a[0], b[1] - a[1]); let d = step - carry;
+            while (d <= L) { const k = d / L; out.push([a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]); d += step; }
+            carry = L - (d - step);
+          }
+          const last = pts[pts.length - 1]; out.push(last.slice()); return out;
+        }
+        function distSeg(px, pz, a, b) { const dx = b[0] - a[0], dz = b[1] - a[1], L2 = dx * dx + dz * dz || 1;
+          const k = clamp(((px - a[0]) * dx + (pz - a[1]) * dz) / L2, 0, 1); return Math.hypot(px - a[0] - dx * k, pz - a[1] - dz * k); }
+        function distPoly(px, pz, pl) { let m = 1e9; for (let i = 1; i < pl.length; i++) m = Math.min(m, distSeg(px, pz, pl[i - 1], pl[i])); return m; }
+
+        // ---------- the island (our own geography) ----------
+        const MW = 120, MD = 90, TW = 4096, TH = 3072, PPU = TW / MW;
+        const coastCtl = [[-30,-34.5],[-24,-37.5],[-17,-35.5],[-9,-38.5],[0,-37],[8,-39.5],[17,-37],[25,-39],[32,-34],[38,-30],[43,-24],[45.5,-15],
+          [44,-7],[47.5,0],[46,8],[48,15],[44,21],[38,24],[36,29.5],[31,32.5],[26,29.5],[22,33],[15,34.5],[8,33],[1,35],[-6,33],[-12,30.5],
+          [-15,33.5],[-21,31],[-26,26],[-31,24.5],[-36,26],[-40,23.5],[-38.5,19.5],[-35,16],[-36.5,10],[-38.5,4],[-40.5,-1.5],[-41.8,-8],
+          [-41,-13],[-43.5,-18],[-42.5,-24],[-38.5,-29],[-34,-32]];
+        const ISLETS = [[-50,-15,1.7,1.1,3],[-48.5,-11.5,0.8,0.6,9],[-47,30,1.2,0.9,17],[52,-24,1.6,1.0,23],[51.5,19,0.9,0.7,29]];
+        let coast = catmull(coastCtl, true, 14);
+        coast = coast.map((p, i) => { const q = coast[(i + 1) % coast.length], r = coast[(i - 1 + coast.length) % coast.length];
+          const tx = q[0] - r[0], tz = q[1] - r[1], L = Math.hypot(tx, tz) || 1, nx = -tz / L, nz = tx / L;
+          const w = (vnoise(i * 0.09, 3.1) - 0.5) * 1.1 + (vnoise(i * 0.31, 8.7) - 0.5) * 0.45; return [p[0] + nx * w, p[1] + nz * w]; });
+
+        const S = (pl, per) => catmull(pl, false, per || 10);
+        const routeSegs = CONFIG.route.map((s) => S(s, 12));
+        const routePts = resample([].concat(routeSegs[0], routeSegs[1].slice(1), routeSegs[2].slice(1)), 0.16);
+        const ROADS = {
+          fwy: [ S([[-37.6,-4.0],[-36.6,-3.95]]), routeSegs[0],
+                 S([[-3,3.0],[1,5],[4,8.6],[10,10.4],[18,10.4],[28,9.2],[36,9.6],[44.8,11.6]]),
+                 S([[27,29.5],[22,20],[18.5,12],[17.2,4],[17,-5],[16,-13],[17.5,-21],[15.5,-29],[13,-36.5]]),
+                 S([[17.2,4],[24,5.2],[33,2.8],[43.5,1.2]]) ],
+          art: [ S([[-3,3.0],[-3.3,8],[-3.6,14],[-4,22],[-4.2,30]]), routeSegs[1],
+                 S([[-30,-10.5],[-20,-11],[-10,-10],[0,-10],[10,-10.5],[20,-11],[34,-9],[42.5,-8]]),
+                 S([[-28,13],[-16,13.5],[-4,14],[8,14.5],[20,15],[34,16],[43,17]]),
+                 S([[-22,22],[-21,10],[-19,0],[-18,-12],[-19,-18]]),
+                 S([[25,23],[24,10],[25,-2],[27,-12],[28,-21]]),
+                 S([[-34.5,-26],[-37.5,-21],[-39.3,-12],[-37.8,-4],[-34.8,6],[-31.6,13.5],[-26,20],[-19,24.5],[-8,26.5],[4,28.2]]),
+                 S([[8,14.5],[9,22],[10,28.8]]), S([[-12,-10],[-11,0],[-10,7],[-9.5,14]]) ],
+          hill: [ routeSegs[2], S([[-19,-18],[-16,-22],[-12,-23.5],[-8,-22],[-4,-24.5],[-1.5,-28],[2,-30.5],[6,-31]], 12),
+                  S([[17.5,-21],[14,-23],[11.6,-25.5],[9.0,-27.2]], 12), S([[-25,-20],[-28,-26],[-24,-31],[-18,-33]], 12),
+                  S([[24,-20],[28,-24],[33,-26],[36,-22]], 12), S([[-1.5,-18.5],[-6,-17.8],[-10,-19.5]], 10),
+                  S([[9.0,-27.2],[10.6,-28.4],[9.4,-29.8],[7.6,-30.6],[8.4,-32.2],[10.2,-33.4]], 12) ]
+        };
+        const RIVER = S([[23.6,-19],[22,-8],[21,4],[23.5,15],[27.5,26]]);
+        const majorRoads = [].concat(ROADS.fwy, ROADS.art, ROADS.hill, [RIVER]);
+        const DISTRICTS = [
+          { cx: -31, cz: 2, w: 9, d: 24, ang: 0.10, sp: 1.55, kind: "low" },
+          { cx: -17, cz: -9, w: 13, d: 10, ang: -0.18, sp: 1.9, kind: "low" },
+          { cx: -10, cz: 8, w: 16, d: 14, ang: 0.0, sp: 1.5, kind: "low" },
+          { cx: 2, cz: -12, w: 13, d: 11, ang: 0.0, sp: 1.55, kind: "low" },
+          { cx: 9.5, cz: 0, w: 12, d: 14, ang: 0.0, sp: 2.3, kind: "tower" },
+          { cx: 29, cz: -10, w: 13, d: 14, ang: 0.32, sp: 1.75, kind: "low" },
+          { cx: 28, cz: 4, w: 15, d: 9, ang: 0.0, sp: 1.6, kind: "low" },
+          { cx: 4, cz: 20, w: 24, d: 11, ang: 0.0, sp: 1.45, kind: "low" },
+          { cx: -18, cz: 19, w: 12, d: 8, ang: 0.05, sp: 1.5, kind: "low" },
+          { cx: 37, cz: 12, w: 10, d: 12, ang: -0.1, sp: 1.6, kind: "low" }
+        ];
+        const BASE = { cx: 1, cz: 11.5, w: 96, d: 49, ang: 0.05, sp: 1.7, kind: "low" };
+        const PARKS = [[-22.5,-14.5,3.6,2.6,11],[12.8,-16.2,2.0,1.4,31],[-6,17.5,1.6,1.2,51],[31.5,-16.5,2.4,1.6,71],[-27,4.5,1.2,1.8,91],[14,24,2.2,1.5,111],[-30,20.5,2.0,1.6,131]];
+        const inRect = (dd, x, z) => { const ca = Math.cos(dd.ang), sa = Math.sin(dd.ang), dx = x - dd.cx, dz = z - dd.cz;
+          const lx = dx * ca + dz * sa, lz = -dx * sa + dz * ca; return Math.abs(lx) < dd.w / 2 && Math.abs(lz) < dd.d / 2; };
+        const EXCL = (x, z) => PARKS.some((pk) => ((x - pk[0]) / (pk[2] * 1.1)) ** 2 + ((z - pk[1]) / (pk[3] * 1.1)) ** 2 < 1) ||
+          (x > -17.5 && x < -4 && z > 21 && z < 29) || (x > 21 && x < 37 && z > 19.5 && z < 31);
+
+        // land mask + heights on a grid (0.25 unit cells)
+        const GX = 480, GZ = 360, gs = MW / GX;
+        const mcv = document.createElement("canvas"); mcv.width = GX + 1; mcv.height = GZ + 1;
+        const mctx = mcv.getContext("2d");
+        mctx.filter = "blur(7px)"; mctx.fillStyle = "#000"; mctx.fillRect(0, 0, GX + 1, GZ + 1); mctx.fillStyle = "#fff";
+        mctx.beginPath(); coast.forEach((p, i) => { const x = (p[0] + MW / 2) / gs, y = (p[1] + MD / 2) / gs; i ? mctx.lineTo(x, y) : mctx.moveTo(x, y); }); mctx.closePath(); mctx.fill();
+        const md = mctx.getImageData(0, 0, GX + 1, GZ + 1).data;
+        const HG = new Float32Array((GX + 1) * (GZ + 1)), INL = new Float32Array((GX + 1) * (GZ + 1));
+        for (let j = 0; j <= GZ; j++) for (let i = 0; i <= GX; i++) {
+          const x = -MW / 2 + i * gs, z = -MD / 2 + j * gs, k = j * (GX + 1) + i;
+          const inl = md[k * 4] / 255; INL[k] = inl;
+          const north = sstep(-16.2, -23.5, z) * sstep(0.55, 0.97, inl);
+          const westRise = sstep(-12, -19, z) * sstep(-14, -24, x) * 0.5;
+          const m = Math.max(north, westRise * sstep(0.55, 0.97, inl));
+          HG[k] = m > 0 ? m * (0.35 + 4.4 * ridged(x * 0.072 + 3.3, z * 0.072 + 7.1)) * (0.75 + 0.25 * sstep(-20, -30, z)) : 0;
+        }
+        function hAt(x, z) { const fx = clamp((x + MW / 2) / gs, 0, GX - 0.001), fz = clamp((z + MD / 2) / gs, 0, GZ - 0.001);
+          const i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j, k = j * (GX + 1) + i;
+          return (HG[k] * (1 - u) + HG[k + 1] * u) * (1 - v) + (HG[k + GX + 1] * (1 - u) + HG[k + GX + 2] * u) * v; }
+        function inland(x, z) { const i = clamp(Math.round((x + MW / 2) / gs), 0, GX), j = clamp(Math.round((z + MD / 2) / gs), 0, GZ); return INL[j * (GX + 1) + i]; }
+
+        // ---------- the map texture (maps-app light style) ----------
+        const tcv = document.createElement("canvas"); tcv.width = TW; tcv.height = TH;
+        const c = tcv.getContext("2d");
+        const X = (x) => (x + MW / 2) * PPU, Y = (z) => (z + MD / 2) * PPU;
+        const path = (pl, closed) => { c.beginPath(); pl.forEach((p, i) => i ? c.lineTo(X(p[0]), Y(p[1])) : c.moveTo(X(p[0]), Y(p[1]))); if (closed) c.closePath(); };
+        const stroke = (pl, wU, col) => { path(pl); c.lineWidth = wU * PPU; c.strokeStyle = col; c.lineCap = "round"; c.lineJoin = "round"; c.stroke(); };
+        // water
+        c.fillStyle = "#9CCDEF"; c.fillRect(0, 0, TW, TH);
+        path(coast, true); c.lineJoin = "round";
+        c.strokeStyle = "#A9D6F3"; c.lineWidth = 7 * PPU; c.stroke();
+        c.strokeStyle = "#B4DCF5"; c.lineWidth = 3.4 * PPU; c.stroke();
+        c.strokeStyle = "#BFE2F7"; c.lineWidth = 1.3 * PPU; c.stroke();
+        const isle = (r) => { const pts = []; for (let a = 0; a < 18; a++) { const t = a / 18 * Math.PI * 2, w = 0.75 + 0.45 * hh(r[4] * 31 + a); pts.push([r[0] + Math.cos(t) * r[2] * w, r[1] + Math.sin(t) * r[3] * w]); } return catmull(pts, true, 6); };
+        ISLETS.forEach((r) => { const pl = isle(r); path(pl, true); c.strokeStyle = "#B4DCF5"; c.lineWidth = 2.2 * PPU; c.stroke(); c.strokeStyle = "#BFE2F7"; c.lineWidth = 0.9 * PPU; c.stroke();
+          c.fillStyle = "#E9EFDF"; c.fill(); });
+        // land
+        c.fillStyle = CONFIG.colors.land; path(coast, true); c.fill();
+        c.save(); path(coast, true); c.clip();
+        // hills tint from the height grid (+ slope light from the south-west)
+        const hcv = document.createElement("canvas"); hcv.width = GX + 1; hcv.height = GZ + 1;
+        const hctx = hcv.getContext("2d"), him = hctx.createImageData(GX + 1, GZ + 1);
+        for (let j = 0; j <= GZ; j++) for (let i = 0; i <= GX; i++) {
+          const k = j * (GX + 1) + i, h = HG[k];
+          const hx = HG[k + (i < GX ? 1 : 0)] - HG[k - (i > 0 ? 1 : 0)], hz = HG[k + (j < GZ ? GX + 1 : 0)] - HG[k - (j > 0 ? GX + 1 : 0)];
+          const lit = clamp(0.5 + (-hx * 0.9 + hz * 0.9) * 1.2, 0, 1);
+          const g = sstep(0.06, 0.9, h);
+          // green hills, a touch deeper on shaded slopes
+          const r = lerp(244, lerp(186, 214, lit), g), gg = lerp(241, lerp(219, 236, lit), g), b = lerp(234, lerp(178, 204, lit), g);
+          him.data[k * 4] = r; him.data[k * 4 + 1] = gg; him.data[k * 4 + 2] = b; him.data[k * 4 + 3] = 255;
+        }
+        hctx.putImageData(him, 0, 0);
+        c.imageSmoothingEnabled = true; c.imageSmoothingQuality = "high";
+        c.drawImage(hcv, 0, 0, GX + 1, GZ + 1, 0, 0, (GX + 1) * gs * PPU, (GZ + 1) * gs * PPU);
+        // urban fabric: base street grid over the lowland, then districts with their own grids
+        const drawGrid = (dd, fill) => {
+          c.save(); c.translate(X(dd.cx), Y(dd.cz)); c.rotate(dd.ang);
+          const w = dd.w * PPU, d = dd.d * PPU, sp = dd.sp * PPU;
+          c.fillStyle = fill; c.fillRect(-w / 2, -d / 2, w, d);
+          c.strokeStyle = "#FFFFFF"; c.lineWidth = (dd.kind === "tower" ? 0.4 : 0.32) * PPU; c.beginPath();
+          for (let x = -w / 2; x <= w / 2 + 1; x += sp) { c.moveTo(x, -d / 2); c.lineTo(x, d / 2); }
+          for (let z = -d / 2; z <= d / 2 + 1; z += sp) { c.moveTo(-w / 2, z); c.lineTo(w / 2, z); }
+          c.stroke(); c.restore(); };
+        c.save(); c.globalAlpha = 1; drawGrid(BASE, "#ECE8E0"); c.restore();
+        DISTRICTS.forEach((dd) => drawGrid(dd, dd.kind === "tower" ? "#E4E1DC" : "#E9E5DD"));
+        // soft hill edge over the grid, coastal margin + beaches
+        c.save(); c.globalAlpha = 0.85; c.drawImage(hcv, 0, 0, GX + 1, GZ + 1, 0, 0, (GX + 1) * gs * PPU, (GZ + 1) * gs * PPU); c.restore();
+        c.save(); c.beginPath(); c.rect(0, 0, TW, Y(-14.5)); c.clip(); c.drawImage(hcv, 0, 0, GX + 1, GZ + 1, 0, 0, (GX + 1) * gs * PPU, (GZ + 1) * gs * PPU); c.restore();
+        path(coast, true); c.strokeStyle = CONFIG.colors.land; c.lineWidth = 2.6 * PPU; c.stroke();
+        c.save(); c.beginPath(); c.rect(0, Y(-16), X(-27), Y(40) - Y(-16)); c.rect(X(-27), Y(21), X(14) - X(-27), Y(40) - Y(21)); c.clip();
+        path(coast, true); c.strokeStyle = "#F4E6BF"; c.lineWidth = 2.0 * PPU; c.stroke(); c.restore();
+        // parks + golf
+        const blob = (cx, cz, rx, rz, col, seed) => { const pts = []; for (let a = 0; a < 24; a++) { const t = a / 24 * Math.PI * 2, w = 0.82 + 0.3 * hh(seed + a);
+          pts.push([cx + Math.cos(t) * rx * w, cz + Math.sin(t) * rz * w]); } c.fillStyle = col; path(catmull(pts, true, 6), true); c.fill(); };
+        PARKS.forEach((pk) => blob(pk[0], pk[1], pk[2], pk[3], "#C4E5BC", pk[4]));
+        // airport (south-west) + port (south-east)
+        c.fillStyle = "#E4E3E6"; path(catmull([[-17,22],[-6,21.5],[-4.5,27],[-16,28.5]], true, 4), true); c.fill();
+        [[[-16,23.4],[-6,23.0]],[[-15.5,26.4],[-5.5,25.8]]].forEach((r) => stroke(r, 0.7, "#D2D2D8"));
+        c.fillStyle = "#E6E4E0"; path(catmull([[21.5,21],[34,20.5],[36,26.5],[24,28.6]], true, 4), true); c.fill();
+        for (let i = 0; i < 9; i++) { const x = 23 + i * 1.3; c.fillStyle = i % 2 ? "#D8D6D2" : "#DDDBD6"; c.fillRect(X(x), Y(21.8), 0.75 * PPU, 5.6 * PPU); }
+        // LS river channel
+        stroke(RIVER, 0.5, "#B7DBF2");
+        c.restore();
+        // docks + pier (over water)
+        c.fillStyle = "#E6E4E0"; [[29.5,27.4,1.4,4.6],[32.6,26.8,1.4,4.4]].forEach((r) => c.fillRect(X(r[0]), Y(r[1]), r[2] * PPU, r[3] * PPU));
+        stroke([[-39.6,-4.0],[-45.2,-4.0]], 0.75, "#D7D3CB"); stroke([[-39.6,-4.0],[-45.2,-4.0]], 0.5, "#F7F5F0");
+        // roads: casing pass, then fill pass
+        // hierarchy: freeways yellow with an amber edge > arterials white with a grey casing > hill roads > local streets
+        ROADS.hill.forEach((r) => stroke(r, 0.64, "#CFCAC0")); ROADS.art.forEach((r) => stroke(r, 0.95, "#CFCAC0"));
+        // the freeway the route rides is drawn narrower, so it hides fully under the route's white casing (no yellow fringe)
+        const fwW = (r) => (r === routeSegs[0] ? 0.72 : 1);
+        ROADS.fwy.forEach((r) => stroke(r, 1.34 * fwW(r), "#E0A92E"));
+        ROADS.hill.forEach((r) => stroke(r, 0.46, "#FFFFFF")); ROADS.art.forEach((r) => stroke(r, 0.75, "#FFFFFF"));
+        ROADS.fwy.forEach((r) => stroke(r, 1.08 * fwW(r), "#F9C74F"));
+        ROADS.fwy.forEach((r) => stroke(r, 0.08, "#E9B43C"));
+
+        // ---------- three.js scene ----------
+        const canvas = $("#gl");
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+        renderer.setPixelRatio(1); renderer.setSize(W, H, false);
+        renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;
+        renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        const scene = new THREE.Scene();
+        const SKY = new THREE.Color("#E6EFF6");
+        scene.background = SKY; scene.fog = new THREE.Fog(SKY, 150, 330);
+        const camera = new THREE.PerspectiveCamera(34, W / H, 1, 1200);
+
+        // environment for the glossy pins
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        const envScene = new THREE.Scene();
+        const envGeo = new THREE.SphereGeometry(50, 32, 16), ec = [];
+        for (let i = 0; i < envGeo.attributes.position.count; i++) { const y = envGeo.attributes.position.getY(i) / 50;
+          const k = clamp(y * 0.5 + 0.5, 0, 1), kk = k * k; ec.push(lerp(0.22, 1.0, kk), lerp(0.22, 1.0, kk), lerp(0.24, 1.0, kk)); }
+        envGeo.setAttribute("color", new THREE.Float32BufferAttribute(ec, 3));
+        envScene.add(new THREE.Mesh(envGeo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+        const lamp = new THREE.Mesh(new THREE.SphereGeometry(6, 16, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(4, 4, 4) }));
+        lamp.position.set(-25, 35, 20); envScene.add(lamp);
+        const envTex = pmrem.fromScene(envScene, 0.02).texture;
+
+        const hemi = new THREE.HemisphereLight(0xFFFFFF, 0xD9D3C8, 1.55); scene.add(hemi);
+        const sun = new THREE.DirectionalLight(0xFFF8EE, 2.0);
+        sun.position.set(-62, 74, 58); sun.target.position.set(0, 0, 0); scene.add(sun); scene.add(sun.target);
+        sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
+        Object.assign(sun.shadow.camera, { left: -68, right: 68, top: 60, bottom: -60, near: 10, far: 260 });
+        sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03; sun.shadow.radius = 3;
+
+        // terrain (displaced grid) + endless sea plane
+        const tex = new THREE.CanvasTexture(tcv); tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = renderer.capabilities.getMaxAnisotropy(); tex.generateMipmaps = true; tex.minFilter = THREE.LinearMipmapLinearFilter;
+        const pos = new Float32Array((GX + 1) * (GZ + 1) * 3), uv = new Float32Array((GX + 1) * (GZ + 1) * 2), idx = [];
+        for (let j = 0; j <= GZ; j++) for (let i = 0; i <= GX; i++) { const k = j * (GX + 1) + i;
+          pos[k * 3] = -MW / 2 + i * gs; pos[k * 3 + 1] = HG[k]; pos[k * 3 + 2] = -MD / 2 + j * gs;
+          uv[k * 2] = i / GX; uv[k * 2 + 1] = 1 - j / GZ; }
+        for (let j = 0; j < GZ; j++) for (let i = 0; i < GX; i++) { const a = j * (GX + 1) + i, b = a + 1, d = a + GX + 1, e = d + 1; idx.push(a, d, b, b, d, e); }
+        const tg = new THREE.BufferGeometry(); tg.setAttribute("position", new THREE.BufferAttribute(pos, 3)); tg.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+        tg.setIndex(idx); tg.computeVertexNormals();
+        const terrain = new THREE.Mesh(tg, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.96, metalness: 0 }));
+        terrain.receiveShadow = true; terrain.castShadow = true; scene.add(terrain);
+        const seaPlane = new THREE.Mesh(new THREE.PlaneGeometry(1600, 1600), new THREE.MeshStandardMaterial({ color: "#9CCDEF", roughness: 0.96 }));
+        seaPlane.rotation.x = -Math.PI / 2; seaPlane.position.y = -0.05; seaPlane.receiveShadow = false; scene.add(seaPlane);
+
+        // buildings (instanced): towers downtown, low-rise in the other districts
+        const placed = [];
+        DISTRICTS.concat([BASE]).forEach((dd, di) => {
+          const ca = Math.cos(dd.ang), sa = Math.sin(dd.ang), nx = Math.floor(dd.w / dd.sp), nz = Math.floor(dd.d / dd.sp);
+          for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
+            const lx = -dd.w / 2 + (i + 0.5) * dd.sp, lz = -dd.d / 2 + (j + 0.5) * dd.sp;
+            // each block gets a lot pattern: four small houses, two long buildings, or one big footprint
+            const pr = hh(di * 7919 + i * 131 + j * 17), J = (q) => (hh(di * 3001 + i * 59 + j * 23 + q) - 0.5) * 0.08;
+            const subs = dd.kind === "tower" ? [[0, 0, 0.66, 0.66]]
+              : pr < 0.45 ? [[-0.2 + J(1), -0.2 + J(2), 0.3 + 0.12 * hh(pr * 91 + 1), 0.3 + 0.12 * hh(pr * 91 + 2)], [0.2 + J(3), -0.2 + J(4), 0.28 + 0.14 * hh(pr * 91 + 3), 0.3 + 0.1 * hh(pr * 91 + 4)],
+                             [-0.2 + J(5), 0.2 + J(6), 0.3 + 0.1 * hh(pr * 91 + 5), 0.28 + 0.14 * hh(pr * 91 + 6)], [0.2 + J(7), 0.2 + J(8), 0.3 + 0.12 * hh(pr * 91 + 7), 0.3 + 0.12 * hh(pr * 91 + 8)]]
+              : pr < 0.72 ? (hh(pr * 13) > 0.5 ? [[0, -0.2, 0.78, 0.34], [0, 0.2, 0.7, 0.32]] : [[-0.2, 0, 0.34, 0.78], [0.2, 0, 0.32, 0.7]])
+              : [[J(9), J(10), 0.66 + 0.16 * hh(pr * 7), 0.62 + 0.18 * hh(pr * 11)]];
+            subs.forEach((sb, si) => {
+              const r = hh(di * 1000 + i * 37 + j * 101 + si * 7);
+              if (dd.kind !== "tower" && r < (dd === BASE ? 0.14 : 0.1)) return;
+              const ox = lx + sb[0] * dd.sp, oz = lz + sb[1] * dd.sp;
+              const x = dd.cx + ox * ca - oz * sa, z = dd.cz + ox * sa + oz * ca;
+              if (inland(x, z) < 0.93 || hAt(x, z) > 0.04 || EXCL(x, z)) return;
+              if (dd === BASE && DISTRICTS.some((D) => inRect(D, x, z))) return;
+              const fw = dd.sp * sb[2], fd = dd.sp * sb[3];
+              let clear = true; for (let q = 0; q < majorRoads.length && clear; q++) if (distPoly(x, z, majorRoads[q]) < 0.55 + Math.max(fw, fd) * 0.72) clear = false;
+              if (!clear) return;
+              let hgt;
+              if (dd.kind === "tower") { const dc = Math.hypot(x - 9.5, z + 0.5); hgt = 0.9 + 6.8 * Math.exp(-dc * dc / 26) * (0.45 + 0.75 * hh(r * 77 + 1)) + 0.8 * hh(r * 51); }
+              else { const big = fw * fd > 0.3 * dd.sp * dd.sp; hgt = 0.14 * (1 + 3 * Math.pow(hh(r * 733 + 2), 2.3)) * (big ? 1.35 : 1) + (hh(r * 517 + 4) > 0.95 ? 0.35 : 0); }
+              placed.push({ x, z, fw, fd, h: hgt, ang: dd.ang, tower: dd.kind === "tower", r });
+            });
+          }
+        });
+        const bGeo = new THREE.BoxGeometry(1, 1, 1); bGeo.translate(0, 0.5, 0);
+        { const bp = bGeo.attributes.position, bn = bGeo.attributes.normal, vc = [];
+          for (let i = 0; i < bp.count; i++) { const y = bp.getY(i), up = bn.getY(i) > 0.5, dn = bn.getY(i) < -0.5;
+            const k = up ? 1.0 : dn ? 0.7 : (y < 0.5 ? 0.74 : 1.0); vc.push(k, k, k * 1.01); }
+          bGeo.setAttribute("color", new THREE.Float32BufferAttribute(vc, 3)); }
+        const bMat = new THREE.MeshStandardMaterial({ color: 0xFFFFFF, vertexColors: true, roughness: 0.86, metalness: 0.0, envMap: envTex, envMapIntensity: 0.18 });
+        const bInst = new THREE.InstancedMesh(bGeo, bMat, placed.length);
+        const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), e3 = new THREE.Euler(), col = new THREE.Color();
+        placed.forEach((b, i) => { e3.set(0, -b.ang, 0); q4.setFromEuler(e3);
+          m4.compose(new THREE.Vector3(b.x, 0, b.z), q4, new THREE.Vector3(b.fw, b.h, b.fd)); bInst.setMatrixAt(i, m4);
+          col.set(b.tower ? (b.r > 0.6 ? "#F4F1EC" : "#EFECE6") : "#F3EFE7"); bInst.setColorAt(i, col); });
+        bInst.castShadow = true; bInst.receiveShadow = true; scene.add(bInst);
+
+        // route ribbon (draw-on + light pulse in the shader)
+        const RW = 1.6; let Ltot = 0; const cum = [0];
+        for (let i = 1; i < routePts.length; i++) { Ltot += Math.hypot(routePts[i][0] - routePts[i - 1][0], routePts[i][1] - routePts[i - 1][1]); cum.push(Ltot); }
+        const rp = [], ra = [], rx = [], ri = [];
+        routePts.forEach((p, i) => { const a = routePts[Math.max(0, i - 1)], b = routePts[Math.min(routePts.length - 1, i + 1)];
+          const tx = b[0] - a[0], tz = b[1] - a[1], L = Math.hypot(tx, tz) || 1, nx = -tz / L, nz = tx / L;
+          [-1, 1].forEach((s) => { const x = p[0] + nx * s * RW / 2, z = p[1] + nz * s * RW / 2;
+            rp.push(x, Math.max(hAt(x, z), hAt(p[0], p[1])) + 0.16, z); ra.push(cum[i] / Ltot); rx.push(s); }); });
+        for (let i = 0; i < routePts.length - 1; i++) { const a = i * 2; ri.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+        const rg = new THREE.BufferGeometry(); rg.setAttribute("position", new THREE.Float32BufferAttribute(rp, 3));
+        rg.setAttribute("along", new THREE.Float32BufferAttribute(ra, 1)); rg.setAttribute("across", new THREE.Float32BufferAttribute(rx, 1)); rg.setIndex(ri);
+        const routeU = { uProg: { value: 0 }, uLen: { value: Ltot }, uHalf: { value: RW / 2 }, uPulse: { value: -1 }, uPulseAmt: { value: 0 },
+          uCore: { value: new THREE.Color(CONFIG.colors.route).convertLinearToSRGB() }, uEdge: { value: new THREE.Color(CONFIG.colors.routeEdge).convertLinearToSRGB() },
+          uGlow: { value: new THREE.Color("#FF2E3A").convertLinearToSRGB() } };
+        const routeMat = new THREE.ShaderMaterial({ uniforms: routeU, transparent: true, depthWrite: false,
+          vertexShader: "attribute float along; attribute float across; varying float vS; varying float vX; uniform float uLen;" +
+            "void main(){ vS = along*uLen; vX = across; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }",
+          fragmentShader: "uniform float uProg; uniform float uLen; uniform float uHalf; uniform vec3 uCore; uniform vec3 uEdge; uniform vec3 uGlow;" +
+            "varying float vS; varying float vX;" +
+            "void main(){ float hs = uProg*uLen; if (vS > hs) discard; float a = abs(vX);" +
+            " float hc = hs - uHalf; if (vS > hc) { a = length(vec2((vS-hc)/uHalf, vX)); }" +
+            " if (vS < uHalf) { a = max(a, length(vec2((uHalf - vS)/uHalf, vX))); }" +
+            " float aa = fwidth(a)*1.2 + 0.001; if (a > 1.0) discard;" +
+            " float tube = 1.0 - smoothstep(0.0, 0.3, abs(vX + 0.12));" +
+            " vec3 c = uCore * (0.94 + 0.2*tube);" +
+            " c = mix(c, uEdge, smoothstep(0.40 - aa, 0.40 + aa, a));" +
+            " c = mix(c, vec3(1.0), smoothstep(0.46 - aa, 0.46 + aa, a));" +
+            " float g = 1.0 - smoothstep(0.64, 1.0, a);" +
+            " float al = mix(1.0, 0.35 * g * g, smoothstep(0.64 - aa, 0.64 + aa, a));" +
+            " c = mix(c, uGlow, smoothstep(0.64 - aa, 0.64 + aa, a));" +
+            " gl_FragColor = vec4(c, al); }" });
+        const route = new THREE.Mesh(rg, routeMat); route.renderOrder = 2; scene.add(route);
+        // completion light: an additive white-hot head that runs A -> B on the ribbon and its glow
+        const pulseU = { uP: { value: -1 }, uAmt: { value: 0 }, uLen: { value: Ltot }, uSig: { value: 2.4 } };
+        const pulseMat = new THREE.ShaderMaterial({ uniforms: pulseU, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+          vertexShader: "attribute float along; attribute float across; varying float vS; varying float vX; uniform float uLen;" +
+            "void main(){ vS = along*uLen; vX = across; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }",
+          fragmentShader: "uniform float uP; uniform float uAmt; uniform float uLen; uniform float uSig; varying float vS; varying float vX;" +
+            "void main(){ float a = abs(vX); float d = (vS - uP*uLen)/uSig; float band = exp(-d*d) * uAmt;" +
+            " if (band < 0.003) discard;" +
+            " vec3 hot = mix(vec3(1.0, 0.42, 0.48), vec3(1.0), 1.0 - smoothstep(0.1, 0.6, a));" +
+            " float w = mix(1.0, 0.55 * (1.0 - smoothstep(0.64, 1.0, a)), smoothstep(0.6, 0.66, a));" +
+            " gl_FragColor = vec4(hot * band * w, 1.0); }" });
+        const pulse = new THREE.Mesh(rg, pulseMat); pulse.renderOrder = 4; scene.add(pulse);
+        function routeAt(p) { const s = clamp(p, 0, 1) * Ltot; let lo = 0, hi = cum.length - 1;
+          while (hi - lo > 1) { const m = (lo + hi) >> 1; if (cum[m] < s) lo = m; else hi = m; }
+          const k = (s - cum[lo]) / ((cum[hi] - cum[lo]) || 1), x = lerp(routePts[lo][0], routePts[hi][0], k), z = lerp(routePts[lo][1], routePts[hi][1], k);
+          return new THREE.Vector3(x, hAt(x, z), z); }
+
+        // route head: a white-hot bead with a red glow
+        const glowCv = document.createElement("canvas"); glowCv.width = glowCv.height = 128; { const g = glowCv.getContext("2d");
+          const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.22, "rgba(255,250,248,1)");
+          gr.addColorStop(0.32, "rgba(232,30,46,.95)"); gr.addColorStop(0.5, "rgba(232,30,46,.35)"); gr.addColorStop(1, "rgba(232,30,46,0)"); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); }
+        const bloomCv = document.createElement("canvas"); bloomCv.width = bloomCv.height = 128; { const g = bloomCv.getContext("2d");
+          const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.18, "rgba(255,226,230,.85)");
+          gr.addColorStop(0.45, "rgba(255,90,110,.28)"); gr.addColorStop(1, "rgba(255,60,80,0)"); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); }
+        const bloom = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(bloomCv), transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
+        bloom.renderOrder = 5; scene.add(bloom);
+        // payoff light stays local (lesson 22): an additive 220 px white bloom at pin B's point, under the pin
+        const pbCv = document.createElement("canvas"); pbCv.width = pbCv.height = 256; { const g = pbCv.getContext("2d");
+          const gr = g.createRadialGradient(128, 128, 0, 128, 128, 128); gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.22, "rgba(255,255,255,.62)");
+          gr.addColorStop(0.7, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 256, 256); }
+        const pBloom = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(pbCv), transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
+        pBloom.renderOrder = 4; scene.add(pBloom);
+        const head = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(glowCv), transparent: true, depthWrite: false, depthTest: false }));
+        head.renderOrder = 3; scene.add(head);
+
+        // pins: lathe-turned glossy teardrops with a white rim, white bead, contact shadow and a ground ripple
+        const R = 0.9, HC = 2.25, sb = Math.asin(R / HC), prof = [new THREE.Vector2(0.001, 0)];
+        for (let i = 1; i <= 8; i++) { const k = i / 8; prof.push(new THREE.Vector2(R * Math.cos(sb) * k, (HC - R * Math.sin(sb)) * k)); }
+        for (let i = 1; i <= 28; i++) { const a = -sb + (Math.PI / 2 + sb) * i / 28; prof.push(new THREE.Vector2(Math.max(0.001, R * Math.cos(a)), HC + R * Math.sin(a))); }
+        const pinGeo = new THREE.LatheGeometry(prof, 64); pinGeo.computeVertexNormals();
+        // opaque body gradient: deep red at the point (#A50E1E) up to the pin red (#E1192C) at the head
+        { const pp = pinGeo.attributes.position, vc = [], cLo = new THREE.Color("#A50E1E"), cHi = new THREE.Color(CONFIG.colors.pin), cc = new THREE.Color();
+          for (let i = 0; i < pp.count; i++) { cc.copy(cLo).lerp(cHi, sstep(0.0, HC * 0.95, pp.getY(i))); vc.push(cc.r, cc.g, cc.b); }
+          pinGeo.setAttribute("color", new THREE.Float32BufferAttribute(vc, 3)); }
+        const rimGeo = pinGeo.clone(); rimGeo.translate(0, -HC, 0); rimGeo.scale(1.12, 1.07, 1.12); rimGeo.translate(0, HC, 0);
+        // contact shadow: a tight #2A1A12 core with a soft (blur-like) skirt
+        const shCv = document.createElement("canvas"); shCv.width = shCv.height = 256; { const g = shCv.getContext("2d");
+          const gr = g.createRadialGradient(128, 128, 0, 128, 128, 128); gr.addColorStop(0, "rgba(42,26,18,1)"); gr.addColorStop(0.5, "rgba(42,26,18,.92)");
+          gr.addColorStop(0.72, "rgba(42,26,18,.45)"); gr.addColorStop(1, "rgba(42,26,18,0)"); g.fillStyle = gr; g.fillRect(0, 0, 256, 256); }
+        const shTex = new THREE.CanvasTexture(shCv); shTex.colorSpace = THREE.SRGBColorSpace; // else the dark core is re-encoded as a pale grey
+        function makePin(at) {
+          const grp = new THREE.Group(), body = new THREE.Group();
+          // pins render in the transparent pass (after their contact shadow, which ignores depth) but stay fully opaque
+          const mat = new THREE.MeshPhysicalMaterial({ color: 0xFFFFFF, vertexColors: true, roughness: 0.32, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.1,
+            envMap: envTex, envMapIntensity: 0.8, transparent: true, opacity: 1, depthWrite: true });
+          const mesh = new THREE.Mesh(pinGeo, mat); mesh.renderOrder = 7;
+          const rim = new THREE.Mesh(rimGeo, new THREE.MeshBasicMaterial({ color: 0xFFFFFF, side: THREE.BackSide, transparent: true, opacity: 1, depthWrite: true })); rim.renderOrder = 6;
+          const bead = new THREE.Mesh(new THREE.SphereGeometry(0.34, 32, 16), new THREE.MeshPhysicalMaterial({ color: 0xFFFFFF, roughness: 0.25, clearcoat: 1, envMap: envTex, transparent: true, opacity: 1, depthWrite: true }));
+          bead.renderOrder = 8;
+          bead.position.y = HC;
+          body.add(rim); body.add(mesh); body.add(bead); grp.add(body);
+          const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: shTex, transparent: true, depthWrite: false, depthTest: false, fog: false }));
+          shadow.rotation.x = -Math.PI / 2; shadow.renderOrder = 3;
+          const ring = new THREE.Mesh(new THREE.RingGeometry(0.86, 1.0, 72), new THREE.MeshBasicMaterial({ color: CONFIG.colors.pin, transparent: true, depthWrite: false }));
+          ring.rotation.x = -Math.PI / 2; ring.renderOrder = 1;
+          const ring2 = ring.clone(); ring2.material = ring.material.clone();
+          const g0 = hAt(at[0], at[1]);
+          scene.add(grp); scene.add(shadow); scene.add(ring); scene.add(ring2);
+          return { grp, body, bead, shadow, ring, ring2, x: at[0], z: at[1], y0: g0 };
+        }
+        const pinA = makePin(CONFIG.from.at), pinB = makePin(CONFIG.to.at);
+        const FALL = 0.34, DROP = 11; pinA.dropK = 1; pinB.dropK = 0.3; // B lands high in frame: short drop keeps it inside
+        function posePin(P, tLand, t, cam) {
+          const k = t - tLand, show = t >= tLand - FALL;
+          P.grp.visible = show; P.shadow.visible = show; P.ring.visible = k > 0 && k < 0.9; P.ring2.visible = k > 0.12 && k < 1.05;
+          if (!show) return 0;
+          const d = cam.position.distanceTo(new THREE.Vector3(P.x, P.y0, P.z)), sc = clamp(d / 29, 0.5, 2.8);
+          let y = 0, sy = 1;
+          if (k < 0) { const s = (k + FALL) / FALL; y = DROP * P.dropK * (1 - s * s); sy = 1 + 0.1 * s; }
+          else { sy = 1 - 0.24 * Math.exp(-9 * k) * Math.cos(26 * k);
+            if (k > 0.035 && k < 0.29) y = 0.55 * Math.sin(Math.PI * (k - 0.035) / 0.255); }
+          const sxz = 1 / Math.sqrt(sy);
+          P.grp.position.set(P.x, P.y0 + y * sc, P.z); P.body.scale.set(sc * sxz, sc * sy, sc * sxz);
+          const air = clamp(y / (DROP * P.dropK), 0, 1);
+          // the shadow grows 0.4 -> 1 as the pin comes down, and squashes wide on impact (46 x 14 px at the hold)
+          const grow = lerp(1, 0.4, air), spl = k > 0 ? 1 + 0.35 * Math.exp(-10 * k) * Math.max(0, Math.cos(24 * k)) : 1;
+          P.shadow.position.set(P.x, P.y0 + 0.2, P.z); P.shadow.scale.set(sc * 1.6 * grow * spl, sc * 1.05 * grow * (0.5 + 0.5 * spl), 1);
+          P.shadow.material.opacity = lerp(0.85, 0.2, air);
+          if (k > 0) { const u = clamp(k / 0.9, 0, 1), u2 = clamp((k - 0.12) / 0.93, 0, 1), e = 1 - Math.pow(1 - u, 3), e2 = 1 - Math.pow(1 - u2, 3);
+            P.ring.position.set(P.x, P.y0 + 0.07, P.z); P.ring.scale.setScalar(sc * (0.4 + e * 2.6)); P.ring.material.opacity = 0.75 * (1 - u);
+            P.ring2.position.set(P.x, P.y0 + 0.07, P.z); P.ring2.scale.setScalar(sc * (0.4 + e2 * 1.7)); P.ring2.material.opacity = 0.5 * (1 - u2); }
+          return sc;
+        }
+
+        // ---------- DOM labels pinned to projected 3D points ----------
+        const labHost = $("#labels"), labs = [];
+        function addLab(text, cls, at, lift, dx, dy) { const o = document.createElement("div"); o.className = "lab";
+          const s = document.createElement("span"); s.className = cls; s.textContent = text; o.appendChild(s); labHost.appendChild(o);
+          gsap.set(s, { xPercent: -50, yPercent: cls === "place" ? -100 : -50 });
+          const L = { el: o, inner: s, at, lift: lift || 0, dx: dx || 0, dy: dy || 0 }; labs.push(L); return L; }
+        CONFIG.districts.forEach((d) => addLab(d.t, "dist", d.at, 0.3));
+        addLab(CONFIG.sea.t, "sea", CONFIG.sea.at, 0);
+        const labA = addLab(CONFIG.from.name, "place", CONFIG.from.at, 0, 0, 0);
+        const labB = addLab(CONFIG.to.name, "place", CONFIG.to.at, 0, 0, 0);
+        const chipAnchor = document.createElement("div"); chipAnchor.className = "lab"; labHost.appendChild(chipAnchor);
+        chipAnchor.innerHTML = '<div id="chip"><div class="car"><svg viewBox="0 0 44 44"><path fill="#fff" d="M11.2 19.6l2.6-6.9c.5-1.4 1.9-2.3 3.4-2.3h9.6c1.5 0 2.9.9 3.4 2.3l2.6 6.9c1.5.4 2.6 1.8 2.6 3.4v7.2c0 .9-.7 1.6-1.6 1.6h-1.6v2.2c0 1-.8 1.8-1.8 1.8h-1.4c-1 0-1.8-.8-1.8-1.8v-2.2H15.6v2.2c0 1-.8 1.8-1.8 1.8h-1.4c-1 0-1.8-.8-1.8-1.8v-2.2H9c-.9 0-1.6-.7-1.6-1.6V23c0-1.6 1.1-3 2.6-3.4zm3.6-.3h14.4l-1.9-5.2c-.2-.5-.7-.9-1.3-.9h-8c-.6 0-1.1.4-1.3.9l-1.9 5.2zM12.6 27.6c1.3 0 2.3-1 2.3-2.3s-1-2.3-2.3-2.3-2.3 1-2.3 2.3 1 2.3 2.3 2.3zm18.8 0c1.3 0 2.3-1 2.3-2.3s-1-2.3-2.3-2.3-2.3 1-2.3 2.3 1 2.3 2.3 2.3z"/></svg></div>' +
+          '<div><div class="t"></div><div class="d"></div></div><div class="gl"><i></i></div></div>';
+        chipAnchor.querySelector(".t").textContent = CONFIG.chip.time;
+        chipAnchor.querySelector(".d").innerHTML = "<b></b> · <span></span>";
+        chipAnchor.querySelector(".d b").textContent = CONFIG.chip.dist; chipAnchor.querySelector(".d span").textContent = CONFIG.chip.note;
+        const v3 = new THREE.Vector3();
+        const edgeFade = (x, y, hw) => sstep(70, 120, x - hw) * sstep(W - 70, W - 120, x + hw) * sstep(40, 90, y) * sstep(H - 30, H - 80, y);
+        function project(x, y, z) { v3.set(x, y, z).project(camera); return { x: (v3.x * 0.5 + 0.5) * W, y: (-v3.y * 0.5 + 0.5) * H, ok: v3.z < 1 && v3.z > -1 }; }
+
+        // ---------- camera: keyframed tracks (Catmull-Rom in time) + route-head follow ----------
+        function track(keys) { return (t) => { const n = keys.length; if (t <= keys[0][0]) return keys[0][1]; if (t >= keys[n - 1][0]) return keys[n - 1][1];
+          let i = 0; while (t > keys[i + 1][0]) i++;
+          const t0 = keys[i][0], t1 = keys[i + 1][0], v0 = keys[i][1], v1 = keys[i + 1][1], h = t1 - t0, u = (t - t0) / h;
+          const m0 = i > 0 ? (v1 - keys[i - 1][1]) / (t1 - keys[i - 1][0]) : 0, m1 = i < n - 2 ? (keys[i + 2][1] - v0) / (keys[i + 2][0] - t0) : 0;
+          const u2 = u * u, u3 = u2 * u; return (2 * u3 - 3 * u2 + 1) * v0 + (u3 - 2 * u2 + u) * h * m0 + (-2 * u3 + 3 * u2) * v1 + (u3 - u2) * h * m1; }; }
+        const B = CONFIG.to.at, A = CONFIG.from.at;
+        const camD = track([[0.3, 158], [1.0, 128], [1.7, 80], [2.5, 54], [3.25, 50], [3.8, 63], [4.25, 76], [6.6, 74.5], [7.2, 14], [7.8, 12]]);
+        const camP = track([[0.3, 0.0], [1.0, 0.04], [1.7, 0.5], [2.5, 0.84], [3.25, 0.9], [3.8, 0.82], [4.25, 0.76], [6.6, 0.765], [7.2, 0.86]]);
+        const camY = track([[0.3, 0.0], [1.0, 0.0], [2.5, 0.05], [3.25, 0.1], [3.8, 0.14], [4.25, 0.17], [6.6, 0.2], [7.2, 0.26]]);
+        const tgX = track([[0.3, -2], [1.0, -4], [1.7, -18], [4.25, -14], [6.6, -14.2], [7.2, B[0]]]);
+        const tgZ = track([[0.3, -1], [1.0, -2], [1.7, -6], [4.25, -13.3], [6.6, -13.5], [7.2, B[1]]]);
+        const progOf = (t) => { const s = clamp((t - T.drawStart) / (T.drawEnd - T.drawStart), 0, 1); return 0.5 - 0.5 * Math.cos(Math.PI * s); };
+        const CEN = new THREE.Vector3(-13, 0, -13); const pulseEase = gsap.parseEase("power3.inOut");
+        // the map grows out of the HUD radar (x 22..288, y 880..1052 in the gameplay shot). WebGL renders natively into
+        // that rect (viewport + scissor), so the radar thumbnail is a sharp render, not a shrunken full-frame canvas.
+        const MM = { x: 22, y: 880, w: 266, h: 172 }, growE = gsap.parseEase("power3.inOut");
+        function growRect(t) { const u = clamp((t - T.grow) / (T.full - T.grow), 0, 1), k = growE(u);
+          const vel = (growE(Math.min(1, u + 0.01)) - growE(Math.max(0, u - 0.01))) / 0.02 / 3;
+          return { x: lerp(MM.x, 0, k), y: lerp(MM.y, 0, k), w: lerp(MM.w, W, k), h: lerp(MM.h, H, k), k, u, vel: u > 0 && u < 1 ? vel : 0 }; }
+        const glEl = $("#gl"), mwEl = $("#mapwrap");
+        let pinBScr = { x: W / 2, y: H / 2 };
+        function renderAt(t) {
+          t = Math.max(0, t || 0);
+          const p = progOf(t), hd = routeAt(p);
+          const wf = sstep(1.7, 2.45, t) * (1 - sstep(3.4, 4.12, t));
+          const fx = lerp(CEN.x, hd.x, 0.58), fz = lerp(CEN.z, hd.z, 0.58);
+          const tx = lerp(tgX(t), fx, wf), tz = lerp(tgZ(t), fz, wf);
+          const D = camD(t), P = camP(t), Yw = camY(t);
+          const ty = t > T.dive ? lerp(0, hAt(B[0], B[1]) + 1.5, sstep(T.dive, 7.2, t)) : 0;
+          camera.position.set(tx + D * Math.sin(P) * Math.sin(Yw), ty + D * Math.cos(P), tz + D * Math.sin(P) * Math.cos(Yw));
+          const gr = growRect(t); camera.aspect = gr.w / gr.h;
+          camera.up.set(-Math.sin(Yw), 0, -Math.cos(Yw)); camera.lookAt(tx, ty, tz); camera.updateMatrixWorld(); camera.updateProjectionMatrix();
+          // route + head + completion pulse
+          routeU.uProg.value = p;
+          const pu = clamp((t - T.pulse) / 0.45, 0, 1), pe = pulseEase(pu), pamt = pu > 0 && pu < 1 ? sstep(0, 0.1, pu) * (1 - sstep(0.88, 1, pu)) : 0;
+          pulseU.uP.value = pe; pulseU.uAmt.value = 1.25 * pamt; pulse.visible = pamt > 0;
+          bloom.visible = pamt > 0; if (pamt > 0) { const bp = routeAt(pe), db = camera.position.distanceTo(bp), bs = db * 0.075 * (0.7 + 0.3 * pamt);
+            bloom.position.set(bp.x, bp.y + 0.4, bp.z); bloom.scale.set(bs, bs, 1); bloom.material.opacity = 0.9 * pamt; }
+          const showHead = t > T.drawStart && t < T.drawEnd + 0.12;
+          head.visible = showHead; if (showHead) { const dh = camera.position.distanceTo(hd), hs = dh * 0.034 * (1 - sstep(T.drawEnd - 0.05, T.drawEnd + 0.12, t));
+            head.position.set(hd.x, hd.y + 0.35, hd.z); head.scale.set(hs, hs, 1); }
+          // pins
+          const scA = posePin(pinA, T.pinA, t, camera), scB = posePin(pinB, T.pinB, t, camera);
+          { const kb = t - T.pinB, up = clamp(kb / 0.06, 0, 1), dn = clamp((kb - 0.06 - 3 / 30) / 0.36, 0, 1), dne = 1 - (1 - dn) * (1 - dn);
+            const o = kb < 0 ? 0 : 0.55 * (kb < 0.06 ? up : 1 - dne); pBloom.visible = o > 0.004;
+            if (pBloom.visible) { const bp = new THREE.Vector3(B[0], pinB.y0 + 0.3, B[1]), sz = camera.position.distanceTo(bp) * 0.25 * (kb < 0.06 ? lerp(0.5, 1, up) : lerp(1, 1.25, dne));
+              pBloom.position.copy(bp); pBloom.scale.set(sz, sz, 1); pBloom.material.opacity = o; } }
+          renderer.setScissorTest(false); renderer.setViewport(0, 0, W, H); renderer.setClearColor(0x000000, 0); renderer.clear();
+          const gx = Math.round(gr.x), gy = Math.round(gr.y), gw = Math.round(gr.w), gh = Math.round(gr.h);
+          renderer.setViewport(gx, H - gy - gh, gw, gh); renderer.setScissor(gx, H - gy - gh, gw, gh); renderer.setScissorTest(gr.k < 1);
+          renderer.render(scene, camera);
+          renderer.setScissorTest(false); renderer.setViewport(0, 0, W, H);
+          const rad = 6 * (1 - gr.k);
+          mwEl.style.clipPath = gr.k < 1 ? "inset(" + gy + "px " + (W - gx - gw) + "px " + (H - gy - gh) + "px " + gx + "px round " + rad.toFixed(1) + "px)" : "none";
+          glEl.style.filter = gr.vel > 0.05 ? "blur(" + (4 * clamp(gr.vel, 0, 1) * sstep(0.08, 0.3, gr.k)).toFixed(2) + "px)" : "";
+          // labels
+          labs.forEach((L) => { const g = hAt(L.at[0], L.at[1]); const s = project(L.at[0], g + L.lift, L.at[1]);
+            L.el.style.transform = "translate(" + s.x.toFixed(1) + "px," + s.y.toFixed(1) + "px)"; L.el.style.visibility = s.ok ? "visible" : "hidden";
+            L.el.style.opacity = edgeFade(s.x, s.y, L.inner.offsetWidth / 2).toFixed(3); });
+          const topA = project(A[0], pinA.y0 + (HC + R + 0.25) * (scA || 1), A[1]), topB = project(B[0], pinB.y0 + (HC + R + 0.25) * (scB || 1), B[1]);
+          labA.el.style.transform = "translate(" + topA.x.toFixed(1) + "px," + (topA.y - 10).toFixed(1) + "px)"; labA.el.style.opacity = edgeFade(topA.x, topA.y, labA.inner.offsetWidth / 2).toFixed(3);
+          labB.el.style.transform = "translate(" + topB.x.toFixed(1) + "px," + (topB.y - 10).toFixed(1) + "px)";
+          const midB = project(B[0], pinB.y0 + HC * (scB || 1), B[1]); pinBScr = project(B[0], pinB.y0 + 1.2 * (scB || 1), B[1]);
+          chipAnchor.style.transform = "translate(" + (midB.x - 64).toFixed(1) + "px," + (midB.y - 64).toFixed(1) + "px)";
+
+        }
+        window.addEventListener("hf-seek", (e) => renderAt(e.detail && e.detail.time));
+
+        // ---------- timeline ----------
+        Promise.all(["700 26px Inter", "800 50px Inter", "italic 600 26px Inter", "800 62px Inter"].map((f) => document.fonts.load(f)))
+          .then(() => document.fonts.ready).then(() => {
+          const tl = gsap.timeline({ paused: true });
+          const proxy = { _t: 0 }; Object.defineProperty(proxy, "t", { get() { return this._t; }, set(v) { this._t = v; renderAt(v); } });
+          tl.fromTo(proxy, { t: 0 }, { t: T.end, duration: T.end, ease: "none", immediateRender: false }, 0);
+
+          // the map cuts into the radar's own dark frame, then the frame grows to full screen with a falling shadow
+          Look.drive(tl, T.mmGlow, T.full - T.mmGlow, (pp) => {
+            const t = T.mmGlow + pp * (T.full - T.mmGlow), gr = growRect(t), fr = $("#mmframe");
+            mwEl.style.opacity = pp > 0 ? "1" : "0";
+            fr.style.left = (gr.x - 3).toFixed(2) + "px"; fr.style.top = (gr.y - 3).toFixed(2) + "px";
+            fr.style.width = (gr.w + 6).toFixed(2) + "px"; fr.style.height = (gr.h + 6).toFixed(2) + "px";
+            fr.style.borderRadius = (6 * (1 - gr.k) + 3).toFixed(2) + "px";
+            fr.style.boxShadow = "0 0 0 1px rgba(255,255,255,.07), 0 " + (22 * gr.k * (1 - gr.k) * 4).toFixed(1) + "px " + (20 + 40 * gr.k).toFixed(1) + "px rgba(0,0,0," + (0.5 * (1 - gr.k)).toFixed(3) + ")";
+            fr.style.opacity = pp > 0 && pp < 1 ? (1 - sstep(0.9, 1, gr.k)).toFixed(3) : "0";
+          });
+
+          // labels arrive (districts stagger), pin labels with their pins
+          const dl = labs.filter((L) => L.inner.className !== "place").map((L) => L.inner);
+          // type is never see-through (lesson 23): opacity switches on in one frame, a spring carries the entrance
+          gsap.set(dl, { opacity: 0 });
+          dl.forEach((el, i) => { tl.set(el, { opacity: 1 }, T.labels + i * 0.045);
+            tl.fromTo(el, { y: 14, scale: 0.6 }, { y: 0, scale: 1, duration: 0.45, ease: "back.out(2.4)", immediateRender: false }, T.labels + i * 0.045); });
+          [[labA.inner, T.pinA + 0.02], [labB.inner, T.pinB + 0.08]].forEach(([el, at]) => {
+            gsap.set(el, { opacity: 0 }); tl.set(el, { opacity: 1 }, at);
+            tl.fromTo(el, { y: 30, scale: 0.5 }, { y: 0, scale: 1, duration: 0.5, ease: "back.out(2.2)", immediateRender: false }, at);
+          });
+          // chip springs out of pin B
+          // the chip springs out of the pin: pivot at its pointer, scale 0.2 -> 1 and 120 px out, opaque within 0.08 s
+          const chip = $("#chip"); gsap.set(chip, { xPercent: -100, opacity: 0, scale: 0.2, transformOrigin: "100% 50%" });
+          tl.fromTo(chip, { opacity: 0 }, { opacity: 1, duration: 0.08, ease: "none", immediateRender: false }, T.chip);
+          tl.fromTo(chip, { scale: 0.2, x: 120 }, { scale: 1, x: 0, duration: 0.42, ease: "back.out(2.2)", immediateRender: false }, T.chip);
+          tl.fromTo(chip.querySelector(".gl i"), { xPercent: -140, skewX: -18 }, { xPercent: 420, skewX: -18, duration: 0.7, ease: "power2.inOut", immediateRender: true }, T.chip + 0.3);
+          tl.fromTo(chip.querySelector(".car"), { rotate: -18, scale: 0.6 }, { rotate: 0, scale: 1, duration: 0.7, ease: "elastic.out(1.1,0.45)", immediateRender: false }, T.chip + 0.08);
+          // payoff punch on landing
+          Look.impact(tl, T.pinB, { shake: "#mapshake", amp: 5, dur: 0.28, flash: 0, zoom: 1.012 });
+
+          // designed exit of DOM type before the dive
+          tl.to([].concat(dl, [labA.inner, labB.inner]), { opacity: 0, y: -14, filter: "blur(6px)", duration: 0.24, ease: "power3.in", stagger: 0.008 }, T.out);
+          tl.to(chip, { opacity: 0, scale: 0.12, x: 30, filter: "blur(8px)", duration: 0.26, ease: "power3.in" }, T.out + 0.02);
+          // dive into the destination: iris opens out of pin B onto the destination footage (hard-edged, no dissolve)
+          const wipeE = gsap.parseEase("power2.in"), zoomE = gsap.parseEase("power2.in");
+          Look.drive(tl, T.fade, T.wipe, (pp) => {
+            const mw = $("#mapwrap");
+            if (pp <= 0 || pp >= 1) { mw.style.webkitMaskImage = pp >= 1 ? "linear-gradient(transparent, transparent)" : ""; mw.style.maskImage = mw.style.webkitMaskImage;
+              mw.style.filter = ""; mw.style.transformOrigin = "0 0"; mw.style.transform = pp >= 1 ? "scale(1.35)" : "translate(0px,0px) scale(1)"; return; }
+            const k = wipeE(pp), z = 1 + 0.35 * zoomE(pp), cx = pinBScr.x, cy = pinBScr.y, r = 40 + 2260 * k;
+            mw.style.transformOrigin = cx.toFixed(1) + "px " + cy.toFixed(1) + "px"; mw.style.transform = "scale(" + z.toFixed(4) + ")";
+            mw.style.filter = "blur(" + (6 * Math.sin(Math.PI * Math.min(1, pp * 1.4))).toFixed(2) + "px)";
+            const m = "radial-gradient(circle at " + cx.toFixed(1) + "px " + cy.toFixed(1) + "px, transparent " + r.toFixed(1) + "px, #000 " + (r + 36).toFixed(1) + "px)";
+            mw.style.webkitMaskImage = m; mw.style.maskImage = m; });
+          tl.fromTo("#shotB", { scale: 1.2 }, { scale: 1.0, duration: T.end - T.fade + 0.05, ease: "power3.out", immediateRender: false }, T.fade - 0.05);
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+          renderAt(0);
+        });
+        renderAt(0);
+      })();
+    </script>
+  </body>
+</html>

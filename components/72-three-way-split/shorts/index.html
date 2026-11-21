@@ -1,0 +1,73 @@
+<!doctype html>
+<!-- GTA-niche 72 Three-way split, variant B (9:16 Shorts, 1080x1920, 30 fps, 6.4 s). Phone-first: three stacked 1080x640 bands
+     (GTA V / RED DEAD 2 / GTA VI, official footage downscaled to 0.8x, top-aligned crop) that slam in with a stretch-blur and an
+     impact, horizontal chrome dividers that wipe in with overshoot and take a specular pass, 96 px lit identity chips stamped in
+     on a stair (y 496 / 912 / 1328, all inside the Shorts safe zone), a 4.6 s hold, then the winner band (GTA VI) takes the
+     frame: a clip-path wipe upward that pushes the dividers and the losing chips off its edge while the plate pushes in to
+     cover, docks the winner chip at y 260 and lands with a 3-frame exposure peak.
+     Mechanics in media/split.js + media/split.css (same files as a/, by copy). Full-kind component: footage always shows. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Sample footage"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="media/split.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="media/split.js"></script>
+    <style>
+      @font-face { font-family: "Oswald"; src: url("media/fonts/oswald.woff2") format("woff2"); font-weight: 200 700; font-style: normal; font-display: block; }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #0B0E1C; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #0B0E1C; font-family: "Oswald", sans-serif; }
+      #shake { position: absolute; inset: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.4" data-width="1080" data-height="1920" data-layout-allow-overflow data-layout-allow-overlap>
+      <div id="shake">
+        <div id="split">
+          <!-- GTA V band: official GTA V trailer shots (assets/shots, -h sources, shown at 0.8x) -->
+          <video id="g5-open" class="clip" src="assets/shots/v36-hills-city-view-h.mp4" muted playsinline data-game="g5-open" data-start="0" data-duration="0.7" data-track-index="0"></video>
+          <video id="g5-1" class="clip" src="assets/shots/v36-hills-city-view-h.mp4" muted playsinline data-game="g5" data-start="0" data-duration="1.9" data-track-index="1"></video>
+          <video id="g5-2" class="clip" src="assets/shots/v11-yacht-h.mp4" muted playsinline data-game="g5" data-start="1.87" data-duration="1.83" data-media-start="0.05" data-track-index="1"></video>
+          <video id="g5-3" class="clip" src="assets/shots/v07-biplane-sunset-h.mp4" muted playsinline data-game="g5" data-start="3.67" data-duration="1.56" data-media-start="0.5" data-track-index="1"></video>
+          <video id="g5-4" class="clip" src="assets/shots/v29-plane-clouds-h.mp4" muted playsinline data-game="g5" data-start="5.2" data-duration="1.2" data-media-start="0.05" data-track-index="1"></video>
+          <!-- RDR2 band: official Rockstar RDR2 trailer / gameplay-video shots, cut on the same beats, ends on sky -->
+          <video id="rdr-1" class="clip" src="media/rdr2-ride.mp4" muted playsinline data-game="rdr" data-start="0" data-duration="1.9" data-track-index="2"></video>
+          <video id="rdr-2" class="clip" src="media/rdr2-graveyard.mp4" muted playsinline data-game="rdr" data-start="1.87" data-duration="1.83" data-track-index="2"></video>
+          <video id="rdr-3" class="clip" src="media/rdr2-rear.mp4" muted playsinline data-game="rdr" data-start="3.67" data-duration="1.33" data-media-start="0.3" data-track-index="2"></video>
+          <video id="rdr-4" class="clip" src="media/rdr2-hilltop.mp4" muted playsinline data-game="rdr" data-start="4.97" data-duration="1.43" data-media-start="2.3" data-track-index="2"></video>
+          <!-- GTA VI band (the winner): official GTA VI trailer shots, same beats; the last shot is also the full-frame copy, so the reveal is continuous -->
+          <video id="g6-1" class="clip" src="media/gta6-beachgym.mp4" muted playsinline data-game="g6" data-start="0" data-duration="1.9" data-media-start="0.1" data-track-index="3"></video>
+          <video id="g6-2" class="clip" src="media/gta6-rooftop.mp4" muted playsinline data-game="g6" data-start="1.87" data-duration="1.83" data-media-start="0.1" data-track-index="3"></video>
+          <video id="g6-3" class="clip" src="media/gta6-highway.mp4" muted playsinline data-game="g6" data-start="3.67" data-duration="2.73" data-track-index="3"></video>
+          <video id="g6-full" class="clip" src="media/gta6-highway.mp4" muted playsinline data-game="g6-full" data-start="3.67" data-duration="2.73" data-track-index="4"></video>
+        </div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        axis: "y", W: 1080, H: 1920,
+        order: ["g5", "rdr", "g6"], winner: "g6",
+        div: 12, shake: "#shake",
+        band: { scale: 0.8, ox: -228, oy: 0 },                       // 1920x1080 source at 0.8x = 1536x864, centred across, top-aligned crop (hides any gameplay HUD)
+        chip: {
+          pos: (i, cell, w, h) => ({ x: 72, y: [cell.b - 48 - h, cell.a + 48, cell.a + 48][i] }), // top-left of bands 2 and 3 (sky), bottom-left of band 1 (the status bar forces it); all inside y 230-1480
+          dock: { x: 72, y: 260 }                                     // where the winner chip lands after the wipe
+        },
+        t: { divAt: [0.10, 0.20], divDur: 0.26, specAt: 2.4, chipAt: [0.50, 0.60, 0.70], wipeAt: 4.6, wipeDur: 0.36, end: 6.4 }
+      };
+      (function () {
+        const FACES = ["700 64px Oswald", "500 42px Oswald"];
+        Promise.all(FACES.map((f) => document.fonts.load(f).catch(() => null))).then(() => document.fonts.ready).then(() => {
+          const tl = gsap.timeline({ paused: true });
+          Split.build(tl, document.getElementById("split"), CONFIG);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

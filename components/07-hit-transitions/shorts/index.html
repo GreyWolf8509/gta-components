@@ -1,0 +1,544 @@
+<!doctype html>
+<!-- 07 Hit transitions, variant B: "Vertical pack" (9:16, 1080x1920, 30 fps, 7.07 s).
+     Five GTA V shots: slide-split (1.40), VHS colour-bar tear (2.80), zoom-through punch (4.20), flash hit (5.40, payoff), then a 1.3 s settled hold.
+     Full-kind component: the transitions are treatments of the footage, so bg "none" keeps the footage.
+     The slide-split is DOM. From 2.67 on, a WebGL pass (#fx) draws the frame from the injected video frames: a VHS signal model
+     (line jitter, tears, chroma bleed and offset, noise, tracking bar, SMPTE bars), a true 48-tap radial shutter blur, and the flash
+     (the sun's own glare on the tower's glass blooms into the cut; on the bridge's first 3 frames an exposure punch keyed to the
+     skyline's tall tower: a white-hot crown, the skyline and lit steel punching with a fast falloff, blacks pinned, the sky held by a
+     rotoscoped skyline matte, under a punch and shake, then a clean release into the hold).
+     Everything is driven by one pure function of timeline time (seek-safe). See ../README.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #000; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #000; }
+      .layer { position: absolute; inset: 0; transform-origin: 50% 50%; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      /* slide-split slabs: each clips its third of the incoming shot */
+      /* slabs overlap their neighbours by 1 px (642 px tall, top -1 px): the scaled rig anti-aliases band edges, and butted
+         edges let the under-layer through as a hairline seam; overlapped, each edge sits on the neighbour's opaque pixels */
+      .band { position: absolute; left: 0; width: 1080px; height: 642px; overflow: hidden; }
+      .band .bv { position: absolute; left: 0; width: 1080px; height: 1920px; }
+      /* lit leading edge: a crisp 2 px line outside the blurred slab, tracking its edge (screened on, so it only adds light) */
+      .rim { position: absolute; left: 0; height: 640px; width: 2px; opacity: 0; mix-blend-mode: screen;
+        background: linear-gradient(180deg, rgba(255,246,228,.6), rgba(255,255,255,1) 50%, rgba(255,246,228,.6));
+        box-shadow: 0 0 10px 2px rgba(255,236,200,.6); }
+      /* the slab's cast shadow, on a transparent twin under the slab (outer box-shadow only), so the blur clip never cuts it */
+      .slabsh { position: absolute; left: 0; width: 1080px; height: 640px; }
+      .rimh { position: absolute; left: 0; right: 0; top: 0; height: 4px; opacity: 0;
+        background: linear-gradient(90deg, rgba(255,246,228,.35), rgba(255,255,255,.95) 50%, rgba(255,246,228,.35));
+        box-shadow: 0 0 12px 2px rgba(255,236,200,.45); }
+      /* footage only the WebGL pass reads: hidden by opacity (the runtime forces visibility on active clips, lesson 25) */
+      #fxsrc { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
+      #fx { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <svg width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+      <defs>
+        <!-- slab motion blur: blurred inside the slab only, alpha re-hardened, so the leading edge stays a hard, opaque edge -->
+        <filter id="fB0" x="0" y="0" width="1" height="1" color-interpolation-filters="sRGB"><feGaussianBlur id="fB0g" stdDeviation="0 0" /><feComponentTransfer><feFuncA type="linear" slope="40" intercept="0" /></feComponentTransfer></filter>
+        <filter id="fB1" x="0" y="0" width="1" height="1" color-interpolation-filters="sRGB"><feGaussianBlur id="fB1g" stdDeviation="0 0" /><feComponentTransfer><feFuncA type="linear" slope="40" intercept="0" /></feComponentTransfer></filter>
+        <filter id="fB2" x="0" y="0" width="1" height="1" color-interpolation-filters="sRGB"><feGaussianBlur id="fB2g" stdDeviation="0 0" /><feComponentTransfer><feFuncA type="linear" slope="40" intercept="0" /></feComponentTransfer></filter>
+      </defs>
+    </svg>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="7.066667" data-width="1080" data-height="1920">
+      <div id="L1" class="layer" data-layout-allow-overflow>
+        <video id="s1" class="clip shot" src="assets/shots/v07-biplane-sunset-v.mp4" muted playsinline data-start="0" data-duration="1.66" data-media-start="0" data-track-index="0"></video>
+      </div>
+      <div id="L2" class="layer" data-layout-allow-overflow>
+        <div class="slabsh" id="sh0" style="top:0px"></div>
+        <div class="band" id="b0" style="top:-1px" data-layout-allow-overflow><div class="bv" style="top:1px">
+          <video id="s2a" class="clip shot" src="assets/shots/v11-yacht-v.mp4" muted playsinline data-start="1.24" data-duration="1.700" data-media-start="0" data-track-index="1"></video>
+        </div><div class="rimh" id="rh0"></div></div>
+        <div class="rim" id="r0" style="top:0px"></div>
+        <div class="slabsh" id="sh1" style="top:640px"></div>
+        <div class="band" id="b1" style="top:639px" data-layout-allow-overflow><div class="bv" style="top:-639px">
+          <video id="s2b" class="clip shot" src="assets/shots/v11-yacht-v.mp4" muted playsinline data-start="1.24" data-duration="1.701" data-media-start="0" data-track-index="2"></video>
+        </div><div class="rimh" id="rh1"></div></div>
+        <div class="rim" id="r1" style="top:640px"></div>
+        <div class="slabsh" id="sh2" style="top:1280px"></div>
+        <div class="band" id="b2" style="top:1279px" data-layout-allow-overflow><div class="bv" style="top:-1279px">
+          <video id="s2c" class="clip shot" src="assets/shots/v11-yacht-v.mp4" muted playsinline data-start="1.24" data-duration="1.702" data-media-start="0" data-track-index="3"></video>
+        </div><div class="rimh" id="rh2"></div></div>
+        <div class="rim" id="r2" style="top:1280px"></div>
+      </div>
+      <!-- shots 3-5 are read by the WebGL pass only. Each starts 2 frames before its cut and ends after its last use (lesson 25).
+           s4 (tower) is seen from media 0.777 (its frame 23, the first one past the source's baked-in flare ghost dots) to its last frame;
+           s5 (bridge) runs from media 0 to its end, so the payoff holds on it for 1.3 s. -->
+      <div id="fxsrc">
+        <video id="s3" class="clip shot" src="assets/shots/v17-deluxo-sunset-v.mp4" muted playsinline data-start="2.666667" data-duration="1.566667" data-media-start="0" data-track-index="4"></video>
+        <video id="s4" class="clip shot" src="assets/shots/v37-tower-looking-up-v.mp4" muted playsinline data-start="4.133333" data-duration="1.25" data-media-start="0.71" data-track-index="5"></video>
+        <video id="s5" class="clip shot" src="assets/shots/v44-bridge-skyline-v.mp4" muted playsinline data-start="5.333333" data-duration="1.733333" data-media-start="0" data-track-index="6"></video>
+      </div>
+      <canvas id="fx" width="1080" height="1920" data-layout-allow-overflow></canvas>
+    </div>
+    <script>
+      // All tuning lives here. Cut times must match the <video> windows above.
+      const CONFIG = {
+        end: 7.066667,
+        shots: ["v07-biplane-sunset", "v11-yacht", "v17-deluxo-sunset", "v37-tower-looking-up", "v44-bridge-skyline"],
+        split: { starts: [1.24, 1.30, 1.36], dur: 0.28, dirs: [1, -1, 1], maxBlur: 60, blurPerPx: 0.2, shadow: 0.62, drop: 0.7, rim: 0.95, rimH: 0.9,
+                 lock: 1.60, kick: 0.03, tick: 0.18, recede: 0.45, pushEnd: 2.70 },
+        // VHS colour-bar tear, one entry per frame from `start`: a = main signal ("a" yacht, "b" Deluxo, "bars"), b + mix = rows ripped in from
+        // a second signal, jit = line jitter px, sine = travelling wave tear px, tear = block tear px, noise, bleed/off = chroma bleed step and
+        // offset px, trackY/trackA = tracking-noise bar, scan = scanline depth. The Deluxo lands on the beat (2.80).
+        vhs: { start: 2.666667, frames: [
+          { a: "a", jit: 3, sine: 0, tear: 0, noise: 0.06, bleed: 2.5, off: 3, trackY: 1460, trackA: 0.35, scan: 0.05 },
+          { a: "a", b: "b", mix: 0.08, jit: 9, sine: 46, tear: 120, noise: 0.13, bleed: 3.5, off: 7, trackY: 560, trackA: 0.9, scan: 0.1 },
+          { a: "bars", b: "a", mix: 0.22, jit: 7, sine: 95, tear: 70, noise: 0.16, bleed: 3.5, off: 7, trackY: 1240, trackA: 1, scan: 0.12 },
+          { a: "bars", b: "b", mix: 0.3, jit: 7, sine: 80, tear: 130, noise: 0.2, bleed: 3.5, off: 6, trackY: 330, trackA: 1, scan: 0.12 },
+          { a: "b", b: "bars", mix: 0.14, jit: 9, sine: 38, tear: 120, noise: 0.13, bleed: 3.5, off: 7, trackY: 980, trackA: 0.8, scan: 0.1 },
+          { a: "b", jit: 5, sine: 14, tear: 50, noise: 0.08, bleed: 3, off: 4, trackY: 1600, trackA: 0.4, scan: 0.06 },
+          { a: "b", jit: 2, sine: 0, tear: 0, noise: 0.04, bleed: 2, off: 2, trackY: -200, trackA: 0, scan: 0.03 } ] },
+        zoom: { at: 4.20, outDur: 0.20, outTo: 2.6, inDur: 0.32, inFrom: 2.2, shutter: 1.0, taps: 48, lens: 0.11, lensIn: 0.26,
+                chroma: 4, contrast: 1.14, edgeDark: 0.5, bloom: 0.55 },
+        // flash hit (payoff). Build (last `build` s of the tower): the sun's own glare sliding across the tower's lower glass blooms
+        // (threshold `buildTh`) and lifts under a radial suck-in, a fast attack that stays below the peak. Hit (the cut): a camera
+        // exposure punch keyed to the skyline's tall tower, in source px so it rides the punch and shake: `hot` (centre xy, radii xy,
+        // Gaussian `hotFall`) is the crown core, which takes the full `gain`, a highlight lift, warmth and a bloom keyed off it alone;
+        // the rest of the frame takes `floor` of the gain, falling off from the tower over `floorR`, capped to `floorV`[2] on the skyline
+        // buildings (above source y `floorV`[0..1]) and pinned at the `toe`, so blacks get none; the sky is held by the SKYLINE matte (and
+        // keyed per pixel left of `zone` x, where the bridge arch moves against the sky), deepened by `skyDim` at the peak. Peak on the
+        // cut frame (`peak` per frame for `hold` frames), then a clean `decay`, under a back.out punch about `centre` (so the crown stays
+        // in frame), a shake clamped inside the overscan and a 3 px chroma split. A bright core with a fast falloff, never a veil.
+        flash: { at: 5.40, build: 0.2, buildGain: 0.25, buildLift: 0.08, buildBloom: 0.45, buildTh: 0.8, buildShutter: 3, suckTo: 1.12,
+                 gain: 2.4, hot: [885, 300, 140, 240], hotFall: 1.3, floor: 1.2, floorR: [4000, 6000], floorV: [700, 950, 0.45], toe: [0.12, 0.45],
+                 zone: [430, 460], archY: [600, 800], ownKey: [0.6, 0.7, 0.07, 0.12], skyDim: 0.12, sat: 1.2,
+                 lift: 0.12, key: 0.55, warm: [1.08, 1.0, 0.84], contrast: 1.15, hold: 3, peak: [1, 1, 0.9], decay: 0.22,
+                 bloom: 1.1, bloomTh: 0.85, skyRej: 0.94, bloomStep: 2.2, knee: 0.9,
+                 centre: [760, 680], punchFrom: 1.38, rest: 1.045, punchDur: 0.30, punchEase: "back.out(1.6)", punchShutter: 0.1, push: 0.015,
+                 shakeDur: 0.30, ampX: 18, ampY: 52, rot: 0.4, shakeBlur: 0.08, chroma: 3, chromaDur: 0.12 }
+      };
+      // The bridge shot's skyline (v44-bridge-skyline-v, source px), rotoscoped off media frames 2/6/10 (the skyline holds still to
+      // within 2 px over the flash): run-lengths [columns, skyline y, ...]; everything above y in a column is sky. Used by the flash only.
+      const SKYLINE = [6,503,13,502,7,501,16,500,8,499,8,498,6,497,9,496,11,495,11,494,7,495,15,496,7,497,16,498,5,499,12,500,1,499,1,498,1,499,2,500,7,501,7,502,2,503,3,504,3,505,2,506,3,507,4,508,2,509,2,510,3,511,3,512,3,513,3,514,2,515,3,516,3,517,2,518,3,519,3,520,3,521,2,522,3,523,2,524,4,525,2,526,2,527,2,528,1,529,2,530,1,531,2,532,1,533,2,534,1,535,2,536,3,537,2,538,4,539,2,540,2,541,2,542,1,543,2,544,1,545,2,546,1,547,2,548,1,549,4,550,2,551,2,552,4,553,2,554,2,555,1,556,1,557,2,558,1,559,2,560,1,561,2,562,1,563,2,564,2,565,1,566,1,567,2,568,1,569,2,570,1,571,2,572,1,573,2,574,1,575,2,576,1,577,2,578,1,579,2,580,1,581,2,582,1,583,2,584,1,585,1,586,1,587,1,588,1,589,1,590,1,591,1,592,1,593,1,594,1,595,1,596,1,597,1,598,1,599,1,600,1,601,1,602,1,603,1,604,1,605,1,606,1,607,1,608,1,609,1,610,1,611,1,612,1,613,1,614,1,615,1,616,1,617,1,618,1,620,1,621,1,622,1,623,1,624,1,625,1,626,1,627,1,629,1,630,1,632,1,633,1,634,1,635,1,637,1,638,1,640,1,641,1,643,1,644,1,646,1,647,1,648,1,650,1,652,1,653,1,654,1,655,1,657,1,658,1,660,1,661,1,662,1,664,1,665,1,666,1,668,1,670,1,671,1,672,1,674,1,676,1,678,1,680,1,681,1,683,1,685,1,687,1,688,1,691,1,692,1,695,1,697,1,698,1,700,1,702,1,704,1,705,1,707,1,709,1,711,1,712,1,714,1,716,1,718,1,720,1,722,1,724,1,726,1,728,1,730,1,732,1,734,1,736,1,739,1,741,1,743,1,745,1,748,1,750,1,752,1,754,1,757,1,760,1,761,1,764,1,766,1,768,1,771,5,773,1,511,2,509,6,508,4,507,3,506,9,505,4,504,7,503,2,501,11,500,3,499,3,498,3,497,3,496,2,495,1,486,2,485,1,484,1,483,2,482,1,481,5,480,1,479,1,478,1,474,3,473,1,466,2,465,1,422,2,421,2,420,1,419,1,420,1,467,1,468,8,475,1,474,1,473,4,472,7,473,4,472,12,471,1,470,2,469,10,470,10,469,3,470,3,471,3,472,1,473,2,474,3,475,1,476,1,506,1,509,2,707,2,708,10,709,1,708,1,674,11,673,7,672,2,671,6,672,1,671,10,670,7,669,6,670,1,669,9,668,7,667,6,666,1,665,1,664,1,663,1,639,4,638,4,639,4,640,4,641,3,642,3,643,2,644,4,645,4,646,2,647,3,648,3,649,3,650,3,651,4,652,4,653,4,654,3,655,1,656,5,764,1,763,1,756,1,755,6,754,1,633,1,558,1,534,1,533,1,524,1,522,5,521,1,453,1,452,1,451,1,452,5,453,1,414,1,412,1,411,1,410,1,411,5,412,1,379,1,343,1,341,1,339,1,325,1,307,1,306,1,307,1,308,5,309,2,308,1,284,2,283,1,284,6,305,2,304,1,276,1,275,2,274,3,273,1,274,1,300,6,301,1,272,6,271,5,270,3,271,3,272,2,273,1,274,1,291,5,301,2,300,1,299,1,298,1,297,1,279,2,278,1,279,1,280,1,281,1,287,1,394,3,395,3,396,2,397,1,398,1,399,1,402,1,410,1,418,1,453,1,455,1,508,1,509,1,510,1,511,1,512,1,515,1,522,1,534,2,769,5,770,3,771,5,772,1,773,1,774,1,784,1,786,1,798,1,799,2,800,4,801,1,802,5,847,1,742,1,717,2,716,2,715,5,716,1,715,1,714,1,713,1,712,1,680,1,626,1,578,1,561,1,558,9,557,2,556,2,555,3,554,6,553,1,554,1,555,1,556,1,574,5,847,1,844,1,804,1,798,1,772,1,711,1,686,1,630,1,601,1,556,1,519,1,478,1,455,1,415,1,376,1,345,1,319,1,291,1,186,1,183,1,182,1,168,1,159,1,158,8,159,3,158,1,157,1,156,1,155,1,153,1,151,1,139,1,138,1,139,5,152,1,151,1,150,1,10];
+      (function () {
+        const C = CONFIG, W = 1080, Hh = 1920, FR = 1 / 30, $ = (s) => document.getElementById(s);
+        const P = gsap.parseEase, E3i = P("power3.in"), EXo = P("expo.out"), E2i = P("power2.in"), E2o = P("power2.out"), EBo = P("back.out(1.6)"), ESio = P("sine.inOut");
+        const cl = (v) => (v < 0 ? 0 : v > 1 ? 1 : v), seg = (t, a, b) => cl((t - a) / (b - a)), f3 = (v) => v.toFixed(3);
+        const el = { L1: $("L1"), L2: $("L2") };
+        const bands = [0, 1, 2].map((k) => ({ el: $("b" + k), sh: $("sh" + k), rim: $("r" + k), rimh: $("rh" + k), g: $("fB" + k + "g"), f: "url(#fB" + k + ")" }));
+        const vids = { s2a: $("s2a"), s3: $("s3"), s4: $("s4"), s5: $("s5") };
+        // ================= FX engine (WebGL2, shared by both variants by copy) =================
+        // One full-screen shader chain: scene (footage geometry, 48-tap radial / directional shutter blur, radial chroma,
+        // highlight-only exposure, luma dip, VHS signal model, speed lines, light core, specular sweep) -> bright pass ->
+        // 2x separable Gaussian at 1/4 res -> composite. Driven only from timeline time: drawn from the GSAP timeline and
+        // again on "hf-seek", which the renderer re-dispatches after it injects each video frame, so the cut frame always
+        // samples its own footage (no CSS masks or image filters on cut frames, lesson 25).
+        function makeFX(canvas, W, H) {
+          const gl = canvas.getContext("webgl2", { alpha: true, premultipliedAlpha: true, preserveDrawingBuffer: true, antialias: false });
+          if (!gl) return null;
+          const half = !!gl.getExtension("EXT_color_buffer_float");
+          const VS = "#version 300 es\nin vec2 aP; void main(){ gl_Position = vec4(aP, 0.0, 1.0); }";
+          const HDR = "#version 300 es\nprecision highp float; out vec4 o;\n";
+          const HASH = "float h11(float p){ p = fract(p*0.1031); p *= p + 33.33; p *= p + p; return fract(p); }\n" +
+            "float h12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }\n";
+          const FS_SCENE = HDR + HASH + `
+uniform sampler2D uTex, uTex2, uSkyT; uniform vec2 uRes; uniform float uFrame;
+uniform int uSrc, uSrc2, uTaps;
+uniform vec2 uC, uT, uT0, uChromaC, uGamma, uHitC, uSweepN;
+uniform float uS, uS0, uS2, uRot, uLens, uChroma, uHiLift, uHiKey, uWarmAmt, uContrast, uSat, uBright, uSkyHold;
+uniform vec3 uWarm, uCore; uniform vec4 uLight, uHot, uOwnKey; uniform vec2 uToe, uFloorR, uZone, uArchY; uniform vec3 uFloorV; uniform float uHotFall, uFloor, uSkyDim;
+uniform float uVhs, uJit, uSine, uTear, uNoise, uBleed, uBleedOff, uTrackY, uTrackA, uRowMix, uScan;
+uniform float uLinesA, uLinesR0, uLinesSeed, uLinesN, uLinesW, uCoreA, uSweepA, uSweepPos, uSweepW;
+const vec3 LW = vec3(0.2126, 0.7152, 0.0722);
+vec3 bars(vec2 s){
+  vec2 u = vec2(fract(s.x / uRes.x), clamp(s.y / uRes.y, 0.0, 1.0)); int i = int(floor(u.x * 7.0));
+  if (u.y < 0.67) { vec3 c[7] = vec3[7](vec3(.75), vec3(.75,.75,0.), vec3(0.,.75,.75), vec3(0.,.75,0.), vec3(.75,0.,.75), vec3(.75,0.,0.), vec3(0.,0.,.75)); return c[i]; }
+  if (u.y < 0.75) { vec3 c[7] = vec3[7](vec3(0.,0.,.75), vec3(.075), vec3(.75,0.,.75), vec3(.075), vec3(0.,.75,.75), vec3(.075), vec3(.75)); return c[i]; }
+  float x = u.x;
+  if (x < 0.1786) return vec3(0.0, 0.13, 0.30); if (x < 0.3572) return vec3(1.0); if (x < 0.5358) return vec3(0.2, 0.0, 0.42);
+  if (x < 0.76) return vec3(0.075); if (x < 0.807) return vec3(0.035); if (x < 0.855) return vec3(0.075); if (x < 0.902) return vec3(0.115);
+  return vec3(0.075);
+}
+vec3 src1(vec2 s){ if (uSrc == 2) return bars(s); return texture(uTex, s / uRes).rgb; }
+vec3 src2(vec2 s){ if (uSrc2 == 2) return bars(s); return texture(uTex2, s / uRes).rgb; }
+vec2 toSrc(vec2 p, float S, vec2 T){
+  vec2 d = p - uC - T; float c = cos(uRot), s = sin(uRot);
+  d = vec2(c * d.x + s * d.y, -s * d.x + c * d.y); return uC + d / S;
+}
+vec3 rgb2yiq(vec3 c){ return vec3(dot(c, vec3(0.299,0.587,0.114)), dot(c, vec3(0.596,-0.274,-0.322)), dot(c, vec3(0.211,-0.523,0.312))); }
+vec3 yiq2rgb(vec3 y){ return vec3(y.x + 0.956*y.y + 0.621*y.z, y.x - 0.272*y.y - 0.647*y.z, y.x - 1.106*y.y + 1.703*y.z); }
+vec3 vsrc(vec2 s, bool sec){
+  s.x = mod(s.x, uRes.x);
+  if (sec) return src2(uC + (s - uC) / uS2);
+  return src1(toSrc(s, uS, uT));
+}
+vec3 vhs(vec2 p){
+  float fr = uFrame, row = floor(p.y / 2.0);
+  float jit = (h11(row * 0.731 + fr * 13.17) - 0.5) * 2.0 * uJit;
+  float env = 0.5 + 0.5 * sin(p.y * 0.0037 + fr * 1.93);
+  float tear = uSine * (0.7 * sin(p.y * 0.0093 + fr * 2.31) + 0.3 * sin(p.y * 0.027 + fr * 4.7)) * env;
+  float bsz = 60.0 + 110.0 * h11(floor(p.y / 170.0) + fr * 0.61), bid = floor(p.y / bsz);
+  float block = h11(bid * 3.17 + fr * 1.91) > 0.55 ? (h11(bid * 7.31 + fr * 0.77) - 0.5) * 2.0 * uTear : 0.0;
+  float tb = 1.0 - smoothstep(0.0, 70.0, abs(p.y - uTrackY));
+  float hs = smoothstep(uRes.y - 46.0, uRes.y - 18.0, p.y) * step(0.001, uJit);
+  float dx = jit + tear + block + tb * 36.0 * uTrackA + hs * 70.0;
+  vec2 ps = vec2(p.x - dx, p.y);
+  bool sec = uRowMix > 0.0 && h11(floor(p.y / 56.0) * 1.91 + fr * 3.31) < uRowMix;
+  float Y = dot(vsrc(ps, sec), vec3(0.299, 0.587, 0.114));
+  vec2 iq = vec2(0.0);
+  for (int k = -3; k <= 3; k++) iq += rgb2yiq(vsrc(ps + vec2(uBleedOff + float(k) * uBleed, 0.0), sec)).yz;
+  vec3 col = yiq2rgb(vec3(Y, iq / 7.0 * 1.2));
+  col += (h12(vec2(floor(p.x / 3.0), row) + fr * 17.3) - 0.5) * uNoise;
+  col += tb * uTrackA * (h12(vec2(floor(p.x / 2.0), floor(p.y)) + fr * 5.1) * 0.55 - 0.1);
+  if (h11(row * 1.13 + fr * 29.3) > 0.993 - uNoise * 0.04) {
+    float x0 = h11(row * 3.71 + fr) * uRes.x, len = 30.0 + 260.0 * h11(row * 9.13 + fr);
+    col += vec3(0.75) * step(x0, p.x) * step(p.x, x0 + len);
+  }
+  col *= 1.0 - uScan * (1.0 - step(2.0, mod(p.y, 4.0)));
+  return max(col, 0.0);
+}
+float lines(vec2 p, out float tone){
+  vec2 d = p - uHitC; float r = length(d);
+  float x = (atan(d.y, d.x) * 0.15915494 + 0.5) * uLinesN + uLinesSeed * 0.37;
+  float id = mod(floor(x), uLinesN), f = fract(x) - 0.5;
+  float h1 = h11(id * 1.37 + uLinesSeed * 17.1), h2 = h11(id * 2.71 + uLinesSeed * 31.7), h3 = h11(id * 5.13 + uLinesSeed * 7.3);
+  tone = h3; if (h3 < 0.16) return 0.0;
+  float r0 = uLinesR0 * mix(0.72, 1.5, h2);
+  float tip = clamp((r - r0) / (240.0 + 0.45 * r0), 0.0, 1.0);
+  float off = (h11(id * 9.7 + uLinesSeed * 3.3) - 0.5) * 0.36;
+  float hw = mix(0.07, 0.28, h1) * uLinesW * pow(tip, 0.7);
+  float aa = 1.0 / max(6.2831853 * r / uLinesN, 1.0);
+  return (1.0 - smoothstep(hw - aa, hw + aa, abs(f - off))) * smoothstep(r0, r0 + 140.0, r);
+}
+void main(){
+  vec2 p = vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y);
+  vec3 col;
+  if (uSrc == 0) col = vec3(0.0);
+  else if (uVhs > 0.5) col = vhs(p);
+  else {
+    vec2 hc = uRes * 0.5, q = (p - hc) / (0.5 * length(uRes));
+    vec2 pl = hc + (p - hc) * (1.0 - uLens * dot(q, q));
+    vec2 cd = vec2(0.0);
+    if (uChroma > 0.0) { vec2 dv = p - uChromaC; float dl = length(dv) + 1e-3; cd = dv / dl * uChroma * clamp(dl / (0.5 * length(uRes)), 0.0, 1.0); }
+    vec3 acc = vec3(0.0); float j = h12(p + uFrame * 7.13);
+    for (int i = 0; i < 64; i++) {
+      if (i >= uTaps) break;
+      float k = uTaps > 1 ? (float(i) + j) / float(uTaps) : 1.0;
+      float S = mix(uS0, uS, k); vec2 T = mix(uT0, uT, k);
+      if (uChroma > 0.0) acc += vec3(src1(toSrc(pl + cd, S, T)).r, src1(toSrc(pl, S, T)).g, src1(toSrc(pl - cd, S, T)).b);
+      else acc += src1(toSrc(pl, S, T));
+    }
+    col = acc / float(max(uTaps, 1));
+  }
+  float l = dot(col, LW), hk = smoothstep(uHiKey - 0.18, uHiKey + 0.22, l);
+  // subject key for the flash: a sky key (the open, brightest values, held back by uSkyHold) times a radial light falloff on the
+  // payoff object (uLight = centre xy, full-strength radius, zero radius; off when w == 0), so the light hits the subject and the sky
+  // and distance stay readable. It rides out in alpha (1 - subject), so the bloom's bright pass can reject everything else.
+  float sky = smoothstep(0.62, 0.8, l), keep = 1.0 - uSkyHold * sky;
+  if (uLight.w > 0.0) keep *= 1.0 - smoothstep(uLight.z, uLight.w, length(p - uLight.xy));
+  // flash (uHot = source-space centre xy, radii xy; off when z == 0). Everything is measured in SOURCE space, so it rides the punch
+  // and shake with the footage. A camera exposure punch with the sky held: the skyline's tall tower is darker than the hazy sky
+  // around it, so the sky is keyed by a matte (uSkyT: the skyline's per-column height, rotoscoped off the shot, 3-column AA); in
+  // the moving arch's zone (source x < uZone) the sky between the arch and that skyline is keyed per pixel (bright AND blue, dilated
+  // 2.5 px so the arch's edge pixels never brighten into a fringe). Non-sky takes the gain: the full gain on the crown core (hot),
+  // elsewhere a floor that falls off from the tower (uFloorR) and is pinned at the toe, so blacks get none. The sky is held and
+  // slightly deepened (uSkyDim), the bloom's bright pass keys off the lit crown only.
+  float gk = keep, gate = keep, skyK = 0.0;
+  if (uHot.z > 0.0) {
+    vec2 sp = toSrc(p, uS, uT), e = (sp - uHot.xy) / uHot.zw, ef = (sp - uHot.xy) / uFloorR;
+    float hot = exp(-dot(e, e) * uHotFall), far = exp(-dot(ef, ef));
+    float ms = 0.0;
+    for (int i = -1; i <= 1; i++) { float ys = texelFetch(uSkyT, ivec2(clamp(int(floor(sp.x)) + i, 0, 1079), 0), 0).r; ms += 1.0 - smoothstep(ys - 1.0, ys + 1.0, sp.y); }
+    ms /= 3.0;
+    float zw = smoothstep(uZone.x, uZone.y, sp.x), ok = 0.0;
+    if (zw < 1.0) for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++) {
+      vec3 c = src1(sp + vec2(float(i), float(j)) * 2.5);
+      ok = max(ok, smoothstep(uOwnKey.x, uOwnKey.y, dot(c, LW)) * smoothstep(uOwnKey.z, uOwnKey.w, c.b - c.r));
+    }
+    // above the arch zone's reach (source y < uArchY.x) anything bright is sky; the arch steel there is dark
+    skyK = max(max(ms, ok * (1.0 - zw)), (1.0 - zw) * (1.0 - smoothstep(uArchY.x, uArchY.y, sp.y)) * smoothstep(0.38, 0.5, l));
+    float hold = 1.0 - skyK;
+    // the floor: the skyline buildings (above uFloorV.y in source px) take uFloorV.z of it, the bridge and street all of it
+    float fl = uFloor * far * smoothstep(uToe.x, uToe.y, l) * mix(smoothstep(uArchY.x, uArchY.y, sp.y), 1.0, zw)
+             * mix(uFloorV.z, 1.0, smoothstep(uFloorV.x, uFloorV.y, sp.y));
+    gk = hold * (hot + (1.0 - hot) * fl);
+    hk *= hot * hold; gate = hot * hold;
+  } else hk *= keep;
+  col *= 1.0 + uHiLift * hk;
+  col = mix(col, col * uWarm, uWarmAmt * hk);
+  col = uGamma.x * pow(max(col, vec3(0.0)), vec3(uGamma.y));
+  col = max((col - 0.45) * uContrast + 0.45, 0.0);
+  float l2 = dot(col, LW); col = max(mix(vec3(l2), col, uSat), 0.0) * (1.0 + (uBright - 1.0) * gk) * (1.0 - uSkyDim * skyK);
+  if (uSweepA > 0.0) {
+    float q = dot(p - uRes * 0.5, uSweepN) - uSweepPos, w2 = uSweepW * 3.5, q2 = q + uSweepW * 3.2, w3 = uSweepW * 0.35;
+    float band = (exp(-q * q / (2.0 * uSweepW * uSweepW)) + 0.12 * exp(-q * q / (2.0 * w2 * w2)) + 0.5 * exp(-q2 * q2 / (2.0 * w3 * w3)))
+               * (0.3 + 0.7 * smoothstep(uRes.y * 0.06, uRes.y * 0.32, p.y)); // eases off the open sky at the top of frame
+    // weighted by the surface's own brightness (lit glass catches it, dark mullions stay dark) and screened, so bright sky never clips to a veil
+    float lw = dot(col, LW), w = 0.1 + 0.9 * smoothstep(0.08, 0.5, lw) * (1.0 - 0.85 * smoothstep(0.62, 0.92, lw));
+    col += (1.0 - min(col, vec3(1.0))) * min(uSweepA * band * w * vec3(1.0, 0.95, 0.86), vec3(0.97));
+  }
+  if (uLinesA > 0.0) {
+    float tone; float m = lines(p, tone);
+    vec3 lc = tone > 0.72 ? vec3(1.15, 0.66, 0.26) : vec3(1.08, 1.03, 0.95);
+    col = mix(col, lc, m * uLinesA);
+  }
+  if (uCoreA > 0.0) {
+    // glare profile (sharp hot centre, long soft warm tail, no plateau) screened on: darker surroundings take the warm light, hot areas stay hot
+    float rc = length(p - uCore.xy) / uCore.z;
+    vec3 add = uCoreA * (exp(-rc * 6.0) * vec3(0.95, 0.9, 0.8) + exp(-rc * 1.8) * vec3(0.66, 0.52, 0.32));
+    col += (1.0 - min(col, vec3(1.0))) * min(add, vec3(0.97));
+  }
+  o = vec4(col, 1.0 - gate);
+}`;
+          const FS_BRIGHT = HDR + `
+uniform sampler2D uSrcT; uniform vec2 uTexel, uOut; uniform float uTh, uSkyRej;
+void main(){
+  vec2 uv = gl_FragCoord.xy / uOut;
+  vec4 c4 = 0.25 * (texture(uSrcT, uv + uTexel * vec2(-1.0, -1.0)) + texture(uSrcT, uv + uTexel * vec2(1.0, -1.0))
+                 + texture(uSrcT, uv + uTexel * vec2(-1.0, 1.0)) + texture(uSrcT, uv + uTexel * vec2(1.0, 1.0)));
+  vec3 c = c4.rgb; float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  o = vec4(c * smoothstep(uTh, uTh + 0.3, l) * (1.0 - uSkyRej * c4.a), 1.0);
+}`;
+          const FS_BLUR = HDR + `
+uniform sampler2D uSrcT; uniform vec2 uDir, uOut;
+void main(){
+  vec2 uv = gl_FragCoord.xy / uOut;
+  vec3 c = texture(uSrcT, uv).rgb * 0.1802;
+  float w[6] = float[6](0.1627, 0.1201, 0.0727, 0.0361, 0.0147, 0.0049);
+  for (int i = 0; i < 6; i++) { vec2 d = uDir * float(i + 1); c += (texture(uSrcT, uv + d).rgb + texture(uSrcT, uv - d).rgb) * w[i]; }
+  o = vec4(c / 1.0026, 1.0);
+}`;
+          const FS_FINAL = HDR + `
+uniform sampler2D uScene, uBloomTex; uniform vec2 uRes; uniform float uBloom, uVig, uKnee, uKneeAmt; uniform vec3 uBloomTint;
+void main(){
+  vec2 uv = gl_FragCoord.xy / uRes;
+  vec3 c = texture(uScene, uv).rgb;
+  if (uBloom > 0.0) c += texture(uBloomTex, uv).rgb * uBloom * uBloomTint;
+  vec2 q = (gl_FragCoord.xy - 0.5 * uRes) / (0.5 * uRes);
+  c *= 1.0 - uVig * smoothstep(0.5, 1.45, length(q));
+  // filmic shoulder (flash frames only): values above the knee roll off toward white instead of clipping flat
+  if (uKneeAmt > 0.0) { vec3 x = max(c - uKnee, 0.0); c = mix(c, min(c, vec3(uKnee)) + (1.0 - uKnee) * (1.0 - exp(-x / (1.0 - uKnee))), uKneeAmt); }
+  o = vec4(clamp(c, 0.0, 1.0), 1.0);
+}`;
+          const INTS = new Set(["uSrc", "uSrc2", "uTaps", "uTex", "uTex2", "uSkyT", "uScene", "uBloomTex", "uSrcT"]);
+          function prog(fs) {
+            const mk = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+              if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error("FX shader: " + gl.getShaderInfoLog(s)); return s; };
+            const p = gl.createProgram(); gl.attachShader(p, mk(gl.VERTEX_SHADER, VS)); gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fs));
+            gl.bindAttribLocation(p, 0, "aP"); gl.linkProgram(p);
+            if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error("FX link: " + gl.getProgramInfoLog(p));
+            const cache = {};
+            return { p, set(name, v) {
+              if (!(name in cache)) cache[name] = gl.getUniformLocation(p, name);
+              const l = cache[name]; if (l === null) return;
+              if (typeof v === "number") { if (INTS.has(name)) gl.uniform1i(l, v); else gl.uniform1f(l, v); }
+              else if (v.length === 2) gl.uniform2f(l, v[0], v[1]); else if (v.length === 3) gl.uniform3f(l, v[0], v[1], v[2]); else if (v.length === 4) gl.uniform4f(l, v[0], v[1], v[2], v[3]);
+            } };
+          }
+          const PS = prog(FS_SCENE), PB = prog(FS_BRIGHT), PL = prog(FS_BLUR), PF = prog(FS_FINAL);
+          const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+          const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+          gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+          gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+          function mkTex(w, h, hdr) {
+            const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+            if (hdr) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
+            else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, w * h === 1 ? new Uint8Array([0, 0, 0, 255]) : null);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            return t;
+          }
+          function mkFbo(w, h) {
+            const t = mkTex(w, h, half), f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+            return { t, f, w, h };
+          }
+          const scene = mkFbo(W, H), bw = Math.round(W / 4), bh = Math.round(H / 4), b1 = mkFbo(bw, bh), b2 = mkFbo(bw, bh);
+          const vt = [mkTex(1, 1, false), mkTex(1, 1, false)];
+          // the flash's sky matte: the shot's skyline as one height per source column (R32F, 1080 x 1), unpacked from run-lengths
+          const skyT = gl.createTexture(), skyH = new Float32Array(W).fill(H);
+          for (let i = 0, x = 0; i < SKYLINE.length && x < W; i += 2) { skyH.fill(SKYLINE[i + 1], x, Math.min(W, x + SKYLINE[i])); x += SKYLINE[i]; }
+          gl.bindTexture(gl.TEXTURE_2D, skyT); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, W, 1, 0, gl.RED, gl.FLOAT, skyH);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+          // the renderer injects each video frame as an <img class="__render_frame__"> sibling; sample that when present
+          function frameOf(v) {
+            const n = v.nextElementSibling;
+            if (n && n.classList && n.classList.contains("__render_frame__") && n.complete && n.naturalWidth > 0) return n;
+            return v.readyState >= 2 ? v : null;
+          }
+          function upload(unit, v) {
+            const s = v && frameOf(v); if (!s) return;
+            gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, vt[unit]);
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+            try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, s); } catch (e) { /* keep the last frame */ }
+          }
+          function pass(P, target, w, h) { gl.bindFramebuffer(gl.FRAMEBUFFER, target ? target.f : null); gl.viewport(0, 0, w, h); gl.useProgram(P.p); }
+          function bindT(unit, t) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t); }
+          return {
+            clear() { gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); },
+            draw(u) {
+              gl.bindVertexArray(vao); gl.disable(gl.BLEND);
+              if (u.tex) upload(0, u.tex); if (u.tex2) upload(1, u.tex2);
+              pass(PS, scene, W, H); bindT(0, vt[0]); bindT(1, vt[1]); bindT(2, skyT);
+              PS.set("uTex", 0); PS.set("uTex2", 1); PS.set("uSkyT", 2); PS.set("uRes", [W, H]);
+              for (const k in u) if (k.charCodeAt(0) === 117 && k !== "tex" && k !== "tex2") PS.set(k, u[k]);
+              gl.drawArrays(gl.TRIANGLES, 0, 3);
+              const bl = u.bloom || 0;
+              if (bl > 0.001) {
+                bindT(1, null);
+                pass(PB, b1, bw, bh); bindT(0, scene.t); PB.set("uSrcT", 0); PB.set("uTexel", [1 / W, 1 / H]); PB.set("uOut", [bw, bh]); PB.set("uTh", u.bloomTh || 0.7); PB.set("uSkyRej", u.skyRej || 0);
+                gl.drawArrays(gl.TRIANGLES, 0, 3);
+                const st = u.bloomStep || 1.5; // blur step in quarter-res px (1.5: tight glow; larger: a wide halation that wraps dark edges)
+                for (let it = 0; it < 2; it++) {
+                  pass(PL, b2, bw, bh); bindT(0, b1.t); PL.set("uSrcT", 0); PL.set("uOut", [bw, bh]); PL.set("uDir", [st / bw, 0]); gl.drawArrays(gl.TRIANGLES, 0, 3);
+                  pass(PL, b1, bw, bh); bindT(0, b2.t); PL.set("uSrcT", 0); PL.set("uOut", [bw, bh]); PL.set("uDir", [0, st / bh]); gl.drawArrays(gl.TRIANGLES, 0, 3);
+                }
+              }
+              pass(PF, null, W, H); bindT(0, scene.t); bindT(1, b1.t);
+              PF.set("uScene", 0); PF.set("uBloomTex", 1); PF.set("uRes", [W, H]); PF.set("uBloom", bl); PF.set("uBloomTint", u.bloomTint || [1, 1, 1]); PF.set("uVig", u.vig || 0);
+              PF.set("uKnee", u.knee || 0.8); PF.set("uKneeAmt", u.kneeAmt || 0);
+              gl.drawArrays(gl.TRIANGLES, 0, 3);
+            }
+          };
+        }
+        // neutral scene state; each frame's state overrides what it needs
+        function U0(W, H) {
+          return { uSrc: 1, uSrc2: 1, uFrame: 0, uC: [W / 2, H / 2], uS: 1, uS0: 1, uS2: 1, uT: [0, 0], uT0: [0, 0], uRot: 0, uLens: 0, uTaps: 1,
+            uChroma: 0, uChromaC: [W / 2, H / 2], uHiLift: 0, uHiKey: 0.6, uWarm: [1, 1, 1], uWarmAmt: 0, uGamma: [1, 1], uContrast: 1, uSat: 1, uBright: 1,
+            uVhs: 0, uJit: 0, uSine: 0, uTear: 0, uNoise: 0, uBleed: 0, uBleedOff: 0, uTrackY: -999, uTrackA: 0, uRowMix: 0, uScan: 0,
+            uLinesA: 0, uLinesR0: 300, uLinesSeed: 0, uLinesN: 64, uLinesW: 1, uHitC: [W / 2, H / 2], uCore: [W / 2, H / 2, 300], uCoreA: 0,
+            uSweepA: 0, uSweepPos: -9999, uSweepW: 60, uSweepN: [0.866, 0.5], uSkyHold: 0, uLight: [0, 0, 0, 0],
+            uHot: [0, 0, 0, 0], uHotFall: 1.6, uToe: [0.04, 0.32], uFloor: 0, uFloorR: [1, 1], uFloorV: [0, 1, 1], uZone: [0, 1], uArchY: [0, 1], uOwnKey: [2, 3, 2, 3], uSkyDim: 0, bloom: 0, bloomTh: 0.7, bloomTint: [1, 1, 1], vig: 0 };
+        }
+
+        // ---- motion curves (pure functions of time) ----
+        const S_ = C.split, V = C.vhs, Z = C.zoom, F = C.flash;
+        const yS = (t) => 1 + 0.03 * seg(t, S_.lock, S_.pushEnd); // the yacht's slow push, continuous with the DOM rig at the handoff
+        const zOut = (t) => 1 + (Z.outTo - 1) * E3i(seg(t, Z.at - Z.outDur, Z.at));
+        const zIn = (t) => Z.inFrom - (Z.inFrom - 1) * EXo(seg(t, Z.at, Z.at + Z.inDur));
+        const dS = (t) => zOut(t) * (1 + 0.03 * seg(t, V.start + 0.28, Z.at - Z.outDur)); // Deluxo: push, then into the lens
+        const bS = (t) => zIn(t) * (1 + 0.02 * seg(t, Z.at + Z.inDur, F.at - F.build)) * (1 + (F.suckTo - 1) * E2i(seg(t, F.at - F.build, F.at)));
+        // bridge: punch 1.22 -> rest on back.out (a small overshoot past rest, still inside the frame) under the shake, then a slow push through the hold
+        const EPu = P(F.punchEase);
+        const pS = (t) => (F.rest + (F.punchFrom - F.rest) * (1 - EPu(seg(t - F.at, 0, F.punchDur)))) * (1 + F.push * ESio(seg(t, F.at + F.punchDur, C.end)));
+        const shakeAt = (f) => {
+          const nF = Math.round(F.shakeDur * 30); if (f < 0 || f >= nF) return [0, 0, 0];
+          const env = f < 3 ? 1 - 0.08 * f : Math.pow(1 - (f - 2) / (nF - 2), 2), s = f % 2 ? 1 : -1; // full swing for the first frames, then decays
+          return [s * (0.55 + 0.45 * Look.hash(f * 3 + 21)) * F.ampX * env, -s * (0.35 + 0.65 * Look.hash(f * 3 + 22)) * F.ampY * env,
+                  (Look.hash(f * 3 + 23) * 2 - 1) * F.rot * env];
+        };
+        // keep the shake inside the punch's overscan, so the frame edge never shows: the punch scales about F.centre, so the margin
+        // differs per side (lo = towards 0, hi = towards the far edge); 12 px are left for the roll
+        const inFrame = (v, S, c, size) => Math.max(Math.min(0, -(S - 1) * (size - c) + 12), Math.min(Math.max(0, (S - 1) * c - 12), v));
+        const fx = makeFX($("fx"), W, Hh);
+
+        function fxState(t) {
+          if (t < V.start - 1e-4) return null; // the DOM slide-split rig owns the frame until the tear starts (identical state at the handoff)
+          const u = U0(W, Hh); u.uFrame = Math.round(t * 30);
+          const vf = Math.round((t - V.start) * 30);
+          if (vf < V.frames.length) {
+            // ---- VHS colour-bar tear: one signal-model frame per entry ----
+            const fr = V.frames[vf], pick = (k) => (k === "a" ? [vids.s2a, yS(t)] : [vids.s3, dS(t)]);
+            u.uVhs = 1;
+            if (fr.a === "bars") u.uSrc = 2; else { const pk = pick(fr.a); u.tex = pk[0]; u.uS = pk[1]; }
+            if (fr.b) { if (fr.b === "bars") u.uSrc2 = 2; else { const pk = pick(fr.b); u.tex2 = pk[0]; u.uS2 = pk[1]; } u.uRowMix = fr.mix || 0; }
+            u.uJit = fr.jit; u.uSine = fr.sine; u.uTear = fr.tear; u.uNoise = fr.noise; u.uBleed = fr.bleed; u.uBleedOff = fr.off;
+            u.uTrackY = fr.trackY; u.uTrackA = fr.trackA; u.uScan = fr.scan;
+            return u;
+          }
+          if (t < Z.at) {
+            // ---- Deluxo: slow push, then it accelerates into the lens (radial shutter blur, barrel lens, edge chroma) ----
+            const S = dS(t), Sp = dS(t - FR), e = E3i(seg(t, Z.at - Z.outDur, Z.at));
+            u.tex = vids.s3; u.uS = S; u.uS0 = S - (S - Sp) * Z.shutter; u.uTaps = e > 0 && S - Sp > 0.002 ? Z.taps : 1;
+            u.uLens = Z.lens * e; u.uChroma = Z.chroma * e; u.uContrast = 1 + (Z.contrast - 1) * e; u.vig = Z.edgeDark * e; u.bloom = Z.bloom * e; u.bloomTh = 0.72;
+            return u;
+          }
+          if (t < F.at) {
+            // ---- glass tower: lands out of the lens, slow push, then the flash build: the sun's own glare on the lower glass blooms
+            //      and the highlights lift (a fast attack that stays under the peak) under a radial suck-in ----
+            const S = bS(t), landing = t < Z.at + Z.inDur, build = E2i(seg(t, F.at - F.build, F.at));
+            u.tex = vids.s4; u.uS = S;
+            u.uS0 = landing ? S + (S - bS(t + FR)) * Z.shutter : S - (S - bS(t - FR)) * F.buildShutter;
+            u.uTaps = Math.abs(u.uS0 - S) > 0.002 ? Z.taps : 1;
+            const li = 1 - EXo(seg(t, Z.at, Z.at + Z.lensIn));
+            u.uLens = Z.lens * li; u.uChroma = Z.chroma * li; u.uContrast = 1 + (Z.contrast - 1) * li; u.vig = Z.edgeDark * li;
+            u.uBright = 1 + F.buildGain * build; u.uHiLift = F.buildLift * build; u.uHiKey = 0.55; u.uWarm = F.warm; u.uWarmAmt = build;
+            u.bloom = Math.max(Z.bloom * li, F.buildBloom * build); u.bloomTh = build > 0.001 ? F.buildTh : 0.72; u.bloomTint = [1, 0.92, 0.78];
+            u.knee = F.knee; u.kneeAmt = build;
+            return u;
+          }
+          // ---- flash hit (payoff): the peak lands on the bridge's first frames, held 3 frames, then releases to a clean hold ----
+          const uF = t - F.at, f = Math.floor(uF * 30 + 1e-6), S = pS(t);
+          const sh0 = shakeAt(f), pr0 = shakeAt(f - 1), Sp = pS(t - FR);
+          const cx = F.centre[0], cy = F.centre[1];
+          const sh = [inFrame(sh0[0], S, cx, W), inFrame(sh0[1], S, cy, Hh), sh0[2]], pr = [inFrame(pr0[0], Sp, cx, W), inFrame(pr0[1], Sp, cy, Hh)];
+          u.tex = vids.s5; u.uS = S; u.uC = F.centre; u.uChromaC = F.centre; u.uS0 = S + (S - pS(t + FR)) * F.punchShutter;
+          u.uT = [sh[0], sh[1]]; u.uT0 = [sh[0] + (pr[0] - sh[0]) * F.shakeBlur, sh[1] + (pr[1] - sh[1]) * F.shakeBlur]; u.uRot = sh[2] * Math.PI / 180;
+          u.uTaps = Math.abs(u.uS0 - S) > 0.002 || Math.abs(pr[0] - sh[0]) + Math.abs(pr[1] - sh[1]) > 0.5 ? 32 : 1;
+          // the peak holds on frames 0..hold-1 (easing slightly within the hold, so it stays alive), then releases over `decay`
+          const h0 = (F.hold - 1) / 30, pk = F.peak[F.hold - 1], k = f < F.hold ? F.peak[Math.max(0, f)] : pk * (1 - E2o(seg(uF, h0, h0 + F.decay)));
+          // light added from the footage itself: full gain plus a highlight lift on the tower core, a toe-pinned floor elsewhere (blacks
+          // stay black), extra contrast, a warm bloom keyed off the core, and a filmic shoulder so the core rolls off to white
+          u.uBright = 1 + (F.gain - 1) * k; u.uHot = F.hot; u.uHotFall = F.hotFall; u.uFloor = F.floor; u.uFloorR = F.floorR; u.uFloorV = F.floorV; u.uToe = F.toe;
+          u.uZone = F.zone; u.uArchY = F.archY; u.uOwnKey = F.ownKey; u.uSkyDim = F.skyDim * k; u.uSat = 1 + (F.sat - 1) * k;
+          u.uHiLift = F.lift * k; u.uHiKey = F.key; u.uWarm = F.warm; u.uWarmAmt = k; u.uContrast = 1 + (F.contrast - 1) * k;
+          u.bloom = F.bloom * k; u.bloomTh = F.bloomTh; u.skyRej = F.skyRej; u.bloomTint = [1, 0.9, 0.74]; u.bloomStep = F.bloomStep;
+          u.knee = F.knee; u.kneeAmt = k;
+          u.uChroma = uF < F.chromaDur ? F.chroma * (1 - E2o(uF / F.chromaDur)) : 0;
+          return u;
+        }
+        function drawFX(t) { if (!fx) return; const u = fxState(t); if (u) fx.draw(u); else fx.clear(); }
+
+        function render(t) {
+          // ---- slide-split (DOM): three slabs of shot 2 slide in from alternating sides over the receding shot 1 ----
+          const S = C.split;
+          el.L1.style.transform = "scale(" + f3(1 + 0.05 * seg(t, 0, S.lock)) + ")";
+          const rec = S.recede * E2o(seg(t, S.starts[0], S.lock));
+          el.L1.style.filter = rec > 0.002 ? "brightness(" + f3(1 - rec) + ")" : "";
+          // once every slab has landed, nothing needs the receding shot: drop it so it can never show through a slab edge
+          el.L1.style.opacity = t >= Math.max(...S.starts) + S.dur ? "0" : "1";
+          bands.forEach((b, k) => {
+            const a = S.starts[k], dir = S.dirs[k], p = seg(t, a, a + S.dur);
+            const x = dir * W * (1 - EXo(p)), xp = dir * W * (1 - EXo(seg(t - FR, a, a + S.dur)));
+            const sig = Math.min(S.maxBlur, S.blurPerPx * Math.abs(x - xp)), moving = p > 0 && p < 1;
+            b.el.style.transform = "translateX(" + x.toFixed(1) + "px)";
+            b.g.setAttribute("stdDeviation", sig.toFixed(1) + " 0");
+            b.el.style.filter = moving && sig > 0.3 ? b.f : "";
+            // a slab is a physical sheet: leading-edge shadow onto the shot it covers, a contact shadow dropped onto the slab below,
+            // a lit leading edge and a lit top edge; all of it resolves to nothing as the slab locks into place
+            const sh = moving ? S.shadow * (1 - p) : 0, dr = moving ? S.drop * Math.pow(1 - p, 0.8) : 0;
+            b.sh.style.transform = "translateX(" + x.toFixed(1) + "px)";
+            b.sh.style.boxShadow = sh > 0.01 ? (-dir * 46) + "px 0 90px 18px rgba(0,0,0," + f3(sh) + "), 0 24px 34px rgba(0,0,0," + f3(dr) + "), 0 -24px 34px rgba(0,0,0," + f3(dr) + ")" : "none";
+            b.rim.style.transform = "translateX(" + (x + (dir > 0 ? -1 : W - 1)).toFixed(1) + "px)";
+            b.rim.style.opacity = moving ? f3(S.rim * Math.pow(1 - p, 0.7)) : "0";
+            b.rimh.style.opacity = moving ? f3(S.rimH * Math.pow(1 - p, 0.6)) : "0";
+          });
+          const u2 = t - S.lock;
+          const kick = u2 >= 0 ? S.kick * (1 - EXo(seg(u2, 0, 0.35))) : 0;
+          const tick = u2 >= 0 ? S.tick * (u2 < 2 / 30 ? 1 : 1 - E2o(seg(u2, 2 / 30, 0.3))) : 0;
+          el.L2.style.transform = "scale(" + f3((1 + kick) * yS(t)) + ")";
+          el.L2.style.filter = tick > 0.002 ? "brightness(" + f3(1 + tick) + ")" : "";
+          // ---- everything from the tear on: the WebGL pass ----
+          drawFX(t);
+        }
+
+        // Snap to the 30 fps grid: the runtime nudges seeks by ~1 ms, and a cut frame must never render its pre-cut state.
+        const snap = (x) => Math.round(x * 30) / 30 + 1e-6;
+        const tl = gsap.timeline({ paused: true });
+        Look.drive(tl, 0, C.end, (p) => render(snap(p * C.end)));
+        tl.set({}, {}, C.end);
+        window.__timelines = window.__timelines || {};
+        window.__timelines["main"] = tl;
+        // the renderer injects each video frame after the timeline seek, then re-dispatches hf-seek: redraw then so the pass reads this frame's footage
+        window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") drawFX(snap(e.detail.time)); });
+        tl.seek(0);
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,247 @@
+<!doctype html>
+<!-- 58 Quote card, variant A: "Pull quote" (16:9, 1920x1080, 30 fps, 6.4 s).
+     The essay-video pull quote: the footage drops into a purple-magenta grade, a pink bar springs down, the italic quote
+     writes on word by word, then a light front ignites the key phrase hot pink and jumps to the source tile (a real 3D
+     gold-enamel tile with a raised black-lacquer quote mark) whose neon halo switches on as the attribution rolls in.
+     Variable: bg "plate" (sample footage) / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/quote3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      .grade { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
+      #gMul { mix-blend-mode: multiply; background:
+        linear-gradient(100deg, rgb(52,20,86) 0%, rgb(78,38,116) 38%, rgb(128,86,160) 72%, rgb(170,132,190) 100%); }
+      #gGlow { mix-blend-mode: screen; background:
+        radial-gradient(52% 64% at 16% 18%, rgba(255,64,170,.50), rgba(255,64,170,0) 72%),
+        radial-gradient(40% 50% at 86% 46%, rgba(190,70,255,.22), rgba(190,70,255,0) 70%); }
+      #ov { position: absolute; inset: 0; }
+      #stage { position: absolute; inset: 0; }
+      #q { position: absolute; color: #fff; font-style: italic; font-weight: 800; letter-spacing: -0.018em; white-space: nowrap; }
+      #q .ln { display: block; }
+      .wm { display: inline-block; vertical-align: top; padding: 0.06em 0.16em 0.2em 0.04em; margin: -0.06em -0.16em -0.2em -0.04em;
+        clip-path: inset(-60% -40% 0 -30%); }
+      .wi { display: inline-block; position: relative; will-change: transform; }
+      .wi .base { text-shadow: 0 2px 3px rgba(24,0,36,.42), 0 8px 26px rgba(24,0,40,.5); }
+      .wi .lit, .wi .hot { position: absolute; left: 0; top: 0; pointer-events: none; }
+      .wi .lit { clip-path: inset(-30% 140% -30% -30%); }
+      .wi .hot { color: #FFF3FA; clip-path: inset(-30% 140% -30% 140%); text-shadow: 0 0 10px rgba(255,120,200,.9), 0 0 26px rgba(255,79,163,.7); }
+      #bar { position: absolute; width: 11px; border-radius: 6px; transform-origin: 50% 0%; transform: scaleY(0);
+        background: linear-gradient(180deg, #FF8ACF 0%, #FF4FA3 45%, #D14BF2 100%);
+        box-shadow: inset 2px 0 0 rgba(255,255,255,.55), inset -2px 0 0 rgba(120,0,70,.35), 0 0 12px rgba(255,79,163,.75), 0 0 36px rgba(255,79,163,.38); }
+      #barFlare { position: absolute; inset: -6px -10px; border-radius: 12px; opacity: 0;
+        background: radial-gradient(closest-side, rgba(255,220,240,.95), rgba(255,79,163,.6) 55%, rgba(255,79,163,0)); }
+      #attr { position: absolute; display: flex; align-items: center; gap: 18px; white-space: nowrap; }
+      #attr .rule { width: 66px; height: 3px; border-radius: 2px; transform-origin: 0% 50%; transform: scaleX(0);
+        background: linear-gradient(90deg, #FF4FA3, #FF8ACF); box-shadow: 0 0 10px rgba(255,79,163,.7); }
+      #attr .am { display: inline-block; overflow: hidden; padding: 4px 6px 6px 0; }
+      #attr .ai { display: inline-block; font: 700 27px/1.1 "Inter"; letter-spacing: 0.15em; color: rgba(255,255,255,.88);
+        text-shadow: 0 2px 10px rgba(20,0,30,.6); }
+      #attr .ai b { font-weight: 800; color: #fff; }
+      #attr .ai i { font-style: normal; color: #FF6FBE; padding: 0 0.5em; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.4" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="shot1" class="clip shot" src="assets/shots/v35-penthouse-dusk-h.mp4" muted playsinline data-start="0" data-duration="6.4" data-media-start="1.6" data-track-index="0"></video>
+      </div></div>
+      <div id="gMul" class="grade"></div>
+      <div id="gGlow" class="grade"></div>
+      <div id="ov" class="clip" data-start="0" data-duration="6.4" data-track-index="1">
+        <div id="bar"><div id="barFlare"></div></div>
+        <div id="q" data-layout-allow-overflow></div>
+        <div id="attr"><span class="rule"></span><span class="am"><span class="ai" id="attrText"></span></span></div>
+        <div id="stage" data-layout-allow-occlusion data-layout-allow-overflow></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        // the quote, one string per line; wrap the key phrase in *asterisks* (it ignites pink on the payoff)
+        quote: ["Los Santos never", "rewards the brave.", "Only *the prepared.*"],
+        // attribution: a fictional in-world line, credited to a game character (never invent quotes from real people)
+        source: ["LESTER CREST", "HEIST PLANNER", "LOS SANTOS"],
+        type: { x: 262, top: 352, size: 88, lead: 1.1 },
+        tile: { x: 1572, y: 506, size: 360, depth: 40, tiltDeg: -7.5, turnDeg: -13 },
+        colors: {
+          accent: "linear-gradient(180deg, #FFC2E6 0%, #FF66BD 34%, #F23FA6 62%, #C24AF2 100%)",
+          tileFace: ["#FFE46E", "#FFC21C", "#EE9C00"], tileSide: "#C98600", ink: "#060509", glow: "#FF4FA3"
+        },
+        grade: true,                                   // purple-magenta grade on the footage (plate only)
+        timing: { in: 0.25, words: 0.5, step: 0.14, pause: 0.12, payoff: 2.32, out: 5.45, end: 6.4 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const C = CONFIG, T = C.timing, K = C.colors, PI = Math.PI, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot, .grade").forEach((v) => (v.style.display = "none"));
+        const Ez = (n) => gsap.parseEase(n);
+        const seg = (t, a, b, e) => { const p = t <= a ? 0 : t >= b ? 1 : (t - a) / (b - a); return e ? Ez(e)(p) : p; };
+        const spring = (t, t0, f, z) => { const x = t - t0; if (x <= 0) return 0; const w = 2 * PI * f, wd = w * Math.sqrt(1 - z * z);
+          return 1 - Math.exp(-z * w * x) * (Math.cos(wd * x) + (z * w / wd) * Math.sin(wd * x)); };
+        const wob = (t, t0, amp, f, k) => (t < t0 ? 0 : amp * Math.exp(-k * (t - t0)) * Math.sin(2 * PI * f * (t - t0)));
+        const el = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) n.className = cls; if (txt != null) n.textContent = txt; return n; };
+
+        // ---------------- type ----------------
+        const q = $("#q");
+        q.style.left = C.type.x + "px"; q.style.top = C.type.top + "px";
+        q.style.fontSize = C.type.size + "px"; q.style.lineHeight = C.type.lead;
+        const words = [];
+        C.quote.forEach((line, li) => {
+          const ln = el("span", "ln"); q.appendChild(ln); let acc = false;
+          line.split(" ").forEach((tok, wi) => {
+            let t = tok, a = acc, close = false;
+            if (t.startsWith("*")) { a = acc = true; t = t.slice(1); }
+            if (t.endsWith("*")) { close = true; t = t.slice(0, -1); }
+            if (wi > 0) ln.appendChild(document.createTextNode(" "));
+            const wm = el("span", "wm"), w = el("span", "wi"), base = el("span", "base", t);
+            w.appendChild(base); let lit = null, hot = null;
+            if (a) { lit = el("span", "lit", t); hot = el("span", "hot", t); w.appendChild(lit); w.appendChild(hot); }
+            wm.appendChild(w); ln.appendChild(wm);
+            words.push({ wm, w, base, lit, hot, acc: a, line: li });
+            if (close) acc = false;
+          });
+        });
+        $("#attrText").innerHTML = C.source.map((s, i) => (i === 0 ? "<b>" + s + "</b>" : s)).join("<i>·</i>");
+
+        const FACES = ["italic 800 100px Inter", "italic 900 100px Inter", "700 100px Inter", "800 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          words.filter((w) => w.lit).forEach((w) => Look.fill(w.lit, K.accent));
+          // measure (no transforms are applied yet)
+          const qr = q.getBoundingClientRect();
+          const lastLn = q.lastElementChild.getBoundingClientRect();
+          const bar = $("#bar"), size = C.type.size;
+          bar.style.left = (C.type.x - 40) + "px"; bar.style.top = (C.type.top + size * 0.2) + "px";
+          bar.style.height = (lastLn.bottom - qr.top - size * 0.34) + "px";
+          const attr = $("#attr"); attr.style.left = (C.type.x + 2) + "px"; attr.style.top = (lastLn.bottom + 26) + "px";
+          words.forEach((w) => { w.L = w.w.offsetLeft; w.Wd = w.w.offsetWidth; });
+          const accW = words.filter((w) => w.acc);
+          const F0 = Math.min.apply(null, accW.map((w) => w.L)) - 30, F1 = Math.max.apply(null, accW.map((w) => w.L + w.Wd)) + 70;
+
+          const tl = gsap.timeline({ paused: true });
+          const P = T.payoff, X = T.out;
+          gsap.set("#attr .ai", { yPercent: 110 });
+
+          // grade (plate only): footage dims and takes the purple-magenta wash while the card is up
+          if (plate && C.grade) {
+            const shot = $("#shot1"), gm = $("#gMul"), gg = $("#gGlow");
+            Look.drive(tl, 0, T.end, (p) => {
+              const t = p * T.end, k = seg(t, 0.08, 0.6, "power2.out") * (1 - seg(t, X + 0.2, X + 0.75, "power2.inOut"));
+              shot.style.filter = k > 0.001 ? "brightness(" + (1 - 0.26 * k).toFixed(3) + ") contrast(" + (1 + 0.12 * k).toFixed(3) + ") saturate(" + (1 - 0.04 * k).toFixed(3) + ")" : "";
+              gm.style.opacity = (0.88 * k).toFixed(3); gg.style.opacity = (0.75 * k).toFixed(3);
+            });
+            Look.push(tl, "#push", 0, T.end, { to: 1.05 });
+          }
+
+          // bar springs down; flares on the payoff; collapses upward-out on exit
+          tl.fromTo(bar, { scaleY: 0 }, { scaleY: 1, duration: 0.6, ease: "back.out(1.5)", immediateRender: false }, T.in);
+          tl.fromTo("#barFlare", { opacity: 0 }, { opacity: 0.85, duration: 0.06, ease: "none", immediateRender: false }, P + 0.02);
+          tl.to("#barFlare", { opacity: 0, duration: 0.45, ease: "power2.out" }, P + 0.16);
+          tl.set(bar, { transformOrigin: "50% 100%" }, X + 0.05);
+          tl.to(bar, { scaleY: 0, duration: 0.3, ease: "power3.in" }, X + 0.05);
+
+          // words write on: each rises through its own clip line with a blur that resolves
+          let tw = T.words;
+          words.forEach((w, i) => {
+            if (i > 0 && words[i - 1].line !== w.line && /[.!?]$/.test(words[i - 1].base.textContent)) tw += T.pause;
+            gsap.set(w.w, { yPercent: 112, filter: "blur(7px)" });
+            tl.fromTo(w.w, { yPercent: 112, filter: "blur(7px)" }, { yPercent: 0, filter: "blur(0px)", duration: 0.5, ease: "expo.out", immediateRender: false }, tw);
+            tl.set(w.w, { filter: "none" }, tw + 0.5);
+            tl.set(w.wm, { clipPath: "none" }, tw + 0.52);
+            w.t = tw; tw += T.step;
+          });
+          // payoff: a light front crosses the key phrase (white -> hot band -> pink), then settles to a pink bloom
+          Look.drive(tl, P, 0.34, (p) => {
+            const F = F0 + (F1 - F0) * Ez("power2.inOut")(p);
+            accW.forEach((w) => {
+              const d = F - w.L;
+              if (p <= 0) { w.lit.style.clipPath = ""; w.hot.style.clipPath = ""; w.base.style.clipPath = ""; return; }
+              w.lit.style.clipPath = "inset(-30% " + Math.max(-60, w.Wd - (d - 22)).toFixed(1) + "px -30% -30%)";
+              w.hot.style.clipPath = "inset(-30% " + Math.max(-60, w.Wd - d).toFixed(1) + "px -30% " + Math.max(-30, d - 26).toFixed(1) + "px)";
+              w.base.style.clipPath = "inset(-30% -30% -30% " + Math.max(-30, d - 22).toFixed(1) + "px)";
+            });
+          });
+          Look.drive(tl, P, T.end - P, (p) => {
+            const t = P + p * (T.end - P);
+            const pk = seg(t, P + 0.1, P + 0.16) * (1 - seg(t, P + 0.26, P + 0.7, "power2.out"));
+            const a = 0.42 + 0.5 * pk, b = 10 + 14 * pk;
+            accW.forEach((w) => { w.lit.style.filter = p > 0 ? "drop-shadow(0 3px 6px rgba(40,0,40,.45)) drop-shadow(0 0 " + b.toFixed(1) + "px rgba(255,79,163," + a.toFixed(3) + "))" : ""; });
+          });
+          // attribution rolls in under the quote
+          tl.fromTo("#attr .rule", { scaleX: 0 }, { scaleX: 1, duration: 0.4, ease: "expo.out", immediateRender: false }, P + 0.1);
+          tl.fromTo("#attr .ai", { yPercent: 110 }, { yPercent: 0, duration: 0.5, ease: "expo.out", immediateRender: false }, P + 0.18);
+          Look.mblur(tl, "#attr .ai", P + 0.18, 0.3, { y: 8 });
+
+          // exit: words drop back through their clip lines with a vertical blur, last word first
+          words.slice().reverse().forEach((w, j) => {
+            const t0 = X + j * 0.018;
+            tl.set(w.wm, { clipPath: "inset(-60% -40% 0 -30%)" }, t0);
+            tl.fromTo(w.w, { yPercent: 0, filter: "blur(0px)" }, { yPercent: 115, filter: "blur(6px)", duration: 0.3, ease: "power3.in", immediateRender: false }, t0);
+          });
+          tl.to("#attr .ai", { yPercent: 110, duration: 0.28, ease: "power3.in" }, X);
+          tl.to("#attr .rule", { scaleX: 0, duration: 0.28, ease: "power3.in" }, X + 0.04);
+
+          // ---------------- 3D source tile ----------------
+          const st = Q3D.stage({ x: 1180, y: 90, w: 740, h: 860, ss: 2, fov: 24, exposure: 1.0 });
+          $("#stage").appendChild(st.canvas);
+          const S = C.tile.size;
+          const tile = Q3D.tile({ S, r: S * 0.2, depth: C.tile.depth, bevel: 9,
+            mark: { r: S * 0.118, depth: 7, bevel: 4.5, x: 0, y: 4 },
+            colors: { face: K.tileFace, side: K.tileSide, ink: K.ink, glow: K.glow } });
+          const rig = new THREE.Group(); rig.add(tile.group); st.scene.add(rig);
+          const [RX, RY] = st.W(C.tile.x, C.tile.y), RZ = C.tile.tiltDeg * PI / 180, RYF = C.tile.turnDeg * PI / 180;
+          const KB = P + 0.2;                                   // the light reaches the tile
+          function renderAt(t) {
+            const on = t >= T.in + 0.05 && t < X + 0.42;
+            st.canvas.style.visibility = on ? "visible" : "hidden";
+            if (!on) return;
+            const e = spring(t, T.in + 0.05, 1.1, 0.52), pe = seg(t, X, X + 0.42, "power3.in");
+            const idle = seg(t, 1.1, 1.8);
+            let rx = 0.07 + wob(t, KB, 0.07, 1.7, 5.5);
+            let ry = RYF - 1.3 * (1 - e) + 0.05 * Math.sin(2 * PI * (t - 1.2) / 4.4) * idle + wob(t, KB, -0.09, 1.5, 5) + 1.75 * pe;
+            let rz = RZ + 0.32 * (1 - e) - 0.12 * pe;
+            const x = RX + 170 * pe, y = RY - 80 * (1 - e) + 4 * Math.sin(2 * PI * (t - 1.4) / 3.8) * idle;
+            const z = -240 * (1 - e) + wob(t, KB, 48, 1.6, 5.5) - 220 * pe;
+            rig.position.set(x, y, z); rig.rotation.set(rx, ry, rz);
+            const sc = Math.max(0.05, 0.82 + 0.18 * e); rig.scale.setScalar(sc);
+            // neon halo switches on when the light lands; 3-frame peak, then settles hot
+            const ign = seg(t, KB, KB + 0.06, "power2.out"), pk = seg(t, KB, KB + 0.05) * (1 - seg(t, KB + 0.15, KB + 0.55, "power2.out"));
+            tile.halo.mat.opacity = Math.min(1, (0.14 + 0.62 * ign + 0.3 * pk) * Math.min(1, e * 1.4) * (1 - pe));
+            tile.halo.mesh.scale.setScalar(1 + 0.05 * pk);
+            tile.shadow.mat.opacity = 0.34 * Math.min(1, e) * (1 - pe);
+            tile.faceMat.emissiveIntensity = 0.9 * (1 + 0.16 * pk);
+            tile.inkMat.emissiveIntensity = 0.1 * pk;
+            // one specular band crosses the gold on the hit; a raking light picks out the bevels
+            const bc = RX + RY * Q3D.U.uBandSlope.value, bp = seg(t, KB + 0.02, KB + 0.42, "power1.inOut");
+            Q3D.U.uBand.value = bc - 380 + 760 * bp; Q3D.U.uBandW.value = 48;
+            Q3D.U.uBandAmp.value = seg(t, KB, KB + 0.05) * (1 - seg(t, KB + 0.34, KB + 0.44)) * 0.85;
+            st.rake.intensity = 1.2 * seg(t, KB - 0.02, KB + 0.08) * (1 - seg(t, KB + 0.3, KB + 0.65, "power2.out"));
+            st.rake.position.set((-1 + 2 * bp) * st.DIST, st.DIST * 0.55, st.DIST * 0.5);
+            st.render();
+          }
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          window.addEventListener("hf-seek", (ev) => { if (ev && ev.detail && typeof ev.detail.time === "number") renderAt(ev.detail.time); });
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          renderAt(0);
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,241 @@
+<!doctype html>
+<!-- GTA-niche 05 Hook title, variant B: "Keyword headline" (9:16 Shorts, 1080x1920, 30 fps).
+     A two-line headline in the upper third, straight on the footage (no bar). Line 1 is heavy narrow white caps built as a
+     bevelled block (graded face, slim ink edge, graded extrusion, soft shadow); line 2 is the keyword as real geometry
+     (Three.js: extruded, bevelled Archivo outlines) that rises out of a mask as white enamel, then floods to caption-yellow
+     metal behind a hot light front on the cut, with a raking key light, one soft specular sweep and HDR bloom.
+     While it holds, the headline breathes (1.000 -> 1.018) and the keyword turns slowly so its bevels keep catching light.
+     See ../DECISIONS.md. Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <script src="media/word3d.js"></script>
+    <style>
+      @font-face { font-family: "Archivo"; font-style: normal; font-weight: 100 900; font-stretch: 62% 125%; font-display: block; src: url("assets/fonts/Archivo.ttf") format("truetype"); }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Archivo", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; pointer-events: none; }
+      #hl, #l1 { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; }
+      .msk { position: absolute; overflow: hidden; }
+      .rise { position: absolute; left: 0; top: 0; }
+      .w { position: relative; display: inline-block; vertical-align: top; white-space: nowrap; }
+      .w .l { display: block; white-space: nowrap; line-height: 1; padding: 0 0.08em 0.25em; }
+      .w .abs, .w .set { position: absolute; left: 0; top: 0; }
+      .w .set { width: 100%; height: 100%; }
+      #kwMask { position: absolute; left: 0; width: 1080px; overflow: hidden; }
+      #kwRise { position: absolute; left: 0; top: 0; width: 1080px; }
+      #kwShade { position: absolute; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5.36" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <video id="s1" class="clip shot" src="assets/shots/v51-gp-police-desert-v.mp4" muted playsinline data-start="0" data-duration="0.9" data-media-start="0.0" data-track-index="0"></video>
+        <video id="s2" class="clip shot" src="assets/shots/v52-gp-police-bridge-v.mp4" muted playsinline data-start="0.9" data-duration="1.5" data-media-start="1.0" data-track-index="0"></video>
+        <video id="s3" class="clip shot" src="assets/shots/v30-street-explosion-v.mp4" muted playsinline data-start="2.4" data-duration="1.25" data-media-start="0.3" data-track-index="0"></video>
+        <video id="s4" class="clip shot" src="assets/shots/v44-bridge-skyline-v.mp4" muted playsinline data-start="3.65" data-duration="1.71" data-media-start="0.0" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="5.36" data-track-index="1">
+        <div id="hl">
+          <div id="l1"></div>
+          <div id="kwMask"><div id="kwRise"><div id="kwShade"></div></div></div>
+        </div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        line1: "I SURVIVED",                 // white headline line (DOM)
+        keyword: "5 STARS",                  // the yellow keyword line (real 3D)
+        type: {
+          family: "Archivo", weight: 900, stretch: 64, tracking: -0.01,   // narrow heavy caps
+          size1: 150, maxWidth1: 760,        // line 1 px, auto-fits to maxWidth1
+          sizeKw: 256, maxInkKw: 740,        // keyword px, its ink width capped (stays inside x 72-936)
+          capTop1: 250, gap: 40,             // line 1 cap top y; gap from line 1 baseline to keyword cap top
+          edge: 4, rim: 1.6, depth: 9,       // line 1: ink edge, face/side rim, graded extrusion (px)
+          space: 1.5,                        // word-space multiplier (Archivo narrow has a tight space)
+          ink: "#07080B"
+        },
+        keyword3d: { depth: 30, bevel: 6.5, tilt: 0.3, ink: 5, shade: 0.3 },
+        colors: {
+          face: ["#FFFFFF", "#F7F9FC", "#EEF2F7", "#E2E7EF"],
+          side: ["#2A2F3A", "#07080B"],
+          kwFace: ["#FFF4A8", "#FFD23C", "#EE9C06"],    // caption yellow, as polished metal
+          kwLip: "#FFE07A", kwSide: ["#C07A00", "#3A1E00"], kwHot: "#FFF8DC",
+          kwPre: ["#FFFFFF", "#E2E7EF"], kwPreSide: ["#2A2F3A", "#07080B"]   // lands as the same white as line 1
+        },
+        timing: { l1: 0.1, stagger: 0.08, riseDur: 0.42, kwIn: 0.28, ignite: 0.9, holdStart: 1.3, breathe: 0.018, period: 2.6, out: 4.96, end: 5.36 },
+        shots: ["#s1", "#s2", "#s3", "#s4"]
+      };
+
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const $ = (s) => document.querySelector(s);
+        const C = CONFIG, T = C.type, K = C.colors, TM = C.timing, FR = 1 / 30;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+
+        // ---------- the DOM word: a bevelled block (graded face, ink edge, graded extrusion, soft shadow) ----------
+        function metrics(size) {
+          const cv = document.createElement("canvas").getContext("2d");
+          cv.font = T.weight + " " + size + "px " + T.family;
+          const m = cv.measureText("H"), fa = m.fontBoundingBoxAscent, fd = m.fontBoundingBoxDescent, cap = m.actualBoundingBoxAscent;
+          const base = (size - (fa + fd)) / 2 + fa;
+          return { cap: cap, base: base, top: base - cap };
+        }
+        const mix = (a, b, k) => { const p = (h) => [1, 3, 5].map((i) => parseInt(h.substr(i, 2), 16)); const A = p(a), B = p(b);
+          return "rgb(" + A.map((v, i) => Math.round(v + (B[i] - v) * k)).join(",") + ")"; };
+        const inkChain = (n, c) => Array.from({ length: n }, () => "drop-shadow(0 1px 0 " + c + ")").join(" ");
+        const sideChain = (n, c) => Array.from({ length: n }, (_, k) => "drop-shadow(0 1px 0 " + mix(c[0], c[1], n > 1 ? k / (n - 1) : 1) + ")").join(" ");
+        const px = (v) => v.toFixed(1) + "px";
+        const whiteGrad = (M) => "linear-gradient(180deg, " + K.face[0] + " " + px(M.top - 2) + ", " + K.face[1] + " " + px(M.top + M.cap * 0.42) + ", " +
+          K.face[2] + " " + px(M.top + M.cap * 0.78) + ", " + K.face[3] + " " + px(M.top + M.cap + 1) + ")";
+        function buildWord(text, size, M) {
+          const w = document.createElement("span"); w.className = "w";
+          w.style.cssText = "font:" + T.weight + " " + size + "px/1 '" + T.family + "';font-stretch:" + T.stretch + "%;letter-spacing:" + T.tracking + "em";
+          const k = size / 150, mk = (cls, parent) => { const s = document.createElement("span"); s.className = "l " + cls; s.textContent = text; (parent || w).appendChild(s); return s; };
+          const outline = mk("outline");
+          outline.style.cssText = "color:" + T.ink + ";-webkit-text-stroke:" + (2 * T.edge * k).toFixed(1) + "px " + T.ink + ";filter:" + inkChain(T.depth, T.ink) +
+            " drop-shadow(0 " + Math.round(8 * k) + "px " + Math.round(12 * k) + "px rgba(0,0,0,.42)) drop-shadow(0 " + Math.round(20 * k) + "px " + Math.round(34 * k) + "px rgba(0,0,0,.30))";
+          const set = document.createElement("span"); set.className = "set"; w.appendChild(set);
+          const sd = mk("abs side", set); sd.style.cssText = "color:" + K.side[0] + ";filter:" + sideChain(T.depth, K.side);
+          const rm = mk("abs rim", set); rm.style.cssText = "color:" + T.ink + ";-webkit-text-stroke:" + (2 * T.rim * k).toFixed(1) + "px " + T.ink;
+          const fc = mk("abs face", set);
+          return { w: w, face: fc, M: M };
+        }
+
+        Promise.all([document.fonts.load(T.weight + " 100px \"" + T.family + "\"", C.line1 + C.keyword)]).then(() => document.fonts.ready).then(() => {
+          const l1 = $("#l1");
+          // ---------- line 1: fit, then one masked word block per word on a shared baseline ----------
+          let size = T.size1;
+          const probe = document.createElement("span"); probe.className = "w";
+          probe.style.cssText = "position:absolute;visibility:hidden;font:" + T.weight + " " + size + "px/1 '" + T.family + "';font-stretch:" + T.stretch + "%;letter-spacing:" + T.tracking + "em;white-space:nowrap";
+          probe.textContent = C.line1; l1.appendChild(probe);
+          const full = probe.getBoundingClientRect().width;
+          if (full > T.maxWidth1) size = Math.floor(size * T.maxWidth1 / full);
+          probe.style.fontSize = size + "px";
+          const spaceW = (() => { const a = document.createElement("span"); a.style.cssText = probe.style.cssText; a.textContent = "I I"; l1.appendChild(a);
+            const b = document.createElement("span"); b.style.cssText = probe.style.cssText; b.textContent = "II"; l1.appendChild(b);
+            const d = a.getBoundingClientRect().width - b.getBoundingClientRect().width; l1.removeChild(a); l1.removeChild(b); return d * T.space; })();
+          const M = metrics(size);
+          const words = C.line1.split(/\s+/).map((tx) => { const o = buildWord(tx, size, M); return { tx: tx, o: o }; });
+          // measure each block's advance (the .l padding adds 0.08em each side)
+          const padX = 0.08 * size;
+          words.forEach((wd) => { probe.textContent = wd.tx; wd.adv = probe.getBoundingClientRect().width; });
+          l1.removeChild(probe);
+          const total = words.reduce((a, wd) => a + wd.adv, 0) + spaceW * (words.length - 1);
+          let x = 540 - total / 2;
+          const capTop = T.capTop1, lineTop = capTop - M.top;          // y of the .l box top
+          const baseY = lineTop + M.base, PADM = 40;
+          words.forEach((wd) => {
+            const msk = document.createElement("div"); msk.className = "msk";
+            const mL = x - padX - PADM, mT = capTop - PADM - 30, mW = wd.adv + 2 * padX + 2 * PADM, mH = (baseY + T.depth + 50) - mT;
+            msk.style.cssText = "left:" + mL + "px;top:" + mT + "px;width:" + mW + "px;height:" + mH + "px";
+            const rise = document.createElement("div"); rise.className = "rise";
+            rise.style.left = (x - padX - mL) + "px"; rise.style.top = (lineTop - mT) + "px";
+            rise.appendChild(wd.o.w); msk.appendChild(rise); l1.appendChild(msk);
+            Look.fill(wd.o.face, whiteGrad(M));
+            wd.msk = msk; wd.rise = rise; wd.riseFrom = mH - (lineTop - mT) + 4;   // fully below the clip line
+            x += wd.adv + spaceW;
+          });
+
+          // ---------- line 2: the keyword as real geometry, rising out of its own mask ----------
+          const KC = C.keyword3d, F = window.KEY_GLYPHS;
+          const KM = Word3D.measure({ glyphs: F, text: C.keyword, upper: true, size: T.sizeKw, tracking: T.tracking, maxInk: T.maxInkKw });
+          const bandTop = baseY + T.gap - 90, bandH = 460;
+          const kwCapTop = baseY + T.gap, cyInBand = 90 + KM.cap / 2;
+          const groupCY = (capTop + kwCapTop + KM.cap) / 2;   // the headline's optical centre: the breathing pivot
+          function breathK(t) { if (t < TM.holdStart) return 0; if (t >= TM.out) t = TM.out; const u = (t - TM.holdStart) / TM.period; return TM.breathe * 0.5 * (1 - Math.cos(2 * Math.PI * u)); }
+          const breath = (t) => 1 + breathK(t);
+          const eBack = gsap.parseEase("back.out(2.2)"), eOut = gsap.parseEase("power2.out");
+          const P = Word3D({
+            W: 1080, H: bandH, glyphs: F, text: C.keyword, upper: true, size: T.sizeKw, tracking: T.tracking, maxInk: T.maxInkKw,
+            cx: 540, cy: cyInBand, depth: KC.depth, bevel: KC.bevel, tilt: KC.tilt, inkPx: KC.ink, inkColor: T.ink, shadow: 0.6, shadowOff: 10,
+            material: { faceMetal: 0.3, faceRough: 0.32, clearcoat: 0.5, faceEnv: 0.4, sideMetal: 1.0, faceEmissive: 0.82, preEmissive: 0.5 },
+            colors: { face: K.kwFace, lip: K.kwLip, side: K.kwSide, preFace: K.kwPre, preSide: K.kwPreSide, hot: K.kwHot },
+            timing: { ignite: TM.ignite, frontDur: 0.2, specAt: TM.ignite + 0.32, specDur: 0.5, specAmp: 0.45, rakeAt: TM.ignite - 0.05, rakeDur: 0.7,
+              holdStart: TM.ignite + 0.2, holdEnd: TM.out, turn: 0.055, hotAmp: 2.4, bloomBase: 0.14, bloomPeak: 0.8 },
+            pose: (t) => {
+              const b = breath(t);
+              let s = b;
+              const u = t - TM.ignite;      // the ignite punch: 1.06 in 2 frames, then a spring home
+              if (u >= 0 && u < 0.07) s *= 1 + 0.06 * eOut(u / 0.07);
+              else if (u >= 0.07 && u < 0.29) s *= 1 + 0.06 * (1 - eBack((u - 0.07) / 0.22));
+              return { s: s, y: -((kwCapTop + KM.cap / 2) - groupCY) * (b - 1) };   // breathe around the headline's centre, not the word's
+            }
+          });
+          const mask = $("#kwMask"), rise = $("#kwRise");
+          const maskTop = bandTop + 40, maskBot = kwCapTop + P.cap + 62;      // clip line just under the extrusion and shadow
+          mask.style.top = maskTop + "px"; mask.style.height = (maskBot - maskTop) + "px";
+          rise.style.top = (bandTop - maskTop) + "px"; rise.style.height = bandH + "px";
+          rise.appendChild(P.canvas);
+          // a soft local contact shade behind the keyword (keeps it legible on bright sky and blasts)
+          const sw = P.inkW * 1.25, shTop = (kwCapTop - 45) - bandTop, shH = P.cap + 103, sh = $("#kwShade");   // stays inside the mask: no clipped edge
+          sh.style.cssText = "left:" + (540 - sw / 2) + "px;top:" + shTop + "px;width:" + sw + "px;height:" + shH + "px;" +
+            "background:radial-gradient(closest-side, rgba(0,0,0," + KC.shade + ") 0%, rgba(0,0,0," + (KC.shade * 0.55).toFixed(3) + ") 55%, rgba(0,0,0,0) 100%)";
+          const kwRiseFrom = maskBot - maskTop - (bandTop - maskTop) - (cyInBand - P.cap / 2) + 6;   // cap top starts just under the clip line
+
+          document.querySelectorAll("#ov *").forEach((n) => { n.setAttribute("data-layout-allow-overlap", ""); n.setAttribute("data-layout-allow-occlusion", ""); });
+
+          const tl = gsap.timeline({ paused: true });
+
+          // ---------- entrance: masked rise per word (expo.out), with a 2-frame vertical smear ----------
+          words.forEach((wd, i) => {
+            const t0 = TM.l1 + i * TM.stagger;
+            gsap.set(wd.rise, { y: wd.riseFrom });
+            tl.fromTo(wd.rise, { y: wd.riseFrom }, { y: 0, duration: TM.riseDur, ease: "expo.out", immediateRender: false }, t0);
+            Look.mblur(tl, wd.rise, t0, 0.16, { x: 0, y: 10, ease: "power2.out" });
+          });
+          gsap.set(rise, { y: kwRiseFrom });
+          tl.fromTo(rise, { y: kwRiseFrom }, { y: 0, duration: TM.riseDur + 0.04, ease: "expo.out", immediateRender: false }, TM.kwIn);
+
+          // ---------- hold: the whole headline breathes around its optical centre (a pure function of time) ----------
+          const l1El = $("#l1");
+          l1El.style.transformOrigin = "540px " + groupCY.toFixed(1) + "px";
+          Look.drive(tl, 0, TM.end, (p) => {
+            const t = p * TM.end;
+            l1El.style.transform = "scale(" + breath(t).toFixed(5) + ")";
+            P.renderAt(t);
+          });
+
+          // ---------- exit: everything drops back into its masks (opaque, power3.in), hard cut on the zero frame ----------
+          words.forEach((wd, i) => {
+            tl.to(wd.rise, { y: wd.riseFrom, duration: 0.22, ease: "power3.in" }, TM.out + i * 0.03);
+            Look.mblur(tl, wd.rise, TM.out + i * 0.03, 0.22, { x: 0, y: 0, to: [0, 0], ease: "power2.in" });
+          });
+          tl.to(rise, { y: kwRiseFrom, duration: 0.24, ease: "power3.in" }, TM.out + 0.02);
+          tl.set([mask].concat(words.map((w) => w.msk)), { visibility: "hidden" }, TM.out + 0.3);
+
+          // ---------- footage: 1.0x, a gentle push per shot; the ignite lands on the cut ----------
+          if (plate) {
+            C.shots.forEach((s) => {
+              const v = $(s), st = parseFloat(v.dataset.start), du = parseFloat(v.dataset.duration);
+              gsap.set(v, { scale: 1, transformOrigin: "50% 45%" });
+              tl.fromTo(v, { scale: 1 }, { scale: 1.04, duration: du, ease: "none", immediateRender: false }, st);
+            });
+            Look.expose(tl, TM.ignite, { target: "#push", peak: 1.06, hold: 3 / 30, dur: 0.3, saturate: 1.1 });
+            Look.impact(tl, TM.ignite, { shake: "#shake", amp: 12, dur: 0.32, zoom: 1.035, flash: 0 });
+          }
+
+          P.renderAt(0);
+          tl.set({}, {}, TM.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

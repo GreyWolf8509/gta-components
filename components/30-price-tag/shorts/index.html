@@ -1,0 +1,84 @@
+<!doctype html>
+<!-- Price tag, variant B "Giant tier" (9:16, 1080x1920, 30 fps). The creators' giant price tier label across the top of a
+     Short, as real extruded figures on rolling drums: they spin up, land right to left, and the leading 1 locks the tier,
+     igniting white enamel into billion-tier candy red. Variable: bg "plate" (sample GTA V footage) / "none". See gta/DESIGN.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs-64.js"></script>
+    <script src="media/p3core.js"></script>
+    <script src="media/reels3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .plate #push { background: #0E0F13; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="4.7333" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <!-- each incoming shot starts 2 frames early UNDER the outgoing one, so a cut never shows an unpainted frame -->
+        <video id="shotBridge" class="clip shot" src="assets/shots/v44-bridge-skyline-v.mp4" muted playsinline data-start="3.0333" data-duration="1.7333" data-media-start="0" data-track-index="2"></video>
+        <video id="shotHills" class="clip shot" src="assets/shots/v36-hills-city-view-v.mp4" muted playsinline data-start="1.1667" data-duration="1.9333" data-media-start="0" data-track-index="1"></video>
+        <video id="shotYacht" class="clip shot" src="assets/shots/v11-yacht-v.mp4" muted playsinline data-start="0" data-duration="1.2333" data-media-start="0" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="4.7333" data-track-index="3"></div>
+    </div>
+    <script>
+      const CONFIG = {
+        price: "$1,000,000,000",              // "$" + digits + commas; every digit is a rolling drum
+        cx: 504, cy: 352,                       // optical centre of the label (px); x 72-936 / y 230-620 is the Shorts hook zone
+        maxInk: 848,                            // ink width of the whole label (px)
+        tracking: -0.012, commaAdv: 176,        // em tracking; tightened comma advance (font units)
+        depth: 0.2, bevel: 0.05, tilt: 0.16,    // extrusion depth and bevel (x figure height); top leans back (rad)
+        drum: 2.3, bandPad: 0.1, arc: 0.62,     // drum radius (x figure height); clip band padding; visible drum arc (rad)
+        railH: 0.1,                             // slot rail height while the drums roll (x figure height)
+        turns: 1,                               // full drum turns before the first figure lands
+        spec: 0.24,
+        colors: {
+          whiteFace: ["#FFFFFF", "#DDE2E7"], whiteSide: ["#B4BBC2", "#5E656C"],
+          redFace: ["#FF6A5C", "#F01C1C", "#A90B14"], redSide: ["#8C0912", "#330205"], redLip: "#FF6151", hot: "#FFE6D6", rail: "#16181D"
+        },
+        timing: { in: 0.1, inDur: 0.42, roll: 0.12, landGap: 0.06, lock: 1.2333, frontDur: 0.38, spec: [1.7, 3.1],
+                  out: 4.05, outGap: 0.025, outDur: 0.3, gone: 4.55, end: 4.7333 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const FACES = ["900 100px Inter", "900 100px Archivo"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const tl = gsap.timeline({ paused: true });
+          if (plate) document.getElementById("root").classList.add("plate");
+          const stage = P3.Stage(1080, 1920, { warm: 0.55, principal: [CONFIG.cx, CONFIG.cy], inkPx: 6, inkColor: "#0A0B0F", shadow: 0.55, shadowOff: [0, 12] });
+          $("#ov").appendChild(stage.canvas);
+          const R3 = Reels3D({ stage, config: CONFIG, timing: T, glyphs: window.PRICE_GLYPHS_64 });
+          Look.drive(tl, 0, T.end, (p) => R3.renderAt(p * T.end));
+          R3.renderAt(0);
+          if (plate) {
+            Look.push(tl, "#push", 0, T.end, { from: 1, to: 1.04 });
+            Look.impact(tl, T.lock, { shake: "#shake", amp: 7, dur: 0.3, flash: 0, zoom: 1.015 });
+          }
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

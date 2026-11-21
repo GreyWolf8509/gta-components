@@ -1,0 +1,578 @@
+<!doctype html>
+<!-- 08 Title sting, variant B: "Footage in letters". 9:16 1080x1920, 30 fps, 4.3 s.
+     A huge stacked title on a black plate. LOS and SANTOS are hollow channel letters in real 3D (Three.js: the outlines
+     extruded with a hard chamfer and the front left open), so each word has a lit lip and real walls and the GTA V footage
+     is seen through them, sharp at 1:1 from the native 1920x1080 shot (one continuous framing behind both words).
+     STORIES is a solid red chiselled slab, tilted back so its top chamfer catches the key. One raking key and one light rig
+     light all three. The lines slam in; the cut to the last shot is the payoff (the lockup steps up, and one
+     soft white band crosses LOS, SANTOS and the slab's top chamfer, with a bloom on the chrome lips only); then the letters open: the camera rushes through the "L" with a radial zoom blur and a
+     2-frame exposure lift through the stem, and cuts clean onto the full-frame shot.
+     Variable: bg "plate" / "none". Full-kind component: the footage always shows. See gta/DESIGN.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="media/glyphs.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #000; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif; background: #000;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #punch, #foot { position: absolute; inset: 0; }
+      .vw { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
+      .vw video { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; }
+      canvas.layer { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; display: block; }
+      #light { mix-blend-mode: plus-lighter; }
+      #dodge { mix-blend-mode: color-dodge; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="4.3" data-width="1080" data-height="1920">
+      <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="roll" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%">
+        <feComponentTransfer><feFuncR id="rollR" type="table" tableValues="0 1"/><feFuncG id="rollG" type="table" tableValues="0 1"/><feFuncB id="rollB" type="table" tableValues="0 1"/></feComponentTransfer>
+      </filter></svg>
+      <div id="shake">
+        <div id="punch">
+          <!-- the footage: native 1920x1080 shots at 1:1 behind the whole window block (one continuous framing) -->
+          <div id="foot">
+            <div class="vw" id="vw0"><video id="s0" class="clip" src="assets/shots/v44-bridge-skyline-h.mp4" muted playsinline data-start="0" data-duration="1.22" data-media-start="0.1" data-track-index="0"></video></div>
+            <div class="vw" id="vw1"><video id="s1" class="clip" src="assets/shots/v39-lowriders-downtown-h.mp4" muted playsinline data-start="1.22" data-duration="1.2" data-media-start="0" data-track-index="0"></video></div>
+            <div class="vw" id="vw2"><video id="s2" class="clip" src="assets/shots/v07-biplane-sunset-h.mp4" muted playsinline data-start="2.42" data-duration="1.88" data-media-start="0.34" data-track-index="0"></video></div>
+          </div>
+          <canvas id="matte" class="layer" width="1080" height="1920"></canvas>
+          <canvas id="light" class="layer" width="1080" height="1920"></canvas>
+          <canvas id="dodge" class="layer" width="1080" height="1920"></canvas>
+        </div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        // The stack, top to bottom. "window" lines show the footage through hollow letters, "solid" lines are the red slab.
+        // Every line is justified to the same ink width, so short words set huge (a poster lockup).
+        lines: [
+          { text: "LOS", kind: "window" },
+          { text: "SANTOS", kind: "window" },
+          { text: "STORIES", kind: "solid" }
+        ],
+        // ink width of every line, px. The hold grows it 5% and the payoff steps it up 7% (to about 840 px); the step's
+        // overshoot peaks near 850 px, so even the transient frames stay inside x 72-936.
+        width: 748,
+        centerX: 504, centerY: 905,     // centre of the lockup
+        gap: 24,                        // px between lines
+        tracking: 12,                   // font units (cap height = 688)
+        grow: 0.05,                     // slow scale-up while the lockup holds (sine.inOut, 0.5-2.9 s)
+        // The window letters: hollow channel letters. "lip" is the hard chamfer (as a share of the line's cap height,
+        // clamped to px), "depth" the walls (share of cap height). "color" is the frame metal; "tint" on each shot lights
+        // the walls inside the letter.
+        frame: { color: "#CCD3DE", lip: 0.03, lipMin: 5, lipMax: 12, depth: 0.1, depthMin: 20, depthMax: 40 },
+        // The solid line: a chiselled red slab in clear-coated lacquer (it reflects a studio: an overhead softbox, a strip
+        // light in front, a vertical strip at the left). "front" is the paint; wallPx is how tall its lower wall shows,
+        // chamferPx its chamfer, tilt (degrees) leans it back so the top chamfer faces the key. top / low / wall are the
+        // 2D fallback's.
+        slab: { front: "#E3192B", wallPx: 14, chamferPx: 12, tilt: 6, clearcoat: 1, clearcoatRoughness: 0.06, roughness: 0.3,
+                top: "#FF6B74", low: "#A50E1E", wall: "#6E0612" },
+        // One light rig for all the letters (strengths): a raking key from the upper left, a top light, a fill.
+        // The chrome lips get their own key, lower and further left, and a weak top light, so their top chamfers rest at a
+        // bright grey (headroom for the payoff band) while the left chamfers go white and the right / lower ones dark.
+        light: { key: 3.8, top: 1.5, fillFrame: 0.14, fillSlab: 0.15, envTop: 2, envStrip: 22, envSide: 8,
+                 keyFrame: 4.4, keyFrameDir: [-0.85, 0.32, 0.43], topFrame: 0.35 },
+        // Footage: the native 16:9 shots at 1:1 behind the window words. "frame" is the source pixel at the centre of the
+        // window block (LOS + SANTOS together). "cover" is the source x the full-frame crop centres on after the open.
+        // "tint" is the shot's light on the walls inside the letters. "grade" overrides windowGrade for that shot; its
+        // "roll" (0-1) is a warm highlight roll-off: clipped white (a sun disc) rolls into the sky's own orange, so no
+        // letter goes white. It eases out as the letters open.
+        // Mirror cut times on the <video> tags.
+        shots: [
+          { start: 0.0,  tint: "#C4E2FF", frame: { x: 1350, y: 380 }, cover: 1350 },    // downtown Los Santos (crisp: it carries the first read)
+          { start: 1.22, tint: "#CFE3FF", frame: { x: 1009, y: 760 }, cover: 1000 },    // downtown lowriders: the lowrider grille, plate and headlights sit across the O for the whole shot
+          { start: 2.42, tint: "#FFB45E", frame: { x: 1150, y: 580 }, cover: 1010,      // the biplane across mid-LOS, the ridge and power line in SANTOS (the payoff cut)
+            grade: { brightness: 0.9, contrast: 1.35, saturate: 1.2, roll: 0.5 } }
+        ],
+        windowGrade: { brightness: 1.1, contrast: 1.15, saturate: 1.25 },   // inside the letters; eases to neutral as they open
+        // The beats on the cuts. punch: a transient kick that settles back; step: a state change, the lockup steps up and
+        // stays (back.out(2.6) over 0.28 s); rake: the strength of one soft specular band (bandPx wide, feathered) that runs
+        // left to right along the top chamfers in rakeDur s, peak held 3 frames; slabLag: STORIES lands that many seconds
+        // after the window words (with a 0.9 -> 1 squash); shake: px.
+        beats: [
+          { at: 1.22, punch: 0.02, step: 0, rake: 0, slabLag: 0 },
+          { at: 2.42, punch: 0, step: 0.07, rake: 2.2, slabLag: 1 / 30, shake: 3 }
+        ],
+        // the payoff band: px wide at half height, dur s to cross; slant: it leans so it crosses LOS, then SANTOS, then
+        // STORIES; peak: [from, to] s at full strength; bloom: the chrome lips' glow (radius px, thresholded on the facets)
+        band: { px: 150, sheen: 1.1, dur: 0.3, slant: 0.6, peak: [2.467, 2.533], bloom: 12 },
+        // the hold's light: a broad, soft specular drift across the chrome lips (start, seconds, strength, px wide)
+        drift: { from: 0.7, dur: 1.5, amt: 0.32, px: 220 },
+        openOn: "L",                    // the letter the camera flies into when the title opens (first match in a window line)
+        // blurPx: the zoom-blur streak on the stem's edges in the push-through; liftEV: the 2-frame stem exposure lift;
+        // cover: the cut comes once the stem's opening covers this share of the frame width
+        open: { blurPx: 11, liftEV: 0.35, cover: 0.6 },
+        timing: { in: 0.1, stagger: 0.14, open: 3.14, openDur: 0.66, end: 4.3 }
+      };
+
+      (function () {
+        const W = 1080, H = 1920, T = CONFIG.timing, F = window.TITLE_GLYPHS, $ = (s) => document.querySelector(s);
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+        const lerp = (a, b, p) => a + (b - a) * p;
+        const E = (n) => gsap.parseEase(n);
+        const eExpo = E("expo.out"), eBack = E("back.out(1.6)"), eSine = E("sine.inOut"), eIn = E("power2.in"), eIO = E("power2.inOut");
+        const ePunch = E("back.out(2.2)"), eStep = E("back.out(2.6)"), eLand = E("back.out(2)");
+        const C0 = { x: CONFIG.centerX, y: CONFIG.centerY };
+        const mctx = $("#matte").getContext("2d"), lctx = $("#light").getContext("2d"), dctx = $("#dodge").getContext("2d");
+        const PAY = T.open + T.openDur;
+
+        // ---------- layout: kerned Archivo outlines, every line justified on its ink edges ----------
+        const P2D = {};
+        const glyphPath = (ch) => P2D[ch] || (P2D[ch] = new Path2D(F.g[ch][1]));
+        const lines = CONFIG.lines.map((ln) => {
+          const out = []; let pen = 0; const txt = ln.text;
+          for (let i = 0; i < txt.length; i++) {
+            const ch = F.g[txt[i]] ? txt[i] : " ";
+            out.push({ ch, x: pen });
+            pen += F.g[ch][0] + (i < txt.length - 1 ? (F.k[txt[i] + txt[i + 1]] || 0) + CONFIG.tracking : 0);
+          }
+          const ink = out.filter((o) => o.ch !== " ");
+          const inkL = ink[0].x + F.g[ink[0].ch][2], inkR = ink[ink.length - 1].x + F.g[ink[ink.length - 1].ch][3];
+          const s = CONFIG.width / (inkR - inkL);
+          return { kind: ln.kind, glyphs: ink, s, inkL, cap: F.cap * s };
+        });
+        const totalH = lines.reduce((a, L) => a + L.cap, 0) + CONFIG.gap * (lines.length - 1);
+        let y = CONFIG.centerY - totalH / 2;
+        lines.forEach((L) => {
+          L.top = y; L.base = y + L.cap; L.x0 = CONFIG.centerX - CONFIG.width / 2 - L.inkL * L.s;
+          L.cx = CONFIG.centerX; L.cy = y + L.cap / 2; y += L.cap + CONFIG.gap;
+        });
+        const windows = lines.filter((L) => L.kind === "window");
+        const blockCy = (windows[0].top + windows[windows.length - 1].base) / 2;   // centre of the window block
+        // the focal point of the open: inside the stem of the chosen letter (solid footage all round it)
+        let focal = { x: CONFIG.centerX, y: windows[0].cy }, stemU = 185;
+        {
+          const L = windows[0], g = L.glyphs.find((o) => o.ch === CONFIG.openOn) || L.glyphs[0], gi = F.g[g.ch];
+          stemU = Math.min(185, (gi[3] - gi[2]) * 0.47);   // the stem's width, font units
+          focal = { x: L.x0 + (g.x + gi[2] + stemU / 2) * L.s, y: L.base - 360 * L.s };
+        }
+        const accentLine = lines.find((L) => L.kind === "solid");
+        const landAccent = accentLine ? T.in + lines.indexOf(accentLine) * T.stagger + 0.2 : T.in + 0.4;
+        function shotIndex(t) { let k = 0; CONFIG.shots.forEach((sh, i) => { if (t >= sh.start - 1e-4) k = i; }); return k; }
+        function rgba(hex, a) { const n = parseInt(hex.slice(1), 16); return "rgba(" + (n >> 16) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + clamp(a, 0, 1).toFixed(3) + ")"; }
+
+        // ---------- the beats on the cuts: punch, flare, rake ----------
+        function beatAt(t) {   // the lip flare: white, held 3 frames, then it dies fast
+          let flare = 0;
+          for (const b of CONFIG.beats) {
+            const u = t - b.at; if (u < 0) continue;
+            const f = u < 0.1 ? 1 : Math.max(0, 1 - (u - 0.1) / 0.1);
+            flare = Math.max(flare, (b.flare || 0) * f * f);
+          }
+          return { flare };
+        }
+        // the lockup's scale about its centre: transient punches (settle back) x steps (the state change: it steps up and
+        // stays). STORIES follows each beat slabLag later.
+        function lockScale(t, slab) {
+          let sc = lerp(1, 1 + CONFIG.grow, eSine(clamp((t - 0.5) / 2.4, 0, 1)));   // the hold's slow grow, about the centre
+          for (const b of CONFIG.beats) {
+            const u = t - b.at - (slab ? (b.slabLag || 0) : 0); if (u < 0) continue;
+            if (b.step) sc *= 1 + b.step * eStep(clamp(u / 0.28, 0, 1));
+            if (b.punch && u < 0.28) sc *= 1 + Math.max(0, b.punch * (1 - ePunch(u / 0.28)));
+          }
+          return sc;
+        }
+        // the raking key: one hard pass over the slab as it lands; on the payoff cut, a narrow band across every line
+        // the payoff light: one soft specular band (gaussian, px wide at half height), leaning so it crosses LOS, then
+        // SANTOS, then STORIES' top chamfer; it rises to its peak, holds it 3 frames (band.peak), then falls
+        const STACK_TOP = lines[0].top, STACK_DROP = lines[lines.length - 1].base - lines[0].top;
+        function rakeAt(t, kind) {
+          const B = CONFIG.band, sig = B.px / 1.665;
+          for (const b of CONFIG.beats) {
+            if (!b.rake) continue;
+            const rp = clamp((t - b.at) / B.dur, 0, 1);
+            if (rp > 0 && rp < 1) {
+              const env = t < B.peak[0] ? eSine(clamp((t - b.at) / (B.peak[0] - b.at), 0, 1))
+                        : t <= B.peak[1] ? 1 : eSine(clamp((b.at + B.dur - t) / (b.at + B.dur - B.peak[1]), 0, 1));
+              const x0 = CONFIG.centerX - CONFIG.width * 0.58, x1 = CONFIG.centerX + CONFIG.width * 0.58 + B.slant * STACK_DROP;
+              return { x: lerp(x0, x1, rp), amt: b.rake * env, win: sig, env };
+            }
+          }
+          return { x: -1e4, amt: 0, win: sig, env: 0 };
+        }
+        // the hold's light: a broad soft specular light drifts across the chrome lips (window letters only)
+        function driftAt(t, kind) {
+          const D = CONFIG.drift, dp = clamp((t - D.from) / D.dur, 0, 1);
+          if (kind !== "window" || dp <= 0 || dp >= 1) return { x: -1e4, amt: 0, w: D.px / 1.665 };
+          return { x: lerp(CONFIG.centerX - CONFIG.width * 0.7, CONFIG.centerX + CONFIG.width * 0.7, eSine(dp)), amt: D.amt * Math.pow(Math.sin(Math.PI * dp), 0.7), w: D.px / 1.665 };
+        }
+        function lineState(i, t) {   // entrance slam: scale 1.32 -> 1 with overshoot, blur 12 -> 0; opaque within 0.08 s
+          const a = clamp((t - (T.in + i * T.stagger)) / 0.46, 0, 1);
+          return { a: clamp(a / 0.17, 0, 1), sc: lerp(1.32, 1, eBack(a)), blur: 12 * (1 - eExpo(a)), dy: -26 * (1 - eExpo(a)) };
+        }
+        function zoomAt(t) {   // the lockup's slow grow, then the open (exponential zoom into the focal letter)
+          const p = clamp((t - T.open) / T.openDur, 0, 1);
+          const q = eIn(p), anticip = 1 - 0.035 * Math.sin(Math.PI * clamp((t - (T.open - 0.22)) / 0.22, 0, 1));
+          const z = anticip * Math.pow(18, q);                  // a small breath back, then the rush into the letter
+          // the stem the camera flies into, where the lockup's own scale (the payoff step) has put it
+          const S = lockScale(t, false), fS = { x: C0.x + S * (focal.x - C0.x), y: C0.y + S * (focal.y - C0.y) };
+          const fx = lerp(fS.x, W / 2, q), fy = lerp(fS.y, H / 2, q);
+          return { z, p, q, fx, fy, fS };
+        }
+        // the clean cut comes on the first frame the stem's opening covers open.cover of the frame width, before the lips
+        // blow up past the lens; the stem lift plays on the 2 frames before the cut
+        const STEM_LIP = clamp(windows[0].cap * CONFIG.frame.lip, CONFIG.frame.lipMin, CONFIG.frame.lipMax);
+        const stemPx = (t, Z) => (stemU * windows[0].s - 2 * STEM_LIP) * lockScale(t, false) * Z.z;   // the opening, on screen
+        const T_CUT = (() => {
+          for (let f = Math.ceil(T.open * 30); f / 30 < T.open + T.openDur; f++) {
+            const t = f / 30, Z = zoomAt(t), o = stemPx(t, Z);
+            if ((Math.min(W, Z.fx + o / 2) - Math.max(0, Z.fx - o / 2)) / W >= CONFIG.open.cover) return f / 30;
+          }
+          return T.open + T.openDur;
+        })();
+        function lineMatrix(L, i, t, Z) {
+          const st = lineState(i, t);
+          const Sl = lockScale(t, L === accentLine);
+          let m = new DOMMatrix().translate(Z.fx, Z.fy).scale(Z.z).translate(-Z.fS.x, -Z.fS.y)
+            .translate(C0.x, C0.y).scale(Sl).translate(-C0.x, -C0.y)
+            .translate(L.cx, L.cy + st.dy).scale(st.sc).translate(-L.cx, -L.cy);
+          if (L === accentLine) {   // the slab lands with a squash on its baseline: on its entrance, and on each lagged beat
+            let sy = 1;
+            const lands = [landAccent].concat(CONFIG.beats.filter((b) => b.slabLag > 0).map((b) => b.at + b.slabLag));
+            for (const tl0 of lands) if (t >= tl0) sy = Math.min(sy, lerp(0.9, 1, eLand(clamp((t - tl0) / 0.12, 0, 1))));
+            m = m.translate(L.cx, L.base).scale(1, sy).translate(-L.cx, -L.base);
+          }
+          return { m, st };
+        }
+        function linePath(L, i, t, Z) {   // every glyph of a line in one screen-space Path2D (transforms baked in)
+          const { m, st } = lineMatrix(L, i, t, Z), path = new Path2D();
+          for (const g of L.glyphs) path.addPath(glyphPath(g.ch), m.translate(L.x0 + g.x * L.s, L.base).scale(L.s));
+          const pts = [[L.cx - CONFIG.width / 2, L.top], [L.cx + CONFIG.width / 2, L.top], [L.cx - CONFIG.width / 2, L.base], [L.cx + CONFIG.width / 2, L.base]]
+            .map((p) => m.transformPoint(new DOMPoint(p[0], p[1])));
+          const box = { l: Math.min(...pts.map((p) => p.x)), r: Math.max(...pts.map((p) => p.x)), t: Math.min(...pts.map((p) => p.y)), b: Math.max(...pts.map((p) => p.y)) };
+          return { path, st, m, box };
+        }
+        function inverse(path, dx, dy) {   // everything outside a path (2D fallback chamfers and inner shadows)
+          const p = new Path2D(); p.rect(-W * 6, -H * 6, W * 13, H * 13); p.addPath(path, new DOMMatrix().translate(dx, dy)); return p;
+        }
+
+        // ---------- the letters in real 3D ----------
+        // World = layout pixels with y up. Each line renders on its own, through an orthographic camera whose frustum is the
+        // line's current transform inverted (so the render is always screen-sharp, even 18x into the open), sheared so depth
+        // reads as a drop (the walls show below each edge).
+        const G3D = (function () {
+          if (!window.THREE) return null;
+          try {
+            const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+            const renderer = new THREE.WebGLRenderer({ canvas: cv, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+            renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 0);
+            renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;
+            const LT = CONFIG.light, SHEAR = 0.25, sl = CONFIG.slab, fr = CONFIG.frame;
+            const KEY = new THREE.Vector3(-0.7, 0.6, 0.55).normalize(), TOP = new THREE.Vector3(0, 1, 0.25).normalize();
+            function rig(fill, key, keyDir, top) {   // a scene with a key, a top light and a fill
+              const sc = new THREE.Scene();
+              sc.add(new THREE.AmbientLight(0xffffff, fill));
+              const k = new THREE.DirectionalLight(0xffffff, key); k.position.copy(keyDir); sc.add(k);
+              const tp = new THREE.DirectionalLight(0xfff0e8, top); tp.position.copy(TOP); sc.add(tp);
+              return { sc, key: k };
+            }
+            const KEYF = LT.keyFrameDir ? new THREE.Vector3(...LT.keyFrameDir).normalize() : KEY;
+            const RW = rig(LT.fillFrame, LT.keyFrame ?? LT.key, KEYF, LT.topFrame ?? LT.top), RS = rig(LT.fillSlab, LT.key, KEY, LT.top);
+            const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2000); cam.position.set(0, 0, 600);
+            const SH = new THREE.Matrix4().set(1, 0, 0, 0, 0, 1, SHEAR, 600 * SHEAR, 0, 0, 1, 0, 0, 0, 0, 1);
+            // shared uniforms: the raking key, the flare, the shot's tint on the inner walls
+            const U = { uRakeX: { value: -1e4 }, uRakeAmt: { value: 0 }, uWin: { value: 54 }, uTopY: { value: 0 }, uMidY: { value: 0 },
+                        uDriftX: { value: -1e4 }, uDriftAmt: { value: 0 }, uDriftW: { value: 130 },
+                        uSlant: { value: 0 }, uSheen: { value: 0.3 }, uStackTop: { value: 0 }, uGlint: { value: 0 }, uClose: { value: 0 }, uTint: { value: new THREE.Color(1, 1, 1) }, uTintAmt: { value: 0 },
+                        uDepth: { value: 40 }, uKeyDir: { value: KEY.clone() }, uDim: { value: 1 }, uEyeV: { value: new THREE.Vector3(0, 0, 900) } };
+            const INJECT =
+              "  { vec3 Nw = normalize(normal); vec3 V = vec3(0.0, 0.0, 1.0); float inner = gl_FrontFacing ? 0.0 : 1.0;\n" +
+              // the payoff band: a soft (gaussian) window in x, lighting only the near-horizontal top chamfers, by facet
+              "    float d1 = (vWP.x - (uRakeX + uSlant * (vWP.y + uStackTop))) / uWin; float w1 = exp(-d1 * d1);\n" +
+              "    vec3 La = normalize(vec3(uRakeX - vWP.x, uTopY + 170.0 - vWP.y, 40.0 - vWP.z));\n" +
+              "    float s1 = pow(max(dot(Nw, normalize(La + V)), 0.0), 6.0) * smoothstep(0.25, 0.55, Nw.y);\n" +
+              // and a sheen from the same band on every facet that faces it: on the window lips it is strong (uSheen), so the
+              // streak reads across the whole chrome lip at phone size, not only the thin top chamfer; on the slab it stays 0.3
+              "    vec3 Lc = normalize(vec3(uRakeX - vWP.x, uMidY + 40.0 - vWP.y, 220.0 - vWP.z));\n" +
+              "    s1 += uSheen * pow(max(dot(Nw, normalize(Lc + V)), 0.0), 3.0);\n" +
+              // the hold drift: a broad soft light in front and above, drifting across; every lip facet answers by angle
+              "    float d2 = (vWP.x - uDriftX) / uDriftW; float w2 = exp(-d2 * d2);\n" +
+              "    vec3 Lb = normalize(vec3(uDriftX - vWP.x, uMidY + 260.0 - vWP.y, 320.0 - vWP.z));\n" +
+              "    float s2 = pow(max(dot(Nw, normalize(Lb + V)), 0.0), 6.0);\n" +
+              "    float sp = clamp(uRakeAmt * w1 * s1 + uDriftAmt * w2 * s2, 0.0, 1.0) * (1.0 - inner);\n" +
+              // the glint pass: only the band's hottest light on the facets (the bloom source)
+              "    float glint = clamp((uRakeAmt * w1 * s1 - 0.6) * 1.6, 0.0, 1.0) * (1.0 - inner);\n" +
+              "    vec3 tl = uTint * uTintAmt * inner * (0.35 + 0.65 * clamp(-vWP.z / uDepth, 0.0, 1.0));\n" +
+              // screen-add the light, so a lit facet brightens without clipping flat (the lip keeps its gradient)
+              "    vec3 base = min(outgoingLight, vec3(1.0));\n" +
+              "    vec3 lit = outgoingLight + (vec3(1.0) - base) * sp;\n" +
+              // in the fly-through the lips stay chrome: they reflect the sunset (warm sky above, dark ground below, a
+              // hot horizon line) by screen height, so a lip blown up past the lens is a reflective streak, not a grey slab
+              "    float sy = gl_FragCoord.y / 1920.0;\n" +
+              "    vec3 envc = mix(vec3(0.05, 0.04, 0.04), vec3(1.0, 0.72, 0.42), smoothstep(0.25, 0.8, sy)) + vec3(1.0, 0.9, 0.75) * exp(-pow((sy - 0.56) / 0.035, 2.0)) * 0.8;\n" +
+              "    vec3 lip = mix(lit, envc * (0.75 + 0.35 * max(dot(Nw, uKeyDir), 0.0)), uClose);\n" +
+              "    if (uGlint > 0.5) outgoingLight = vec3(glint); else outgoingLight = inner > 0.5 ? (lit + tl) * uDim : lip; }\n#include <opaque_fragment>";
+            // the slab's reflections are looked up from a virtual perspective eye (the ortho camera alone would give every
+            // pixel of a flat face the same reflection: flat plastic)
+            const VIEW_ORTHO = "vec3 geometryViewDir = ( isOrthographic ) ? vec3( 0, 0, 1 ) : normalize( vViewPosition );";
+            function lit(mat, eye) {
+              mat.onBeforeCompile = (s2) => {
+                Object.assign(s2.uniforms, U);
+                if (eye && THREE.ShaderChunk.lights_fragment_begin.indexOf(VIEW_ORTHO) >= 0)
+                  s2.fragmentShader = s2.fragmentShader.replace("#include <lights_fragment_begin>",
+                    THREE.ShaderChunk.lights_fragment_begin.replace(VIEW_ORTHO, "vec3 geometryViewDir = normalize( uEyeV + vViewPosition );"));
+                s2.vertexShader = "varying vec3 vWP;\n" + s2.vertexShader.replace("#include <worldpos_vertex>",
+                  "#include <worldpos_vertex>\n  vWP = (modelMatrix * vec4(transformed, 1.0)).xyz;");
+                s2.fragmentShader = "varying vec3 vWP; uniform float uRakeX, uRakeAmt, uWin, uDriftX, uDriftAmt, uDriftW, uTopY, uMidY, uTintAmt, uDepth, uDim, uSlant, uStackTop, uSheen, uGlint, uClose;\n" +
+                  "uniform vec3 uTint, uKeyDir, uEyeV;\n" + s2.fragmentShader.replace("#include <opaque_fragment>", INJECT);
+              };
+              return mat;
+            }
+            const frameMat = lit(new THREE.MeshStandardMaterial({ color: fr.color, roughness: 0.3, metalness: 0, side: THREE.DoubleSide }));
+            const slabMat = lit(new THREE.MeshPhysicalMaterial({ color: sl.front, roughness: sl.roughness, metalness: 0,
+              clearcoat: sl.clearcoat, clearcoatRoughness: sl.clearcoatRoughness, envMapIntensity: 1 }), true);
+            // the studio the lacquer reflects: dark, an overhead softbox, a thin strip light in front, a vertical strip at left
+            {
+              const pm = new THREE.PMREMGenerator(renderer), env = new THREE.Scene();
+              env.background = new THREE.Color(0.01, 0.01, 0.012);
+              const panel = (w, h, k, x, y, z) => {
+                const ms = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(k, k * 0.98, k * 0.95), side: THREE.DoubleSide }));
+                ms.position.set(x, y, z); ms.lookAt(0, 0, 0); env.add(ms);
+              };
+              panel(6, 3, LT.envTop, 0, 7, -0.5);        // overhead: the top chamfers face it
+              panel(22, 0.08, LT.envStrip, 0, 0.855, 6.5); // 7.5 deg up, in front: a crisp band across the upper front faces
+              panel(0.7, 9, LT.envSide, -6.5, 1.5, 4);     // left: catches the chamfers on the curves
+              RS.sc.environment = pm.fromScene(env, 0, 0.1, 100).texture;
+            }
+            const hidden = new THREE.MeshBasicMaterial({ visible: false });
+            // the opening of a hollow letter: its front cap only (the back cap is discarded by depth), white
+            const maskMat = new THREE.ShaderMaterial({
+              side: THREE.DoubleSide,
+              vertexShader: "varying float vZ; void main(){ vec4 wp = modelMatrix * vec4(position, 1.0); vZ = wp.z; gl_Position = projectionMatrix * viewMatrix * wp; }",
+              fragmentShader: "varying float vZ; void main(){ if (vZ < -1.0) discard; gl_FragColor = vec4(1.0); }"
+            });
+            const MIN_SEG = 2.0, CURVE_SEG = 8;
+            function glyphShapes(d, ox, oy, s) {
+              const sp = new THREE.ShapePath(); const re = /([MLQCZ])([^MLQCZ]*)/g; let m;
+              while ((m = re.exec(d))) {
+                const n = m[2].trim() ? m[2].trim().split(/[\s,]+/).map(Number) : [];
+                const Pt = []; for (let i = 0; i < n.length; i += 2) Pt.push(ox + n[i] * s, oy - n[i + 1] * s);
+                if (m[1] === "M") sp.moveTo(Pt[0], Pt[1]);
+                else if (m[1] === "L") sp.lineTo(Pt[0], Pt[1]);
+                else if (m[1] === "Q") sp.quadraticCurveTo(Pt[0], Pt[1], Pt[2], Pt[3]);
+                else if (m[1] === "C") sp.bezierCurveTo(Pt[0], Pt[1], Pt[2], Pt[3], Pt[4], Pt[5]);
+              }
+              const clean = (pts) => {   // drop tiny segments that would fold over when the chamfer offsets the contour
+                const out = [];
+                for (const p of pts) if (!out.length || p.distanceTo(out[out.length - 1]) > MIN_SEG) out.push(p);
+                while (out.length > 3 && out[0].distanceTo(out[out.length - 1]) <= MIN_SEG) out.pop();
+                return out;
+              };
+              return sp.toShapes(false).map((s0) => {
+                const s3 = new THREE.Shape(clean(s0.getPoints(CURVE_SEG)));
+                s0.holes.forEach((h) => s3.holes.push(new THREE.Path(clean(h.getPoints(CURVE_SEG)))));
+                return s3;
+              });
+            }
+            const items = lines.map((L) => {
+              const solid = L.kind === "solid";
+              const lip = solid ? sl.chamferPx : clamp(L.cap * fr.lip, fr.lipMin, fr.lipMax);
+              const tilt = solid ? (sl.tilt || 0) * Math.PI / 180 : 0;
+              // the visible wall is depth x shear (+ depth x sin(tilt) for the slab)
+              const D = solid ? Math.max(8, sl.wallPx / (SHEAR + Math.sin(tilt))) : clamp(L.cap * fr.depth, fr.depthMin, fr.depthMax);
+              const R = solid ? RS : RW;
+              const pivot = new THREE.Group(); pivot.position.set(L.cx, -L.cy, 0); pivot.rotation.x = -tilt; pivot.visible = false;
+              R.sc.add(pivot);
+              const meshes = L.glyphs.map((g) => {
+                const geo = new THREE.ExtrudeGeometry(glyphShapes(F.g[g.ch][1], L.x0 + g.x * L.s - L.cx, -L.base + L.cy, L.s),
+                  { depth: D, bevelEnabled: true, bevelThickness: lip, bevelSize: lip, bevelOffset: -lip, bevelSegments: 1, curveSegments: 1 });
+                geo.translate(0, 0, -(D + lip));   // the front face sits on z = 0
+                const mesh = new THREE.Mesh(geo, solid ? slabMat : [hidden, frameMat]);
+                pivot.add(mesh); return mesh;
+              });
+              return { L, solid, pivot, meshes, R, depth: D + 2 * lip };
+            });
+            function frustum(m) {   // the layout-space window that the line's transform maps onto the screen
+              cam.left = -m.e / m.a; cam.right = (W - m.e) / m.a; cam.top = m.f / m.d; cam.bottom = -(H - m.f) / m.d;
+              cam.updateProjectionMatrix(); cam.projectionMatrix.multiply(SH); cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
+            }
+            return {
+              canvas: cv,
+              // pass: "mask" (the openings), "body" (lit letter), "glint" (the raking key's light and the flare only)
+              render(i, m, t, pass) {
+                const it = items[i], L = it.L, rk = rakeAt(t, L.kind), dr = driftAt(t, L.kind), sh = CONFIG.shots[shotIndex(t)];
+                // the bloom pass: the chrome lips only, only while the band is up
+                if (pass === "glint" && (it.solid || rk.amt < 0.05)) return false;
+                items.forEach((o) => { o.pivot.visible = o === it; });
+                if (!it.solid) it.meshes.forEach((ms) => { ms.material = pass === "mask" ? [maskMat, hidden] : [hidden, frameMat]; });
+                U.uRakeX.value = rk.x; U.uRakeAmt.value = rk.amt; U.uWin.value = rk.win;
+                U.uSlant.value = CONFIG.band.slant; U.uSheen.value = it.solid ? 0.3 : CONFIG.band.sheen; U.uStackTop.value = STACK_TOP; U.uGlint.value = pass === "glint" ? 1 : 0;
+                U.uDriftX.value = dr.x; U.uDriftAmt.value = dr.amt; U.uDriftW.value = dr.w;
+                U.uTopY.value = -L.top; U.uMidY.value = -(L.top + L.base) / 2;
+                U.uEyeV.value.set(L.cx, -L.cy + 150, 900);   // the virtual eye: 1500 px in front of the line, a little above
+                // in the open the walls go dark as they rush past the lens (no flat grey planes at 18x)
+                const zp = clamp((t - T.open) / T.openDur, 0, 1); U.uDim.value = 1 - 0.9 * eSine(clamp((zp - 0.35) / 0.45, 0, 1));
+                U.uClose.value = it.solid ? 0 : eSine(clamp((zp - 0.4) / 0.35, 0, 1));
+                U.uTint.value.set(sh.tint); U.uTintAmt.value = 0.55; U.uDepth.value = it.depth;
+                frustum(m);
+                renderer.render(it.R.sc, cam);
+                return true;
+              }
+            };
+          } catch (err) { return null; }
+        })();
+
+        // ---------- the footage: 1:1 behind the window block, growing to a full-frame cover as the letters open ----------
+        const COVER = H / 1080;   // a 16:9 shot covering the 9:16 frame
+        const lay = $("#foot");
+        function placeFootage(t, Z, P) {
+          const post = clamp((t - PAY) / (T.end - PAY), 0, 1);
+          const push = 1 + 0.03 * eSine(post);          // a slow push once the shot is the frame
+          const fT = eIO(clamp((t - T.open) / (T.openDur + 0.12), 0, 1));
+          const sh = CONFIG.shots[shotIndex(t)], gr = Object.assign({}, CONFIG.windowGrade, sh.grade || {});
+          const gB = lerp(gr.brightness, 1.03, fT), gC = lerp(gr.contrast, 1.0, fT), gS = lerp(gr.saturate, 1.1, fT);
+          const bx = windows.map((L) => P[lines.indexOf(L)].box);
+          const B = { l: clamp(Math.min(...bx.map((b) => b.l)), 0, W), r: clamp(Math.max(...bx.map((b) => b.r)), 0, W),
+                      t: clamp(Math.min(...bx.map((b) => b.t)), 0, H), b: clamp(Math.max(...bx.map((b) => b.b)), 0, H) };
+          const s1 = COVER * push, y1 = H / 2 - 540 * s1;
+          CONFIG.shots.forEach((shot, k) => {
+            const el = document.getElementById("vw" + k); if (!el) return;
+            const cx = clamp(shot.cover || 960, W / 2 / s1, 1920 - W / 2 / s1), x1 = W / 2 - cx * s1;
+            const x0 = CONFIG.centerX - shot.frame.x, y0 = blockCy - shot.frame.y;
+            // the smallest blend toward the cover rect that still contains the (zoomed) window block: no empty edge ever
+            // shows inside a letter
+            let need = 0;
+            const R0 = { l: x0, r: x0 + 1920, t: y0, b: y0 + 1080 }, R1 = { l: x1, r: x1 + 1920 * s1, t: y1, b: y1 + 1080 * s1 };
+            if (B.l < R0.l) need = Math.max(need, (R0.l - B.l) / (R0.l - R1.l));
+            if (B.r > R0.r) need = Math.max(need, (B.r - R0.r) / (R1.r - R0.r));
+            if (B.t < R0.t) need = Math.max(need, (R0.t - B.t) / (R0.t - R1.t));
+            if (B.b > R0.b) need = Math.max(need, (B.b - R0.b) / (R1.b - R0.b));
+            const f = clamp(Math.max(fT, need), 0, 1), s = lerp(1, s1, f);
+            el.style.transform = "translate(" + lerp(x0, x1, f).toFixed(2) + "px," + lerp(y0, y1, f).toFixed(2) + "px) scale(" + s.toFixed(5) + ")";
+          });
+          // the warm highlight roll-off: identity to 0.72, then G and B compress toward the sky's orange (R untouched)
+          const kR = (gr.roll || 0) * (1 - fT);
+          let rollF = "";
+          if (kR > 0.01) {
+            const tv = (cap) => Array.from({ length: 17 }, (_, j) => { const x = j / 16; return (x <= 0.72 ? x : 0.72 + (x - 0.72) * (lerp(1, cap, kR) - 0.72) / 0.28).toFixed(4); }).join(" ");
+            $("#rollG").setAttribute("tableValues", tv(0.85)); $("#rollB").setAttribute("tableValues", tv(0.6));
+            rollF = " url(#roll)";
+          }
+          lay.style.filter = "brightness(" + gB.toFixed(3) + ") contrast(" + gC.toFixed(3) + ") saturate(" + gS.toFixed(3) + ")" + rollF;
+          // while the plate is up the footage is clipped to the frame (a shake must never show it past the plate's edge);
+          // once it is the frame, it bleeds past the edges so the landing shake never shows black
+          // (inset 3 px while the lockup holds, so the plate's own anti-aliased edge never lets a sliver through)
+          lay.style.clipPath = t >= T_CUT - 1e-4 ? "none" : Z.p > 0 ? "inset(0px)" : "inset(3px)";
+        }
+
+        // ---------- the radial zoom blur for the open (an exact mean of scaled copies: 21 taps, additive) ----------
+        const mbuf = document.createElement("canvas"); mbuf.width = W; mbuf.height = H; const bctx = mbuf.getContext("2d");
+        function radialBlur(ctx, cx, cy, span) {
+          const N = 21;
+          bctx.setTransform(1, 0, 0, 1, 0, 0); bctx.clearRect(0, 0, W, H); bctx.drawImage(ctx.canvas, 0, 0);
+          ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
+          ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = 1 / N;
+          for (let i = 0; i < N; i++) { const s = 1 + span * i / (N - 1); ctx.setTransform(s, 0, 0, s, cx * (1 - s), cy * (1 - s)); ctx.drawImage(mbuf, 0, 0); }
+          ctx.restore();
+        }
+
+        function drawAt(t) {
+          t = clamp(t, 0, T.end);
+          const Z = zoomAt(t), bt = beatAt(t);
+          const P = lines.map((L, i) => linePath(L, i, t, Z));
+          placeFootage(t, Z, P);
+          [mctx, lctx, dctx].forEach((c) => { c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); c.filter = "none"; c.globalAlpha = 1; c.globalCompositeOperation = "source-over"; });
+          // the stem lift: a 2-frame local exposure lift (colour-dodge) as the camera passes through the stem
+          if (t >= T_CUT - 2 / 30 - 1e-4 && t < T_CUT - 1e-4) {
+            const g0 = Math.round(255 * (1 - Math.pow(2, -CONFIG.open.liftEV)));
+            const g = dctx.createRadialGradient(Z.fx, Z.fy, 0, Z.fx, Z.fy, 760);
+            g.addColorStop(0, "rgb(" + g0 + "," + g0 + "," + g0 + ")"); g.addColorStop(0.55, "rgb(" + Math.round(g0 * 0.6) + "," + Math.round(g0 * 0.6) + "," + Math.round(g0 * 0.6) + ")"); g.addColorStop(1, "rgb(0,0,0)");
+            dctx.fillStyle = g; dctx.fillRect(0, 0, W, H);
+          }
+          if (t >= T_CUT - 1e-4) return;               // through the stem: a clean cut to the full-frame shot
+          const k = Math.min(Z.z, 4);
+
+          // 1. the black plate (pure black at the edges, a little lift behind the lockup so the contact shadows read)
+          const bg = mctx.createRadialGradient(CONFIG.centerX, CONFIG.centerY, 60, CONFIG.centerX, CONFIG.centerY, 1100);
+          const lift = 1 - eSine(clamp((t - (T.open - 0.14)) / 0.14, 0, 1));   // the lift fades evenly before the open (no halo)
+          bg.addColorStop(0, rgba("#131419", lift)); bg.addColorStop(0.55, rgba("#08080b", lift)); bg.addColorStop(1, "rgba(0,0,0,0)");
+          mctx.fillStyle = "#000"; mctx.fillRect(0, 0, W, H);
+          mctx.fillStyle = bg; mctx.fillRect(0, 0, W, H);
+          // 2. contact shadows on the plate
+          lines.forEach((L, i) => {
+            const st = P[i].st; if (st.a <= 0) return;
+            if (lift <= 0) return;
+            mctx.save(); mctx.globalAlpha = 0.9 * st.a * lift; mctx.filter = "blur(" + (12 * k + st.blur).toFixed(2) + "px)";
+            mctx.setTransform(1, 0, 0, 1, 0, 10 * k); mctx.fillStyle = "#000"; mctx.fill(P[i].path);
+            mctx.restore();
+          });
+          // 3. the letters
+          lines.forEach((L, i) => {
+            const st = P[i].st, m = P[i].m; if (st.a <= 0) return;
+            const bl = st.blur > 0.3 ? "blur(" + st.blur.toFixed(2) + "px)" : "none";
+            if (G3D) {
+              if (L.kind === "window") {     // punch the opening, then the lit hollow letter over it
+                G3D.render(i, m, t, "mask");
+                mctx.save(); mctx.globalCompositeOperation = "destination-out"; mctx.globalAlpha = st.a; mctx.filter = bl; mctx.drawImage(G3D.canvas, 0, 0); mctx.restore();
+              }
+              G3D.render(i, m, t, "body");
+              mctx.save(); mctx.globalAlpha = st.a; mctx.filter = bl; mctx.drawImage(G3D.canvas, 0, 0); mctx.restore();
+              if (G3D.render(i, m, t, "glint")) {   // the band's bloom on the chrome lips, peaking with the band
+                const env = rakeAt(t, L.kind).env;
+                lctx.save(); lctx.globalCompositeOperation = "lighter"; lctx.globalAlpha = 0.95 * st.a * env * env;
+                lctx.filter = "blur(" + CONFIG.band.bloom + "px)"; lctx.drawImage(G3D.canvas, 0, 0);
+                lctx.globalAlpha = 0.6 * st.a * env * env; lctx.filter = "blur(" + (CONFIG.band.bloom / 3).toFixed(1) + "px)"; lctx.drawImage(G3D.canvas, 0, 0);
+                lctx.restore();
+              }
+            } else draw2D(L, i, P[i], k, t);
+          });
+          // 4. the open: a radial zoom blur centred on the letter the camera flies into
+          if (Z.p > 0) {
+            // a half-frame shutter's zoom streak, capped so the stem's edges streak about blurPx
+            const phys = 0.5 * Math.log(18) * 2 * Z.p * (1 / 30) / T.openDur;
+            const span = Math.min(phys, CONFIG.open.blurPx / Math.max(40, stemPx(t, Z) / 2));
+            if (span * 300 > 0.5) radialBlur(mctx, Z.fx, Z.fy, span);
+          }
+        }
+
+        // ---------- 2D fallback (no WebGL): matte windows with an inner shadow, a 2D slab ----------
+        function draw2D(L, i, PL, k, t) {
+          const st = PL.st, path = PL.path;
+          if (L.kind === "window") {
+            mctx.save(); mctx.globalCompositeOperation = "destination-out"; if (st.blur > 0.3) mctx.filter = "blur(" + st.blur.toFixed(2) + "px)";
+            mctx.globalAlpha = st.a; mctx.fill(path); mctx.restore();
+            mctx.save(); mctx.clip(path); mctx.shadowColor = "rgba(0,0,0," + (0.8 * st.a).toFixed(3) + ")"; mctx.shadowBlur = 12 * k;
+            mctx.fillStyle = "rgba(0,0,0," + (0.5 * st.a).toFixed(3) + ")"; mctx.fill(inverse(path, 0, 6 * k), "evenodd"); mctx.restore();
+            mctx.save(); mctx.globalAlpha = 0.9 * st.a; mctx.strokeStyle = "#E8EDF4"; mctx.lineWidth = 3; mctx.stroke(path); mctx.restore();
+            return;
+          }
+          const sl = CONFIG.slab;
+          mctx.save(); mctx.globalAlpha = st.a; if (st.blur > 0.3) mctx.filter = "blur(" + st.blur.toFixed(2) + "px)";
+          mctx.fillStyle = sl.wall; for (let d = sl.wallPx; d >= 1; d--) { mctx.setTransform(1, 0, 0, 1, 0, d * k); mctx.fill(path); }
+          mctx.setTransform(1, 0, 0, 1, 0, 0); mctx.fillStyle = sl.front; mctx.fill(path); mctx.restore();
+          const c = sl.chamferPx * k;
+          mctx.save(); mctx.globalAlpha = st.a; mctx.clip(path);
+          mctx.fillStyle = sl.top; mctx.fill(inverse(path, 0.35 * c, c), "evenodd");
+          mctx.fillStyle = sl.low; mctx.fill(inverse(path, -0.3 * c, -0.6 * c), "evenodd"); mctx.restore();
+        }
+        window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") drawAt(e.detail.time); });
+
+        document.fonts.ready.then(() => {
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, T.end, (p) => drawAt(p * T.end));
+          Look.impact(tl, landAccent, { shake: "#shake", amp: 7, dur: 0.28, flash: 0, zoom: 1.012 });
+          CONFIG.beats.forEach((b) => Look.impact(tl, b.at, { shake: "#shake", amp: b.shake || (4 + 6 * b.flare), dur: 0.28, flash: 0, zoom: 1 }));
+          // the open lands: the shot is the frame, one hit
+          Look.impact(tl, PAY, { shake: "#shake", amp: 8, dur: 0.3, flash: 0, zoom: 1.02 });
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+          drawAt(0);
+        });
+        drawAt(0);
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,297 @@
+<!doctype html>
+<!-- GTA-niche 03 Word captions, variant A (16:9 long-form, 1920x1080, 30 fps).
+     Burned-in 1-3 word caption groups, bottom-centre. Running words are DOM type built as a bevelled block (ink edge, graded
+     extrusion with a lit lip, top-edge highlight, warm seam); a keyword catches fire from white to gold behind a feathered
+     hot-white light front the moment it is spoken. The payoff word ("YACHT.") is real geometry: Three.js extruded, bevelled
+     letters traced from Inter, white enamel turning to polished gold as the light front crosses, a raking key light, one wide
+     specular sweep and HDR bloom, wrapped in the same ink edge. See ../DECISIONS.md.
+     Variable: bg "plate" (sample GTA V gameplay) / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <script src="media/payoff3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .gradeWrap { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; pointer-events: none; }
+      .grp { position: absolute; left: 0; width: 100%; text-align: center; white-space: nowrap; opacity: 0; }
+      .grp3d { position: absolute; left: 0; top: 0; width: 100%; height: 100%; opacity: 0; }
+      .grp3d .bump, .grp3d .shade { position: absolute; }
+      .grp3d .bump { left: 0; top: 0; width: 100%; height: 100%; }
+      .w { position: relative; display: inline-block; vertical-align: top; text-transform: uppercase; white-space: nowrap; }
+      .w .l { display: block; white-space: nowrap; line-height: 1; padding: 0 0.08em 0.25em; }
+      .w .abs, .w .set { position: absolute; left: 0; top: 0; }
+      .w .set { width: 100%; height: 100%; }
+      .w .glow, .w .front, .w .frontGlow { opacity: 0; }
+      .w .frontGlow { mix-blend-mode: screen; }
+      .fx { position: absolute; width: 0; height: 0; overflow: hidden; }
+    </style>
+  </head>
+  <body>
+    <!-- the bevel on DOM gold: a 2px top-edge highlight on every upward-facing edge and a warm seam on every downward-facing edge -->
+    <svg class="fx" aria-hidden="true">
+      <filter id="bevel" x="-5%" y="-10%" width="110%" height="120%" color-interpolation-filters="sRGB">
+        <feOffset in="SourceAlpha" dx="-0.6" dy="2.2" result="dn" />
+        <feComposite in="SourceAlpha" in2="dn" operator="out" result="topE" />
+        <feGaussianBlur in="topE" stdDeviation="0.55" result="topB" />
+        <feFlood flood-color="#FFFBE8" flood-opacity="0.95" />
+        <feComposite in2="topB" operator="in" result="hiC" />
+        <feComposite in="hiC" in2="SourceAlpha" operator="in" result="hi" />
+        <feOffset in="SourceAlpha" dx="0" dy="-1.6" result="up" />
+        <feComposite in="SourceAlpha" in2="up" operator="out" result="botE" />
+        <feGaussianBlur in="botE" stdDeviation="0.45" result="botB" />
+        <feFlood flood-color="#8A3E00" />
+        <feComposite in2="botB" operator="in" result="seamC" />
+        <feComposite in="seamC" in2="SourceAlpha" operator="in" result="seam" />
+        <feMerge><feMergeNode in="SourceGraphic" /><feMergeNode in="seam" /><feMergeNode in="hi" /></feMerge>
+      </filter>
+    </svg>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.5" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="shotA" class="clip shot" src="assets/shots/v57-gp-red-car-highway-h.mp4" muted playsinline data-start="0" data-duration="1.32" data-media-start="0.3" data-track-index="0"></video>
+        <video id="shotB" class="clip shot" src="assets/shots/v52-gp-police-bridge-h.mp4" muted playsinline data-start="1.32" data-duration="1.63" data-media-start="1.15" data-track-index="0"></video>
+        <div class="gradeWrap" id="gradeC"><video id="shotC" class="clip shot" src="assets/shots/v55-gp-parachute-h.mp4" muted playsinline data-start="2.95" data-duration="1.47" data-media-start="0" data-track-index="0"></video></div>
+        <video id="shotD" class="clip shot" src="assets/shots/v11-yacht-h.mp4" muted playsinline data-start="4.42" data-duration="2.08" data-media-start="0.02" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="6.5" data-track-index="1"></div>
+    </div>
+    <script>
+      const CONFIG = {
+        // The creator's commentary line. t = the second the word is spoken. g:1 starts a new caption group (1-3 words on screen).
+        // hot:1 = keyword: arrives white, catches fire to gold when spoken. pay:1 = the payoff word, rendered as real 3D gold;
+        // it lands white on its t and ignites at `ignite` (with the light hit on the footage).
+        words: [
+          { w: "I", t: 0.20, g: 1 }, { w: "HAD", t: 0.34 },
+          { w: "FIVE", t: 0.62, g: 1, hot: 1 }, { w: "STARS,", t: 0.86, hot: 1 },
+          { w: "THE", t: 1.32, g: 1 }, { w: "BRIDGE", t: 1.46 },
+          { w: "WAS", t: 1.86, g: 1 }, { w: "BLOCKED...", t: 2.02 },
+          { w: "SO", t: 2.95, g: 1 }, { w: "I", t: 3.12 }, { w: "JUMPED", t: 3.26, hot: 1 },
+          { w: "AND", t: 3.78, g: 1 }, { w: "STOLE", t: 3.92 }, { w: "A", t: 4.20 },
+          { w: "YACHT.", t: 4.42, g: 1, hot: 1, pay: 1, ignite: 4.55 }   // lands white on the cut to the yacht, ignites 4 frames later
+        ],
+        lastOut: 6.2,           // when the payoff starts its exit
+        end: 6.5,
+        type: {
+          family: "Inter", weight: 900, size: 100, paySize: 1.5, tracking: -0.02, wordGap: 0.15, // em (plus 0.08em side padding per word)
+          capCentreY: 885,      // y of the caption's cap-height centre (82% of frame)
+          edge: 4,              // visible outer ink edge, px (wraps face + extrusion as one block)
+          rim: 1.5,             // thin line between face and side, px (ink on white words, a warm seam on gold)
+          depth: 7,             // DOM words: graded extrusion straight down, px
+          ink: "#07080B"
+        },
+        payoff3d: { depth: 22, bevel: 4.5, tilt: 0.3, shade: 0.24 },   // px, px, radians (top leans back), local contact shade
+        colors: {
+          face:     ["#FFFFFF", "#F7F9FC", "#EEF2F7", "#E4E9F0"],  // white face: top, mid, pre-shade, baseline
+          side:     ["#2A2F3A", "#07080B"],                         // white words' extrusion, near to far
+          goldFace: ["#FFF1A0", "#FFC21E", "#E07F0A"],              // keyword face: top, middle, bottom (curved)
+          goldLip:  "#F7B23A",                                      // 1px lit lip at the top of the gold extrusion
+          goldSide: ["#C46A00", "#3A1400"],                         // gold extrusion, near to far
+          seam:     "#8A3E00",                                      // warm seam line on gold
+          hot:      "#FFF6D0",                                      // the light front that ignites the gold
+          glow:     "#FFB000"
+        },
+        shots: ["#shotA", "#shotB", "#shotC", "#shotD"],
+        grade: { "#gradeC": "contrast(1.15) saturate(1.25)" }      // per-shot grade (the parachute plate is flat and grey)
+      };
+
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const $ = (s) => document.querySelector(s);
+        const C = CONFIG, T = C.type, K = C.colors, FR = 1 / 30;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        if (plate) Object.keys(C.grade).forEach((k) => ($(k).style.filter = C.grade[k]));
+
+        const groups = [];
+        C.words.forEach((wd) => { if (wd.g || !groups.length) groups.push({ words: [] }); groups[groups.length - 1].words.push(wd); });
+        groups.forEach((g, i) => { g.start = g.words[0].t; g.end = i < groups.length - 1 ? groups[i + 1].words[0].t : C.lastOut; g.pay = g.words.some((w) => w.pay); });
+
+        // ---------- the DOM word: a bevelled block ----------
+        function metrics(size) {
+          const cv = document.createElement("canvas").getContext("2d");
+          cv.font = T.weight + " " + size + "px " + T.family;
+          const m = cv.measureText("H"), fa = m.fontBoundingBoxAscent, fd = m.fontBoundingBoxDescent, cap = m.actualBoundingBoxAscent;
+          const base = (size - (fa + fd)) / 2 + fa;
+          return { cap: cap, base: base, top: base - cap };
+        }
+        const mix = (a, b, k) => { const p = (h) => [1, 3, 5].map((i) => parseInt(h.substr(i, 2), 16)); const A = p(a), B = p(b);
+          return "rgb(" + A.map((v, i) => Math.round(v + (B[i] - v) * k)).join(",") + ")"; };
+        const inkChain = (n, c) => Array.from({ length: n }, () => "drop-shadow(0 1px 0 " + c + ")").join(" ");
+        // extrusion: optional 1px lit lip, then each depth pixel its own colour from near to far
+        const sideChain = (n, c, lip) => Array.from({ length: n }, (_, k) => "drop-shadow(0 1px 0 " + (lip && k === 0 ? lip : mix(c[0], c[1], n > 1 ? (k - (lip ? 1 : 0)) / (n - 1 - (lip ? 1 : 0)) : 1)) + ")").join(" ");
+        const px = (v) => v.toFixed(1) + "px";
+        const whiteGrad = (M) => "linear-gradient(180deg, " + K.face[0] + " " + px(M.top - 2) + ", " + K.face[1] + " " + px(M.top + M.cap * 0.42) + ", " +
+          K.face[2] + " " + px(M.top + M.cap * 0.78) + ", " + K.face[3] + " " + px(M.top + M.cap + 1) + ")";
+        // curved 3-stop gold: light top, saturated body, the bottom turning under
+        const goldGrad = (M) => "linear-gradient(180deg, " + K.goldFace[0] + " " + px(M.top - 1) + ", " + mix(K.goldFace[0], K.goldFace[1], 0.55) + " " + px(M.top + M.cap * 0.22) + ", " +
+          K.goldFace[1] + " " + px(M.top + M.cap * 0.5) + ", " + mix(K.goldFace[1], K.goldFace[2], 0.55) + " " + px(M.top + M.cap * 0.8) + ", " + K.goldFace[2] + " " + px(M.top + M.cap + 1) + ")";
+        // one wide soft specular: 0.45em band with a 10px falloff each side
+        const band = (X, hw) => "linear-gradient(104deg, rgba(255,250,235,0) " + px(X - hw - 10) + ", rgba(255,250,235,.42) " + px(X - hw * 0.45) + ", rgba(255,252,242,.72) " + px(X) + ", rgba(255,250,235,.42) " + px(X + hw * 0.45) + ", rgba(255,250,235,0) " + px(X + hw + 10) + ")";
+
+        function buildWord(text, size, depth, hot, M) {
+          const w = document.createElement("span"); w.className = "w";
+          w.style.cssText = "font:" + T.weight + " " + size + "px/1 '" + T.family + "';" + (T.stretch ? "font-stretch:" + T.stretch + "%;" : "") +
+            "letter-spacing:" + T.tracking + "em;transform-origin:50% " + M.base.toFixed(1) + "px";
+          const k = size / T.size, mk = (cls, parent) => { const s = document.createElement("span"); s.className = "l " + cls; s.textContent = text; (parent || w).appendChild(s); return s; };
+          const out = {};
+          if (hot) { out.glow = mk("abs glow"); out.glow.style.cssText = "color:" + K.glow + ";filter:blur(" + Math.round(size * 0.16) + "px)"; }
+          out.outline = mk("outline");
+          out.outline.style.cssText = "color:" + T.ink + ";-webkit-text-stroke:" + (2 * T.edge * k).toFixed(1) + "px " + T.ink + ";filter:" + inkChain(depth, T.ink) +
+            " drop-shadow(0 " + Math.round(6 * k) + "px " + Math.round(9 * k) + "px rgba(0,0,0,.45)) drop-shadow(0 " + Math.round(16 * k) + "px " + Math.round(28 * k) + "px rgba(0,0,0,.32))";
+          const set = (cls, gold) => {
+            const s = document.createElement("span"); s.className = "set " + cls; w.appendChild(s);
+            const sd = mk("abs side", s); sd.style.cssText = "color:" + (gold ? K.goldLip : K.side[0]) + ";filter:" + sideChain(depth, gold ? K.goldSide : K.side, gold ? K.goldLip : null);
+            const rm = mk("abs rim", s); rm.style.cssText = "color:" + (gold ? K.seam : T.ink) + ";-webkit-text-stroke:" + (2 * T.rim * k).toFixed(1) + "px " + (gold ? K.seam : T.ink);
+            const fc = mk("abs face", s); if (gold) fc.style.filter = "url(#bevel)";
+            return { el: s, face: fc, gold: gold };
+          };
+          out.cold = set("cold", false);
+          if (hot) {
+            out.hot = set("hot", true);
+            out.front = mk("abs front"); out.front.style.color = K.hot;                  // the hot-white light front (crisp)
+            out.frontGlow = mk("abs frontGlow"); out.frontGlow.style.cssText = "color:" + K.hot + ";filter:blur(10px) drop-shadow(0 0 14px " + K.glow + ")";   // its bloom
+          }
+          out.spec = mk("abs spec");
+          out.w = w; out.M = M; out.size = size;
+          return out;
+        }
+        function paintWord(o) { // after layout: Look.fill measures each box
+          [o.cold, o.hot].forEach((s) => { if (s) Look.fill(s.face, s.gold ? goldGrad(o.M) : whiteGrad(o.M)); });
+          Look.fill(o.spec, band(-400, 10)); o.specL = o.spec.offsetWidth * 0.9703 + o.spec.offsetHeight * 0.2419; o.W = o.spec.offsetWidth;
+        }
+
+        Promise.all([document.fonts.load(T.weight + " 100px \"" + T.family + "\"", "YACHT")]).then(() => document.fonts.ready).then(() => {
+          const ov = $("#ov");
+          let P = null;
+          groups.forEach((g, gi) => {
+            if (g.pay) {   // the payoff: real geometry
+              const wd = g.words[0], pc = C.payoff3d;
+              P = Payoff3D({
+                W: 1920, H: 1080, glyphs: window.PAYOFF_GLYPHS, text: wd.w, size: T.size * T.paySize, tracking: T.tracking,
+                cx: 960, cy: T.capCentreY, depth: pc.depth, bevel: pc.bevel, tilt: pc.tilt, inkPx: T.edge, inkColor: T.ink, shadow: 0.55, shadowOff: 7,
+                colors: { whiteFace: [K.face[0], K.face[3]], whiteSide: K.side, goldFace: K.goldFace, goldLip: K.goldLip, goldSide: K.goldSide, hot: K.hot },
+                timing: { ignite: wd.ignite, frontDur: 0.18, specAt: wd.ignite + 0.06, specDur: 0.45, rakeDur: 0.6, holdEnd: C.lastOut }
+              });
+              const el = document.createElement("div"); el.className = "grp3d"; el.id = "g" + gi;
+              const bump = document.createElement("div"); bump.className = "bump";
+              const shade = document.createElement("div"); shade.className = "shade";
+              const sw = P.inkW * 1.3, shH = P.cap * 2.4;
+              shade.style.cssText = "left:" + (960 - sw / 2) + "px;top:" + (T.capCentreY - shH / 2 + 6) + "px;width:" + sw + "px;height:" + shH + "px;" +
+                "background:radial-gradient(closest-side, rgba(0,0,0," + pc.shade + ") 0%, rgba(0,0,0," + (pc.shade * 0.6).toFixed(3) + ") 55%, rgba(0,0,0,0) 100%)";
+              bump.appendChild(shade); bump.appendChild(P.canvas); el.appendChild(bump); ov.appendChild(el);
+              g.el = el; g.bump = bump; g.originY = T.capCentreY + P.cap / 2;
+              return;
+            }
+            const size = T.size, M = metrics(size);
+            const el = document.createElement("div"); el.className = "grp"; el.id = "g" + gi;
+            el.style.top = (T.capCentreY - (M.top + M.cap / 2)) + "px";
+            g.el = el; g.M = M;
+            g.words.forEach((wd, wi) => {
+              wd.o = buildWord(wd.w, size, T.depth, !!wd.hot, M);
+              if (wi) wd.o.w.style.marginLeft = T.wordGap + "em";
+              el.appendChild(wd.o.w);
+            });
+            ov.appendChild(el);
+            g.words.forEach((wd) => paintWord(wd.o));
+          });
+          // the layers are stacked on purpose: tell the layout check
+          document.querySelectorAll("#ov .grp, #ov .grp3d, #ov .bump, #ov canvas, #ov .shade, #ov .w, #ov .l, #ov .set").forEach((n) => { n.setAttribute("data-layout-allow-overlap", ""); n.setAttribute("data-layout-allow-occlusion", ""); });
+
+          const tl = gsap.timeline({ paused: true });
+
+          if (plate) C.shots.forEach((s) => {
+            const v = $(s), st = parseFloat(v.dataset.start), du = parseFloat(v.dataset.duration);
+            gsap.set(v, { scale: 1, transformOrigin: "50% 45%" });
+            tl.fromTo(v, { scale: 1 }, { scale: 1.035, duration: du, ease: "none", immediateRender: false }, st);
+          });
+
+          // one wide soft specular (0.45em, 10px falloff), skewed 14 deg, clipped to the glyphs
+          function specular(o, at, dur) {
+            const E = gsap.parseEase("power2.inOut"), L = o.specL, hw = 0.225 * o.size;
+            return Look.drive(tl, at, dur, (p) => { o.spec.style.backgroundImage = band(p <= 0 || p >= 1 ? -400 : -hw - 20 + (L + 2 * hw + 40) * E(p), hw); });
+          }
+          // ignition: the gold catches fire behind a feathered hot-white light front (0.35em feather, 0.25em band, 10px bloom)
+          function ignite(o, at) {
+            const E = gsap.parseEase("expo.out"), F = 0.35 * o.size, B = 0.125 * o.size, Wd = o.W, h = o.hot.el;
+            const xAt = (p) => -F - B + (Wd + 2.6 * F + 3 * B) * E(p);
+            const goldMask = (X) => "linear-gradient(90deg, #000 " + px(X - F) + ", rgba(0,0,0,0) " + px(X + F) + ")";
+            const frontMask = (X) => "linear-gradient(90deg, rgba(0,0,0,0) " + px(X - B * 1.6) + ", #000 " + px(X) + ", rgba(0,0,0,0) " + px(X + B * 1.6) + ")";
+            const setMask = (n, m) => { n.style.webkitMaskImage = m; n.style.maskImage = m; };
+            setMask(h, goldMask(-1e4));
+            Look.drive(tl, at, 0.18, (p) => {
+              if (p <= 0) { setMask(h, goldMask(-1e4)); o.front.style.opacity = 0; o.frontGlow.style.opacity = 0; return; }
+              if (p >= 1) { setMask(h, "none"); o.front.style.opacity = 0; o.frontGlow.style.opacity = 0; return; }
+              // the hot band rides just inside the gold edge, so it reads as white heat moving through the gold
+              const X = xAt(p), Xh = X - 0.55 * F; setMask(h, goldMask(X)); setMask(o.front, frontMask(Xh)); setMask(o.frontGlow, frontMask(Xh));
+              o.front.style.opacity = 1; o.frontGlow.style.opacity = 1;
+            });
+            tl.fromTo(o.glow, { opacity: 0 }, { opacity: 0.7, duration: 0.08, ease: "power2.out", immediateRender: false }, at + 0.04);
+            tl.to(o.glow, { opacity: 0.26, duration: 0.5, ease: "sine.out" }, at + 0.12);
+            tl.to(o.w, { scale: 1.06, duration: 0.07, ease: "power2.out" }, at);
+            tl.to(o.w, { scale: 1, duration: 0.2, ease: "back.out(2.2)" }, at + 0.07);
+            specular(o, at + 0.06, 0.45);
+          }
+
+          groups.forEach((g) => {
+            const el = g.el, t0 = g.start, pay = g.pay, out = pay ? g.end : g.end - 2 * FR;
+            // arrival: drop onto the baseline with a 4px vertical motion blur, land in a light squash 6px low, spring back over 6 frames
+            gsap.set(el, { transformOrigin: pay ? "960px " + g.originY.toFixed(1) + "px" : "50% " + g.M.base.toFixed(1) + "px" });
+            const drop = pay ? 18 : 12;
+            tl.set(el, { opacity: 1 }, t0);
+            tl.fromTo(el, { scaleX: 0.84, scaleY: 0.84, y: -drop }, { scaleX: 1.06, scaleY: 0.94, y: 6, duration: 2 * FR, ease: "power2.in", immediateRender: false }, t0);
+            tl.to(el, { scaleX: 1, scaleY: 1, y: 0, duration: Math.min(6 * FR, out - (t0 + 2 * FR) - 0.001), ease: "back.out(2.2)" }, t0 + 2 * FR);
+            Look.mblur(tl, el, t0, 2 * FR, { x: 0, y: 4, ease: "none" });
+
+            if (pay) {
+              const at = g.words[0].ignite;
+              gsap.set(g.bump, { transformOrigin: "960px " + g.originY.toFixed(1) + "px" });
+              tl.to(g.bump, { scale: 1.06, duration: 0.07, ease: "power2.out" }, at);
+              tl.to(g.bump, { scale: 1, duration: 0.22, ease: "back.out(2.2)" }, at + 0.07);
+              if (plate) {
+                // the light stays on the word (bloom on the gold, DESIGN 11.22): the plate only gets a gentle 3-frame lift
+                Look.expose(tl, at, { target: "#push", peak: 1.07, hold: 3 / 30, dur: 0.4, saturate: 1.15 });
+                Look.impact(tl, at, { shake: "#shake", amp: 9, dur: 0.3, zoom: 1.03, flash: 0 });
+              }
+              // designed exit (5 frames, DESIGN 11.14): opaque snap into its baseline anchor with an 8px vertical blur, hard cut at zero
+              tl.fromTo(el, { scaleX: 1, scaleY: 1, y: 0 }, { scaleX: 0.6, scaleY: 0.6, y: -14, duration: 5 * FR, ease: "power3.in", immediateRender: false }, out);
+              Look.mblur(tl, el, out, 5 * FR, { x: 0, y: 0, to: [0, 8], ease: "power2.in" });
+              tl.set(el, { opacity: 0 }, out + 5 * FR);
+              return;
+            }
+            g.words.forEach((wd, wi) => {
+              const o = wd.o, s = t0 + wi * FR;
+              gsap.set(o.w, { opacity: 0 });
+              tl.set(o.w, { opacity: 1 }, s);
+              if (wi) tl.fromTo(o.w, { y: -8 }, { y: 0, duration: 0.12, ease: "power2.out", immediateRender: false }, s);
+              if (wd.hot) ignite(o, Math.max(wd.t, s));
+            });
+            // swap (DESIGN 11.15): opaque 2-frame compress, hard cut on the frame the next group lands
+            tl.to(el, { scaleX: 0.93, scaleY: 0.93, duration: 2 * FR, ease: "power2.in" }, out);
+            tl.set(el, { opacity: 0 }, g.end);
+          });
+
+          // the 3D payoff renders from the timeline's time (seek-safe; no animation loop)
+          if (P) { Look.drive(tl, 0, C.end, (p) => P.renderAt(p * C.end)); P.renderAt(0); }
+          tl.set({}, {}, C.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

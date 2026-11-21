@@ -1,0 +1,574 @@
+<!doctype html>
+<!-- 22 Celebration FX, variant B (9:16): power-up aura + confetti burst for a Short. The aura is a real lit Three.js object: a thick
+     glass torus filled with cyan plasma (a braided white-hot filament twisting inside it, a key-light specular band and a glass rim
+     clipped to the tube), crowned by faceted crystal barbs. It draws on round the subject's shoulders, then locks in on the cut: the
+     tube inflates with a spring, runs white-hot for 3 frames, the barbs erupt from it, a light rakes round the glass, a shockwave and
+     two wing slashes leave it, a few embers fly and two foil confetti cannons fire. The far arc passes behind his head (a tracked head
+     matte). Real screen-space bloom of the emissive parts; three depth layers and sub-frame motion blur on the confetti.
+     Variable: bg "plate" / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif; }
+      #shake, #push { position: absolute; inset: 0; }
+      #push { transform-origin: 540px 864px; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 31.5% 50%; }
+      #ov { position: absolute; inset: 0; pointer-events: none; }
+      .layer { position: absolute; inset: 0; width: 1080px; height: 1920px; }
+      #lFar { filter: blur(1.6px); }
+      #lNear { filter: blur(5px); }
+      /* the ring's light on the subject: a cyan wrap screened onto the shoulders and hair, inside the footage's push/shake */
+      #wrap { position: absolute; inset: 0; mix-blend-mode: screen; opacity: 0; pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5.2" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <video id="shotA" class="clip shot" src="assets/shots/v35-penthouse-dusk-h.mp4" muted playsinline data-start="0" data-duration="1.5" data-media-start="0.2" data-track-index="0"></video>
+        <video id="shotB" class="clip shot" src="assets/shots/v35-penthouse-dusk-h.mp4" muted playsinline data-start="1.5" data-duration="3.7" data-media-start="5.0" data-track-index="0"></video>
+        <div id="wrap"></div>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="5.2" data-track-index="1">
+        <canvas id="lFar" class="layer" width="1080" height="1920"></canvas>
+        <canvas id="lMid" class="layer" width="1080" height="1920"></canvas>
+        <canvas id="lAura" class="layer" width="1080" height="1920"></canvas>
+        <canvas id="lNear" class="layer" width="1080" height="1920"></canvas>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        aura: {
+          color: "#33D6FF",                 // plasma colour (cyan); the braid and the lock-in run white-hot
+          center: [540, 935],               // ring centre in canvas px (the subject's shoulder line)
+          radius: 330,                      // ring radius in px (to the tube's centre line)
+          tube: 31,                         // glass tube radius in px
+          tilt: -1.05,                      // ring tilt (rad): the far arc goes behind the head, the near arc crosses the back
+          // crystal barbs: ring angle in degrees (0 = right, 90 = far side, 270 = near side), out (true) or in, length in px
+          barbs: [[38, 1, 165], [72, 1, 150], [108, 1, 155], [142, 1, 165], [218, 1, 150], [255, 1, 140], [285, 1, 142], [322, 1, 155],
+                  [237, 0, 100], [270, 0, 110], [303, 0, 98]],
+          barbBase: 21,                     // barb half-width at the root (px)
+          braid: { strands: 2, twists: 7 },    // the plasma filament twisting inside the tube
+          embers: 9,                        // embers thrown off the near arc on the lock-in
+          // subject head track in footage px (before the push): [comp s, head centre x, head top y, head width]. Measured on the sample
+          // clip every 0.1 s; replace it for your own clip (or set subject.matte to false).
+          track: [[0.0,509,652,183],[0.1,525,649,180],[0.2,547,661,178],[0.3,568,697,178],[0.4,601,704,178],[0.5,618,684,179],[0.6,602,658,179],[0.7,575,663,178],[0.8,547,705,171],[0.9,511,724,163],[1.0,492,704,163],[1.1,506,662,165],[1.2,531,657,167],[1.3,563,699,168],[1.4,597,719,167],[1.47,613,720,167],[1.5,626,673,194],[1.6,615,694,191],[1.7,600,718,186],[1.8,582,718,182],[1.9,567,682,182],[2.0,566,661,186],[2.1,585,678,188],[2.2,618,711,188],[2.3,641,710,187],[2.4,649,676,189],[2.5,629,651,191],[2.6,606,664,189],[2.7,576,705,181],[2.8,546,710,177],[2.9,540,685,180],[3.0,553,651,185],[3.1,562,652,188],[3.2,564,692,190],[3.3,599,699,191],[3.4,616,688,192],[3.5,604,648,190],[3.6,567,656,187],[3.7,505,712,185],[3.8,484,718,185],[3.9,476,672,185],[4.0,473,650,184],[4.1,476,647,182],[4.2,496,644,182],[4.3,518,643,182],[4.4,542,641,182],[4.5,556,641,182],[4.6,561,644,182],[4.7,562,654,182],[4.8,563,663,182],[4.9,564,669,183],[5.0,566,672,183],[5.1,563,672,183]],
+          head: { drop: 120, ry: 126, pad: 4 },    // matte ellipse: centre = top + drop, half-height ry, half-width = width / 2 + pad
+          follow: { x: 0.7, y: 0.5, ref: [560, 675], max: [25, 16] },  // the ring follows the smoothed head track
+          slash: { span: 368, rise: 250 },  // the wing-slash pair on the lock-in: half-span and tip height above the ring centre (px)
+          wrap: { peak: 0.42, hold: 0.2, shoulders: [335, 330, 210], hair: [95, 150, 170] }  // light on the subject: y below head top, rx, ry (px)
+        },
+        // fitted to the sample subject: "plate" = only over the sample footage (off in the transparent render), true = always, false = never
+        subject: { matte: "plate", lightWrap: "plate" },
+        confetti: { count: 100, streamers: 12, colors: { gold: "#F6C453", pearl: "#F3EEE6", cyan: "#33D6FF" } },
+        timing: { drawOn: [0.42, 1.34], payoff: 1.5, collapse: 4.3, gone: 4.66, clear: 4.95, end: 5.2 },
+        camera: { push: [1.04, 1.045], kick: 8 },  // slow push on each shot (scale), shake amplitude on the lock-in (px)
+        dof: { nearBlur: 5, farBlur: 1.6 },
+        motionBlur: { samples: 15, shutter: 0.5 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const useMatte = CONFIG.subject.matte === true || (CONFIG.subject.matte === "plate" && plate);
+        const useWrap = CONFIG.subject.lightWrap === true || (CONFIG.subject.lightWrap === "plate" && plate);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        document.getElementById("lNear").style.filter = "blur(" + CONFIG.dof.nearBlur + "px)";
+        document.getElementById("lFar").style.filter = "blur(" + CONFIG.dof.farBlur + "px)";
+
+        const W = 1080, H = 1920, FPS = 30, T = CONFIG.timing, END = T.end;
+        const FOV = 44, CAMZ = 10, TAN = Math.tan((FOV / 2) * Math.PI / 180);
+        const halfH = (z) => (CAMZ - z) * TAN, halfW = (z) => halfH(z) * W / H;
+        const PX = H / (2 * halfH(0));                                   // px per world unit at z = 0
+        const hs = (i, k) => { const s = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return s - Math.floor(s); };
+        const lerp = (a, b, u) => a + (b - a) * u, clamp01 = (u) => Math.max(0, Math.min(1, u));
+        const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+        const sstep = (a, b, x) => { const u = clamp01((x - a) / (b - a)); return u * u * (3 - 2 * u); };
+        const easeOut3 = (u) => 1 - Math.pow(1 - clamp01(u), 3), easeIn3 = (u) => Math.pow(clamp01(u), 3);
+        const inOut = (u) => { u = clamp01(u); return u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2; };
+        const spring = (u, zeta, w) => u <= 0 ? 0 : 1 - Math.exp(-zeta * w * u) * Math.cos(w * Math.sqrt(1 - zeta * zeta) * u);  // 0 -> 1 with overshoot
+
+        // ---------- camera (footage push + lock-in kick), computed here so the head matte maps exactly ----------
+        const P = T.payoff, CAM = CONFIG.camera;
+        const pushAt = (t) => t < P ? lerp(1, CAM.push[0], t / P) : lerp(1, CAM.push[1], (t - P) / (END - P));
+        const kickAt = (t) => { const v = t - P, D = 0.32; if (!plate || v <= 0 || v >= D) return { x: 0, y: 0, z: 1 };
+          const p = v / D, f = Math.floor(v * FPS), env = (1 - p) * (1 - p);
+          return { x: (Look.hash(9001 + f * 3) * 2 - 1) * CAM.kick * env, y: (Look.hash(9002 + f * 3) * 2 - 1) * CAM.kick * env, z: 1 + 0.022 * env }; };
+        const toCanvas = (x, y, t) => { const s = plate ? pushAt(t) : 1, k = kickAt(t);
+          const X = 540 + (x - 540) * s, Y = 864 + (y - 864) * s; return [540 + (X - 540) * k.z + k.x, 960 + (Y - 960) * k.z + k.y, s * k.z]; };
+        // ---------- head track ----------
+        const TR = CONFIG.aura.track;
+        const headAt = (t) => { if (t <= TR[0][0]) return TR[0].slice(1); for (let i = 1; i < TR.length; i++) if (t <= TR[i][0]) {
+          const a = TR[i - 1], b = TR[i], u = (t - a[0]) / (b[0] - a[0]); return [lerp(a[1], b[1], u), lerp(a[2], b[2], u), lerp(a[3], b[3], u)]; }
+          return TR[TR.length - 1].slice(1); };
+        const headSmooth = (t) => { let x = 0, y = 0; for (let k = -3; k <= 3; k++) { const h = headAt(clamp(t + k * 0.1, 0, END)); x += h[0]; y += h[1]; } return [x / 7, y / 7]; };
+
+        Promise.all(["900 100px Inter"].map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const glc = document.createElement("canvas"); glc.width = W; glc.height = H;
+          const renderer = new THREE.WebGLRenderer({ canvas: glc, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+          renderer.setPixelRatio(1); renderer.setSize(W, H, false);
+          renderer.outputColorSpace = THREE.SRGBColorSpace;
+          renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.2;
+          renderer.setClearColor(0x000000, 0);
+          renderer.sortObjects = true;
+          const scene = new THREE.Scene();
+          const camera = new THREE.PerspectiveCamera(FOV, W / H, 0.1, 100); camera.position.set(0, 0, CAMZ); camera.lookAt(0, 0, 0);
+
+          // environment for the foil: sunset dome and soft boxes, so the metal reflects the scene's light
+          const envScene = new THREE.Scene();
+          envScene.add(new THREE.Mesh(new THREE.SphereGeometry(50, 48, 24), new THREE.ShaderMaterial({
+            side: THREE.BackSide, depthWrite: false,
+            vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+            fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 top = vec3(1.0,.62,.70), mid = vec3(1.0,.78,.55), low = vec3(.16,.12,.2); vec3 c = y > 0. ? mix(mid, top, smoothstep(0.,.8,y)) : mix(mid*.5, low, smoothstep(0.,-.6,y)); gl_FragColor = vec4(c * .34, 1.0); }"
+          })));
+          const box = (col, w, h, pos) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide })); m.position.set(...pos); m.lookAt(0, 0, 0); envScene.add(m); };
+          box(new THREE.Color(10, 8, 5.6), 18, 9, [-16, 22, 26]);
+          box(new THREE.Color(1.6, 5.8, 7.6), 8, 24, [24, 0, 16]);
+          box(new THREE.Color(6, 6, 6.4), 26, 3, [0, -20, 22]);
+          box(new THREE.Color(8, 6.4, 6.8), 9, 9, [20, 18, -12]);
+          box(new THREE.Color(8, 5.6, 3.6), 10, 5, [-24, -6, 10]);
+          box(new THREE.Color(6, 6.4, 7.2), 7, 7, [-8, 12, -26]);
+          const pmrem = new THREE.PMREMGenerator(renderer);
+          scene.environment = pmrem.fromScene(envScene, 0.02).texture;
+          scene.add(new THREE.HemisphereLight(0xffd6e2, 0x2a2236, 0.6));
+          const key = new THREE.DirectionalLight(0xffe6cf, 2.4); key.position.set(-5, 7, 8); scene.add(key);
+          const auraLight = new THREE.PointLight(0x33d6ff, 0, 0, 2); scene.add(auraLight);
+
+          // ---------- the aura: glass plasma torus + braid + crystal barbs ----------
+          const A = CONFIG.aura, R = A.radius / PX, TUBE = A.tube / PX;
+          const CY = new THREE.Color(A.color);
+          const KEY = new THREE.Vector3(-0.22, 0.62, 0.75).normalize();      // key light direction (view space = world space here)
+          const PASS = { value: 0 };                                          // 0 = beauty, 1 = emissive-only (bloom source)
+          const HEAD = { value: new THREE.Vector4(540, 800, 100, 126) }, MATTE = { value: useMatte ? 1 : 0 };
+          const premult = { transparent: true, depthWrite: false, toneMapped: false, blending: THREE.CustomBlending, blendEquation: THREE.AddEquation,
+            blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor };
+          const additive = Object.assign({}, premult, { blendDst: THREE.OneFactor });
+          const OCC = "uniform vec4 uHead; uniform float uMatte; varying float vWz; float occ(){ if (uMatte < .5) return 1.0; vec2 p = vec2(gl_FragCoord.x, " + H.toFixed(1) +
+            " - gl_FragCoord.y); float e = length((p - uHead.xy) / uHead.zw); return 1.0 - (1.0 - smoothstep(.93, 1.03, e)) * smoothstep(.03, -.08, vWz); }";
+          const NOISE = "float h1(float n){ return fract(sin(n * 12.9898) * 43758.5453); } float n1(float x){ float i = floor(x), f = fract(x); f = f * f * (3. - 2. * f); return mix(h1(i), h1(i + 1.), f); }";
+          // glass shell with plasma inside
+          const SU = { uColor: { value: CY }, uKey: { value: KEY }, uI: { value: 0 }, uSweep: { value: 0 }, uTime: { value: 0 }, uHot: { value: 0 }, uFlash: { value: 0 },
+            uRake: { value: -100 }, uRakeI: { value: 0 }, uDraw: { value: 0 }, uGrow: { value: 0 }, uPass: PASS, uHead: HEAD, uMatte: MATTE };
+          const shellMat = new THREE.ShaderMaterial(Object.assign({
+            uniforms: SU,
+            vertexShader: "uniform float uGrow; varying vec3 vL; varying vec3 vN; varying vec3 vV; varying float vWz; void main(){ vL = position; vec3 p = position + normal * uGrow;" +
+              "vN = normalize(normalMatrix * normal); vec4 w = modelMatrix * vec4(p, 1.0); vWz = w.z; vec4 mv = viewMatrix * w; vV = -mv.xyz; gl_Position = projectionMatrix * mv; }",
+            fragmentShader: "uniform vec3 uColor, uKey; uniform float uI, uSweep, uTime, uHot, uFlash, uRake, uRakeI, uDraw, uPass; varying vec3 vL; varying vec3 vN; varying vec3 vV;" + OCC + NOISE +
+              "float ang(vec3 p){ return mod(atan(p.y, p.x) + 6.2831853, 6.2831853); }" +
+              "vec3 env(vec3 r){ vec3 c = mix(vec3(.04,.05,.08), vec3(.85,.72,.78), smoothstep(-.25, .9, r.y));" +
+              "  c += vec3(2.6,2.3,2.0) * smoothstep(.88, .97, dot(r, normalize(vec3(-.5,.72,.48))));" +
+              "  c += vec3(.5,1.4,1.9) * smoothstep(.92, .99, dot(r, normalize(vec3(.85,.05,.5)))); return c; }" +
+              "void main(){ float a = ang(vL); if (a > uSweep) discard;" +
+              "  vec3 N = normalize(vN), V = normalize(vV); float ndv = clamp(dot(N, V), 0.0, 1.0); float b2 = 1.0 - ndv * ndv;" +
+              "  float fl = n1(a * 5.0 - uTime * 14.0); float flow = .42 + .78 * fl * fl + .18 * n1(a * 17.0 + uTime * 9.0);" +
+              "  float head = uHot * exp(-pow((uSweep - a) * 2.6, 2.0));" +
+              "  float core = exp(-b2 / .07), Ie = uI * flow;" +
+              "  float lit = .42 + .78 * clamp(dot(N, uKey) * .5 + .5, 0.0, 1.0);" +
+              "  vec3 emis = uColor * (ndv * .62 + core * .7) * Ie * lit + vec3(.8,.96,1.0) * core * (Ie * .22 + head * 2.4 + uFlash * 1.6);" +
+              "  float rk = uRakeI * exp(-pow(mod(a - uRake + 3.14159, 6.28318) - 3.14159, 2.0) / .16);" +
+              "  vec3 Rf = reflect(-V, N); float F = .04 + .96 * pow(1.0 - ndv, 5.0);" +
+              "  vec3 refl = env(Rf) * F * (1.0 + 2.5 * rk);" +
+              "  vec3 Hk = normalize(uKey + V); float nh = max(dot(N, Hk), 0.0); float sp = (pow(nh, 220.0) * 2.2 + pow(nh, 24.0) * .22) * (1.0 + 2.5 * rk) + rk * .35 * pow(ndv, 2.0);" +
+              "  float tA = (.18 + .42 * (1.0 - ndv)) * uDraw;" +
+              "  vec3 col = vec3(.0,.025,.04) * tA + emis + refl + vec3(sp); float al = clamp(tA + dot(emis + refl + vec3(sp), vec3(.3,.45,.25)), 0.0, 1.0);" +
+              "  if (uPass > .5) { col = emis + vec3(sp) * .5; al = clamp(dot(col, vec3(.3,.45,.25)), 0.0, 1.0); }" +
+              "  float o = occ(); gl_FragColor = vec4(col * o, al * o); }"
+          }, premult));
+          const aura = new THREE.Group(); scene.add(aura);
+          const spin = new THREE.Group(); aura.add(spin);
+          const shell = new THREE.Mesh(new THREE.TorusGeometry(R, TUBE, 40, 480), shellMat); shell.renderOrder = 2; spin.add(shell);
+
+          // crystal barbs: faceted thorns (diamond section, hooked tip), lit facets, a luminous core and a white-hot root
+          function thornGeo() {
+            const rings = [[0, 1, 0], [0.3, 0.8, 0.03], [0.62, 0.46, 0.1], [1, 0, 0.24]];
+            const S = 4, pos = [], nor = [];
+            const Pt = (r, k) => { const g = rings[r], a = (k / S) * Math.PI * 2; return new THREE.Vector3(g[2] + g[1] * Math.cos(a), g[0], g[1] * Math.sin(a)); };
+            for (let r = 0; r < 3; r++) for (let k = 0; k < S; k++) {
+              const a = Pt(r, k), b = Pt(r, k + 1), c = Pt(r + 1, k + 1), d = Pt(r + 1, k);
+              const n = new THREE.Vector3().subVectors(d, a).cross(new THREE.Vector3().subVectors(b, a)).normalize();
+              const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5), ax = new THREE.Vector3(rings[r][2], mid.y, 0);
+              if (n.dot(mid.sub(ax)) < 0) n.negate();
+              for (const v of [a, b, c, a, c, d]) { pos.push(v.x, v.y, v.z); nor.push(n.x, n.y, n.z); }
+            }
+            const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3)); return g;
+          }
+          const BU = { uColor: { value: CY }, uKey: { value: KEY }, uI: { value: 0 }, uFlash: { value: 0 }, uPass: PASS, uHead: HEAD, uMatte: MATTE };
+          const barbMat = new THREE.ShaderMaterial(Object.assign({}, premult, {
+            uniforms: BU, depthWrite: true, side: THREE.DoubleSide,
+            vertexShader: "varying vec3 vN; varying vec3 vV; varying float vWz; varying float vY; void main(){ vY = position.y; vN = normalize(normalMatrix * normal); vec4 w = modelMatrix * vec4(position, 1.0); vWz = w.z; vec4 mv = viewMatrix * w; vV = -mv.xyz; gl_Position = projectionMatrix * mv; }",
+            fragmentShader: "uniform vec3 uColor, uKey; uniform float uI, uFlash, uPass; varying vec3 vN; varying vec3 vV; varying float vY;" + OCC +
+              "void main(){ vec3 N = normalize(vN), V = normalize(vV); if (dot(N, V) < 0.0) N = -N; float ndv = clamp(dot(N, V), 0.0, 1.0);" +
+              "  float lam = max(dot(N, uKey), 0.0); vec3 Hh = normalize(uKey + V); float sp = pow(max(dot(N, Hh), 0.0), 70.0); float fr = pow(1.0 - ndv, 2.5);" +
+              "  float root = pow(1.0 - vY, 2.2);" +
+              "  vec3 body = uColor * (.28 + 1.05 * lam) * uI + vec3(.75,.95,1.0) * (root * .75 + uFlash * .8) * uI + uColor * fr * 1.3 * uI;" +
+              "  vec3 col = body + vec3(1.0) * sp * 1.8; float al = clamp(.9 + sp, 0.0, 1.0);" +
+              "  if (uPass > .5) { col = (uColor * .55 + vec3(.75,.95,1.0) * root * .7) * uI + vec3(1.0) * sp * .9; al = clamp(dot(col, vec3(.3,.45,.25)), 0.0, 1.0); }" +
+              "  float o = occ(); gl_FragColor = vec4(col * al * o, al * o); }"
+          }));
+          const TG = thornGeo();
+          const barbs = A.barbs.map((b, i) => {
+            const phi = b[0] * Math.PI / 180, out = !!b[1], L = b[2] / PX, bw = A.barbBase / PX * (out ? 1 : 0.8);
+            const rad = new THREE.Vector3(Math.cos(phi), Math.sin(phi), 0), tan = new THREE.Vector3(-Math.sin(phi), Math.cos(phi), 0), up = new THREE.Vector3(0, 0, 1);
+            const Y = rad.clone().multiplyScalar(out ? 0.5 : -0.5).add(up.clone().multiplyScalar(0.87)).normalize();
+            const X = tan.clone().sub(Y.clone().multiplyScalar(tan.dot(Y))).normalize(), Z = new THREE.Vector3().crossVectors(X, Y);
+            const base = rad.clone().multiplyScalar(R).add(Y.clone().multiplyScalar(-TUBE * 0.35));
+            const m = new THREE.Mesh(TG, barbMat); m.matrixAutoUpdate = false; m.renderOrder = 1; spin.add(m);
+            // erupt order: from the near point outwards round both sides
+            const dn = Math.abs(((b[0] - 270 + 540) % 360) - 180) / 180;
+            return { m, X, Y, Z, base, L, bw, delay: 0.07 * dn + 0.012 * hs(i, 3) };
+          });
+          const setBarb = (b, s) => { const m = b.m; m.visible = s > 0.002; if (!m.visible) return;
+            m.matrix.makeBasis(b.X, b.Y, b.Z); m.matrix.scale(new THREE.Vector3(b.bw * Math.min(1, 0.4 + 0.6 * s), b.L * s, b.bw * Math.min(1, 0.4 + 0.6 * s))); m.matrix.setPosition(b.base); };
+
+          // shockwave ring (payoff)
+          const SW = { uColor: { value: CY }, uI: { value: 0 }, uR: { value: R }, uW: { value: 0.05 } };
+          const shock = new THREE.Mesh(new THREE.RingGeometry(0.01, 6, 400, 1), new THREE.ShaderMaterial(Object.assign({
+            uniforms: SW,
+            vertexShader: "varying vec3 vL; void main(){ vL = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+            fragmentShader: "uniform vec3 uColor; uniform float uI, uR, uW; varying vec3 vL; void main(){ float d = length(vL.xy) - uR; float g = exp(-pow(d / uW, 2.0)); float I = uI * g; vec3 c = mix(uColor, vec3(1.0), clamp(I - .3, 0.0, 1.0)); gl_FragColor = vec4(c * I, clamp(I * .5, 0.0, 1.0)); }"
+          }, additive)));
+          shock.renderOrder = 3; aura.add(shock);
+
+          // dynamic strips (soft-edged, camera-facing tapered quads with a white-hot centre). ST rides the ring (the braid), SL is in
+          // world space (wing slashes, embers)
+          const stripMat = new THREE.ShaderMaterial(Object.assign({
+            uniforms: { uColor: { value: CY }, uHead: HEAD, uMatte: MATTE },
+            vertexShader: "attribute vec2 aT; varying vec2 vT; varying float vWz; void main(){ vT = aT; vWz = (modelMatrix * vec4(position, 1.0)).z; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+            fragmentShader: "uniform vec3 uColor; varying vec2 vT;" + OCC + "void main(){ float e = 1.0 - abs(vT.x); float I = vT.y * e * e * occ(); vec3 c = mix(uColor, vec3(1.0), clamp(I * 1.3 - .2, 0.0, 1.0)); gl_FragColor = vec4(c * I, clamp(I * .85, 0.0, 1.0)); }",
+            side: THREE.DoubleSide
+          }, additive));
+          function makeStrips(maxq, parent) {
+            const geo = new THREE.BufferGeometry(), pos = new Float32Array(maxq * 12), at = new Float32Array(maxq * 8), idx = new Uint32Array(maxq * 6);
+            for (let q = 0; q < maxq; q++) { const v = q * 4; idx.set([v, v + 1, v + 2, v, v + 2, v + 3], q * 6); }
+            geo.setAttribute("position", new THREE.BufferAttribute(pos, 3)); geo.setAttribute("aT", new THREE.BufferAttribute(at, 2)); geo.setIndex(new THREE.BufferAttribute(idx, 1));
+            const mesh = new THREE.Mesh(geo, stripMat); mesh.frustumCulled = false; mesh.renderOrder = 4; parent.add(mesh);
+            const S = { mesh, n: 0,
+              quad3(ax, ay, az, bx, by, bz, wx, wy, wz, w0, w1, i0, i1) {
+                if (S.n >= maxq) return; const v = S.n * 4;
+                pos.set([ax + wx * w0, ay + wy * w0, az + wz * w0, bx + wx * w1, by + wy * w1, bz + wz * w1, bx - wx * w1, by - wy * w1, bz - wz * w1, ax - wx * w0, ay - wy * w0, az - wz * w0], v * 3);
+                at.set([-1, i0, -1, i1, 1, i1, 1, i0], v * 2); S.n++;
+              },
+              done() { geo.setDrawRange(0, S.n * 6); geo.attributes.position.needsUpdate = true; geo.attributes.aT.needsUpdate = true; }
+            };
+            return S;
+          }
+          const ST = makeStrips(1400, spin), SL = makeStrips(320, scene);
+
+          // ---------- confetti: thin foil boxes + curled streamers, closed-form drag-to-flutter physics ----------
+          const C = CONFIG.confetti;
+          const foil = {
+            gold: new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.colors.gold), metalness: 1, roughness: 0.2, envMapIntensity: 1.7, side: THREE.DoubleSide }),
+            pearl: new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.colors.pearl), metalness: 0.2, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.1,
+              iridescence: 1, iridescenceIOR: 1.5, iridescenceThicknessRange: [260, 720], envMapIntensity: 1.3, side: THREE.DoubleSide }),
+            cyan: new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.colors.cyan), metalness: 0.9, roughness: 0.24, envMapIntensity: 1.6, side: THREE.DoubleSide })
+          };
+          const pickMat = (u) => (u < 0.56 ? foil.gold : u < 0.8 ? foil.pearl : foil.cyan);
+          const ribbon = (L, w, waves, amp) => {                         // a long foil strip with a soft S-wave and a quarter twist
+            const g = new THREE.PlaneGeometry(L, w, 48, 1), p = g.attributes.position.array;
+            for (let i = 0; i < p.length; i += 3) { const x = p[i], y = p[i + 1], u = x / L, tw = u * 1.4;
+              p[i + 1] = y * Math.cos(tw) + amp * Math.sin(u * waves * 6.2832) * 0.35; p[i + 2] = y * Math.sin(tw) + amp * Math.sin(u * waves * 6.2832 + 1.2); }
+            g.computeVertexNormals(); return g;
+          };
+          const BANDS = [[-7, -3.2], [-2.4, 2.6], [4.2, 6.0]];
+          function aim(p, apexX, apexY) {                                  // solve the launch so the piece peaks at (apexX, apexY)
+            const Ay = apexY - p.y0; let lo = 0.02, hi = 3;
+            for (let it = 0; it < 40; it++) { const m = (lo + hi) / 2; (p.vt * (Math.exp(p.k * m) - 1) / p.k - p.vt * m < Ay) ? (lo = m) : (hi = m); }
+            const tA = (lo + hi) / 2;
+            p.vy = p.vt * Math.exp(p.k * tA) - p.vt; p.vx = (apexX - p.x0) * p.k / (1 - Math.exp(-p.k * tA)); p.apexX = apexX; p.apexY = apexY;
+          }
+          const pieces = [];
+          const total = C.count + C.streamers;
+          for (let i = 0; i < total; i++) {
+            const isStream = i >= C.count, side = i % 2 ? 1 : -1;
+            const band = isStream ? (i % 3 === 0 ? 2 : 1) : (hs(i, 1) < 0.22 ? 0 : hs(i, 1) < 0.86 ? 1 : 2);
+            const z = lerp(BANDS[band][0], BANDS[band][1], hs(i, 2)), hh = halfH(z), hw = halfW(z);
+            const s = lerp(0.2, 0.32, hs(i, 3));
+            const geo = isStream ? ribbon(lerp(0.55, 0.85, hs(i, 4)), 0.07, lerp(0.8, 1.3, hs(i, 5)), 0.07) : new THREE.BoxGeometry(s, s * lerp(0.45, 0.62, hs(i, 6)), 0.007);
+            const m = new THREE.Mesh(geo, isStream ? foil.gold : pickMat(hs(i, 7)));
+            m.visible = false; scene.add(m);
+            const k = lerp(1.7, 2.3, hs(i, 8));
+            const vt = lerp(2.4, 4.4, Math.pow(hs(i, 10), 1.3)) * Math.sqrt(hh / halfH(0)) * (isStream ? 0.85 : 1);
+            const apexY = lerp(-0.3, 0.78, hs(i, 11)) * hh;
+            const y0 = -hh * lerp(0.72, 0.9, hs(i, 9));
+            const x0 = side * (hw + 0.15 + hs(i, 28) * 0.25), apexX = side * lerp(-0.9, 0.98, hs(i, 12)) * hw;
+            const p = { m, mat: m.material, band, isStream, side, hw, hh, t0: T.payoff + hs(i, 13) * 0.07, x0, y0, z0: z, vz: lerp(-0.6, 0.6, hs(i, 14)), vt, k,
+              ws: lerp(3, 6, hs(i, 15)), ph: hs(i, 16) * 6.283, sa: lerp(0.08, 0.28, hs(i, 17)),
+              r0: [hs(i, 18) * 6.28, hs(i, 19) * 6.28, hs(i, 20) * 6.28],
+              w: [lerp(-14, 14, hs(i, 21)), lerp(-9, 9, hs(i, 22)), lerp(-5, 5, hs(i, 23))].map((v) => v * (isStream ? 0.45 : 1)),
+              wEnd: [lerp(3, 8, hs(i, 24)) * (hs(i, 25) < .5 ? -1 : 1), lerp(-3, 3, hs(i, 26)), lerp(-1.5, 1.5, hs(i, 27))] };
+            aim(p, apexX, apexY);
+            pieces.push(p);
+          }
+          function pState(p, t) {
+            const tau = t - p.t0; if (tau < 0) return null;
+            const e = Math.exp(-p.k * tau), gk = (1 - e) / p.k, grow = 1 - e;
+            const x = p.x0 + p.vx * gk + p.sa * grow * Math.sin(p.ws * tau + p.ph);
+            const y = p.y0 - p.vt * tau + (p.vy + p.vt) * gk;
+            const z = p.z0 + p.vz * gk;
+            const e2 = Math.exp(-1.6 * tau), g2 = (1 - e2) / 1.6;
+            const r = [0, 1, 2].map((j) => p.r0[j] + p.wEnd[j] * tau + (p.w[j] - p.wEnd[j]) * g2);
+            return { x, y, z, r };
+          }
+          const onScreen = (s, m) => Math.abs(s.y) < halfH(s.z) + m && Math.abs(s.x) < halfW(s.z) + m && s.z < CAMZ - 0.6;
+          // near (blurred) pieces keep out of the head and ring around the lock-in: re-aimed up the outer edge, else dropped
+          const BOX = [240, 600, 840, 1200];
+          const nearHits = (p) => { for (let t = T.payoff; t <= T.payoff + 0.95; t += 1 / FPS) { const s = pState(p, t); if (!s || !onScreen(s, 0.3)) continue;
+            const px = W / 2 + s.x / halfW(s.z) * W / 2, py = H / 2 - s.y / halfH(s.z) * H / 2, m = 0.2 * (H / 2) / halfH(s.z);
+            if (px > BOX[0] - m && px < BOX[2] + m && py > BOX[1] - m && py < BOX[3] + m) return true; } return false; };
+          pieces.forEach((p) => {
+            if (p.band !== 2) return;
+            for (let tries = 0; tries < 6 && nearHits(p); tries++) aim(p, p.side * p.hw * (0.9 + 0.04 * tries), p.hh * (0.5 + 0.08 * tries));
+            if (nearHits(p)) p.skip = true;
+          });
+          pieces.forEach((p) => {
+            for (let tries = 0; tries < 14; tries++) {
+              let last = 0;
+              for (let t = p.t0; t <= END; t += 1 / FPS) { const s = pState(p, t); if (s && onScreen(s, 0.3)) last = t; }
+              if (last <= T.clear) break;
+              p.vt *= 1.1; if (tries > 6) p.vx *= 1.15;
+            }
+          });
+          pieces.forEach((p) => { if (p.band === 2 && nearHits(p)) p.skip = true; });   // a sped-up straggler may have drifted back in
+
+          // ---------- aura state over time ----------
+          function auraAt(t) {
+            const F = A.follow, hsm = headSmooth(t), hc = toCanvas(hsm[0], hsm[1], t);
+            const sx = A.center[0] + clamp((hc[0] - F.ref[0]) * F.x, -F.max[0], F.max[0]);
+            const sy = A.center[1] + clamp((hc[1] - F.ref[1]) * F.y, -F.max[1], F.max[1]);
+            const st = { x: (sx - W / 2) / PX, y: (H / 2 - sy) / PX, scale: 1, thick: 1, I: 0, sweep: 0, head: 0, flash: 0, draw: 0, barb: 0, rake: -100, rakeI: 0,
+              shockR: 0, shockI: 0, light: 0, braid: 0, on: false };
+            const d0 = T.drawOn[0], d1 = T.drawOn[1];
+            if (t < d0 - 0.05 || t > T.gone) return st;
+            st.on = true;
+            if (t < P) {
+              const u = clamp01((t - d0) / (d1 - d0));
+              st.sweep = 6.2832 * inOut(u); st.head = u < 1 ? 1 : 0; st.draw = sstep(0, 0.15, u);
+              st.scale = lerp(1.12, 1.0, easeOut3(u)) - 0.05 * sstep(d1, P, t);   // contracts, then the anticipation squeeze
+              st.I = lerp(0.45, 0.8, u) + 0.4 * sstep(d1, P, t);
+              st.thick = 0.62 + 0.08 * sstep(d1, P, t);
+              st.braid = 0.35 * u + 0.25 * sstep(d1, P, t);
+              st.light = 1.5 + 3 * sstep(d1, P, t);
+            } else {
+              const v = t - P;
+              st.sweep = 6.2832; st.draw = 1; st.braid = 1;
+              st.scale = 0.95 + 0.05 * spring(v, 0.32, 26);                      // snaps out with overshoot
+              st.thick = 0.7 + 0.3 * spring(v, 0.38, 30);                        // the tube inflates to full thickness
+              const flash = v < 3 / FPS ? 1 : Math.exp(-(v - 3 / FPS) * 7);       // 3-frame white-hot peak, then settles
+              st.flash = flash;
+              st.I = 1.2 + 1.8 * flash + 0.06 * Math.sin(t * 9);
+              st.rake = 4.712 + 6.2832 * easeOut3(v / 0.42); st.rakeI = v < 0.5 ? sstep(0, 0.04, v) * (1 - sstep(0.3, 0.5, v)) : 0;   // a light rakes round the glass
+              st.shockR = R * lerp(1.0, 2.7, easeOut3(v / 0.6)); st.shockI = v < 0.6 ? 1.5 * Math.pow(1 - v / 0.6, 1.4) : 0;
+              st.light = 6 + 12 * flash;
+              st.barb = 1;
+              if (t > T.collapse) {                                              // barbs retract, then the ring collapses into him
+                const c = clamp01((t - T.collapse) / (T.gone - T.collapse));
+                st.scale *= 1 - easeIn3(c) * 0.97; st.I *= 1 + 1.4 * c; st.thick *= 1 - 0.55 * c; st.braid *= 1 - c;
+              }
+            }
+            return st;
+          }
+          const barbScale = (b, t) => { const v = t - P - b.delay; if (v <= 0) return 0;
+            let s = spring(v, 0.34, 24); if (t > T.collapse) s *= 1 - easeIn3((t - T.collapse) / 0.14); return Math.max(0, s); };
+          const qv = new THREE.Quaternion(), vl = new THREE.Vector3();
+          const bb = (dx, dy, dz) => { const wx = dy * vl.z - dz * vl.y, wy = dz * vl.x - dx * vl.z, wz = dx * vl.y - dy * vl.x, l = Math.hypot(wx, wy, wz) || 1; return [wx / l, wy / l, wz / l]; };
+          // the braid: plasma filaments twisting inside the tube; the strands behind the core are dimmer (seen through the plasma)
+          function buildBraid(t, st) {
+            ST.n = 0;
+            if (!st.on || st.braid <= 0) { ST.done(); return; }
+            qv.copy(aura.quaternion).multiply(spin.quaternion).invert();
+            vl.set(-st.x, -st.y, CAMZ).normalize().applyQuaternion(qv);
+            const NS = A.braid.strands, Q = A.braid.twists, SEG = 360, rs = TUBE * 0.42 * st.thick;
+            for (let j = 0; j < NS; j++) {
+              let pv = null, pI = 0;
+              for (let k = 0; k <= SEG; k++) {
+                const th = (k / SEG) * 6.2832; if (th > st.sweep) break;
+                const ps = Q * th + t * 5.0 + j * 6.2832 / NS, c = Math.cos(th), s = Math.sin(th);
+                const ox = Math.cos(ps) * c, oy = Math.cos(ps) * s, oz = Math.sin(ps);
+                const x = (R + Math.cos(ps) * rs) * c, y = (R + Math.cos(ps) * rs) * s, z = oz * rs;
+                const fb = ox * vl.x + oy * vl.y + oz * vl.z;                  // > 0: the strand is on the lens side of the core
+                const pk = 0.5 + 0.5 * Math.sin(th * 5 - t * 6.5 + j * 2.1) * Math.sin(th * 3 + t * 4 + j);
+                const I = st.braid * st.I * (0.22 + 0.78 * sstep(-0.5, 0.6, fb)) * (0.5 + 0.65 * pk) * 0.95;
+                if (pv) { const w = bb(x - pv[0], y - pv[1], z - pv[2]); ST.quad3(pv[0], pv[1], pv[2], x, y, z, ...w, 0.02, 0.02, pI, I); }
+                pv = [x, y, z]; pI = I;
+              }
+            }
+            ST.done();
+          }
+          // world-space strips: the wing-slash pair on the lock-in, embers thrown off the near arc, a few embers rising in the hold
+          const emberO = new THREE.Object3D(), tmpV = new THREE.Vector3();
+          function ringPoint(t, phi, out) {                                  // world position of a ring point at time t
+            const st = auraAt(t); emberO.position.set(st.x, st.y, 0); emberO.rotation.set(A.tilt + 0.05 * Math.sin(t * 1.1), 0.12 * Math.sin(t * 0.8 + 0.6), 0);
+            emberO.scale.setScalar(st.scale); emberO.updateMatrixWorld(true);
+            return out.set(Math.cos(phi) * R, Math.sin(phi) * R, 0).applyMatrix4(emberO.matrixWorld);
+          }
+          const embers = [];
+          for (let i = 0; i < A.embers; i++) {
+            const phi = (200 + (i / (A.embers - 1)) * 140 + (hs(i, 41) - 0.5) * 9) * Math.PI / 180;
+            const o = ringPoint(P, phi, new THREE.Vector3()), c = ringPoint(P, phi + Math.PI, new THREE.Vector3()).add(o).multiplyScalar(0.5);
+            const dx = o.x - c.x, l = Math.abs(dx) + 0.4;
+            embers.push({ o, vx: dx / l * lerp(1.4, 2.8, hs(i, 42)), vy: lerp(1.8, 3.6, hs(i, 43)), vz: lerp(0.2, 1.4, hs(i, 44)), life: lerp(0.5, 0.85, hs(i, 45)), d: hs(i, 46) * 0.06 });
+          }
+          const EK = 2.2, EG = 3.8;
+          const emberPos = (e, tau) => { const g = (1 - Math.exp(-EK * tau)) / EK; return [e.o.x + e.vx * g, e.o.y + e.vy * g - EG * (tau / EK - g / EK), e.o.z + e.vz * g]; };
+          function buildWorld(t, st) {
+            SL.n = 0;
+            if (!st.on) { SL.done(); return; }
+            const v = t - P, SP = A.slash;
+            if (v >= 0 && v <= 0.34) {
+              const ZS = 0.35, PXz = H / (2 * halfH(ZS));
+              const cxp = W / 2 + st.x * PX, cyp = H / 2 - st.y * PX;
+              const head = easeOut3(v / 0.085), tail = 0.92 * sstep(0.06, 0.32, v), fade = 1 - sstep(0.2, 0.34, v);
+              for (const sd of [-1, 1]) {
+                const P0 = [-sd * 52, 240], C1 = [sd * 250, 160], P1 = [sd * SP.span, -SP.rise];
+                const bz = (u) => { const a = (1 - u) * (1 - u), b = 2 * u * (1 - u), c = u * u;
+                  return [(cxp + a * P0[0] + b * C1[0] + c * P1[0] - W / 2) / PXz, (H / 2 - (cyp + a * P0[1] + b * C1[1] + c * P1[1])) / PXz]; };
+                const n = 24; let pv = null, ps = 0;
+                for (let j = 0; j <= n; j++) {
+                  const sN = j / n, p = bz(lerp(tail, head, sN));
+                  if (pv) {
+                    const dx = p[0] - pv[0], dy = p[1] - pv[1], L = Math.hypot(dx, dy) || 1e-6, nx = -dy / L, ny = dx / L;
+                    const prof = (q) => Math.pow(Math.sin(Math.PI * q), 0.55) * Math.pow(1 - 0.55 * q, 1);   // blade: thick near the root, needle tip
+                    const w0 = prof(ps), w1 = prof(sN);
+                    SL.quad3(pv[0], pv[1], ZS, p[0], p[1], ZS, nx, ny, 0, w0 * 32 / PXz, w1 * 32 / PXz, 5.0 * fade * w0, 5.0 * fade * w1);
+                    SL.quad3(pv[0], pv[1], ZS, p[0], p[1], ZS, nx, ny, 0, w0 * 90 / PXz, w1 * 90 / PXz, 1.1 * fade * w0, 1.1 * fade * w1);
+                  }
+                  pv = p; ps = sN;
+                }
+              }
+            }
+            // embers: tapered streaks with a 0.15 s trail, drag and gravity
+            for (const e of embers) {
+              const tau = v - e.d; if (tau <= 0 || tau > e.life) continue;
+              const fade = Math.pow(1 - tau / e.life, 1.2), pts = [0, 0.02, 0.04, 0.06].map((d) => emberPos(e, Math.max(0, tau - d)));
+              for (let k = 0; k < 3; k++) {
+                const a = pts[k + 1], b = pts[k], dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1e-6;
+                SL.quad3(a[0], a[1], a[2], b[0], b[1], b[2], -dy / L, dx / L, 0, 0.03 * (1 - (k + 1) / 3.4), 0.03 * (1 - k / 3.4), 1.6 * fade * (1 - (k + 1) / 3), 1.6 * fade * (1 - k / 3));
+              }
+            }
+            // a few embers rising off the ring during the hold
+            if (v > 0.3 && t < T.collapse) for (let i = 0; i < 6; i++) {
+              const per = 1.3, u = ((v - 0.3 + hs(i, 51) * per) % per) / per;
+              const phi = (hs(i, 52) * 300 + 120) * Math.PI / 180, o = ringPoint(t, phi, tmpV);
+              const x = o.x + 0.12 * Math.sin(u * 5 + i), y = o.y + u * 0.75, z = o.z, I = 1.1 * Math.sin(u * 3.1416) * (0.65 + 0.35 * hs(i * 5 + Math.floor(t * 15), 53));
+              SL.quad3(x, y - 0.06, z, x, y + 0.02, z, 1, 0, 0, 0.008, 0.024, 0, I);
+            }
+            SL.done();
+          }
+          function applyAura(t) {
+            const st = auraAt(t);
+            aura.visible = st.on; SL.mesh.visible = st.on;
+            aura.position.set(st.x, st.y, 0);
+            aura.rotation.set(A.tilt + 0.05 * Math.sin(t * 1.1), 0.12 * Math.sin(t * 0.8 + 0.6), 0);
+            spin.scale.set(st.scale, st.scale, st.scale);
+            SU.uI.value = st.I; SU.uSweep.value = st.sweep; SU.uTime.value = t; SU.uHot.value = st.head; SU.uFlash.value = st.flash; SU.uDraw.value = st.draw;
+            SU.uGrow.value = TUBE * (st.thick - 1); SU.uRake.value = st.rake; SU.uRakeI.value = st.rakeI;
+            BU.uI.value = st.I * 0.92; BU.uFlash.value = st.flash;
+            for (const b of barbs) setBarb(b, st.barb ? barbScale(b, t) : 0);
+            SW.uI.value = st.shockI; SW.uR.value = st.shockR; SW.uW.value = 0.05 + 0.12 * clamp01((t - P) / 0.6);
+            // head matte: the tracked head, mapped through the footage push and kick
+            const h = headAt(t), c = toCanvas(h[0], h[1] + A.head.drop, t);
+            HEAD.value.set(c[0], c[1], (h[2] / 2 + A.head.pad) * c[2], A.head.ry * c[2]);
+            buildBraid(t, st); buildWorld(t, st);
+            return st;
+          }
+          const lightAt = (t) => { const st = auraAt(t); auraLight.position.set(st.x, st.y, 0.6); auraLight.intensity = st.on ? st.light : 0; };
+
+          // ---------- compositing ----------
+          const ctx = ["lFar", "lMid", "lNear"].map((id) => document.getElementById(id).getContext("2d"));
+          const N = CONFIG.motionBlur.samples, SHUT = CONFIG.motionBlur.shutter / FPS;
+          let lastT = -1;
+          // the aura renders once per frame into its own layer (averaging soft glows over sub-samples in 8 bits bands them), then
+          // an emissive-only pass is blurred at 1/4 and 1/8 size and added back as the bloom. Focus-band confetti is drawn
+          // depth-only into both so pieces in front of the ring still cover it.
+          const auraCtx = document.getElementById("lAura").getContext("2d");
+          const mk = (w, h) => { const c = document.createElement("canvas"); c.width = w; c.height = h; const x = c.getContext("2d"); x.imageSmoothingQuality = "high"; return [c, x]; };
+          const [bc1, bx1] = mk(270, 480), [bc2, bx2] = mk(135, 240);
+          const wrapEl = document.getElementById("wrap");
+          function wrapAt(t, st) {                                          // the ring's light on him: builds, peaks 3 frames on the lock-in, settles, dies with the collapse
+            if (!st.on || !useWrap) return 0;
+            const Wr = A.wrap;
+            let w;
+            if (t < P) w = Wr.hold * (0.45 * sstep(T.drawOn[0], T.drawOn[1], t) + 0.4 * sstep(T.drawOn[1], P, t));
+            else { const v = t - P; w = v < 3 / FPS ? Wr.peak : Wr.hold + (Wr.peak - Wr.hold) * Math.exp(-(v - 3 / FPS) / 0.2); w *= 1 + 0.05 * Math.sin(t * 9); }
+            if (t > T.collapse) { const c = clamp01((t - T.collapse) / (T.gone - T.collapse)); w *= (1 + 1.2 * c) * (1 - easeIn3(c)); }
+            return Math.max(0, w);
+          }
+          const depthOnly = new THREE.MeshBasicMaterial({ colorWrite: false });
+          function renderAt(t) {
+            if (Math.abs(t - lastT) < 1e-6) return; lastT = t;
+            // camera on the footage
+            const s = pushAt(t), k = kickAt(t);
+            if (plate) {
+              document.getElementById("push").style.transform = "scale(" + s.toFixed(5) + ")";
+              document.getElementById("shake").style.transform = "translate(" + k.x.toFixed(2) + "px," + k.y.toFixed(2) + "px) scale(" + k.z.toFixed(5) + ")";
+            }
+            // confetti with sub-frame motion blur
+            ctx.forEach((c) => { c.globalCompositeOperation = "source-over"; c.globalAlpha = 1; c.clearRect(0, 0, W, H); c.globalCompositeOperation = "lighter"; c.globalAlpha = 1 / N; });
+            aura.visible = false; SL.mesh.visible = false;
+            for (let kk = 0; kk < N; kk++) {
+              const tk = Math.max(0, t + (N > 1 ? (kk / (N - 1) - 0.5) : 0) * SHUT);
+              lightAt(tk);
+              const any = [false, false, false];
+              for (const p of pieces) {
+                const ps = pState(p, tk);
+                if (p.skip || !ps || !onScreen(ps, 0.6)) { p.vis = false; continue; }
+                p.vis = true; any[p.band] = true;
+                p.m.position.set(ps.x, ps.y, ps.z); p.m.rotation.set(ps.r[0], ps.r[1], ps.r[2]);
+              }
+              for (let L = 0; L < 3; L++) {
+                if (!any[L]) continue;
+                for (const p of pieces) p.m.visible = p.vis && p.band === L;
+                renderer.render(scene, camera);
+                ctx[L].drawImage(glc, 0, 0);
+              }
+            }
+            ctx.forEach((c) => { c.globalCompositeOperation = "source-over"; c.globalAlpha = 1; });
+            // the aura
+            auraCtx.globalCompositeOperation = "source-over"; auraCtx.globalAlpha = 1; auraCtx.clearRect(0, 0, W, H);
+            lightAt(t);
+            const st = applyAura(t), WR = A.wrap;
+            const h = headAt(t);
+            wrapEl.style.opacity = wrapAt(t, st).toFixed(3);
+            wrapEl.style.background = "radial-gradient(ellipse " + WR.shoulders[1] + "px " + WR.shoulders[2] + "px at " + h[0].toFixed(1) + "px " + (h[1] + WR.shoulders[0]).toFixed(1) + "px, rgba(150,232,255,1) 0%, rgba(51,214,255,.5) 42%, rgba(51,214,255,0) 100%), " +
+              "radial-gradient(ellipse " + WR.hair[1] + "px " + WR.hair[2] + "px at " + h[0].toFixed(1) + "px " + (h[1] + WR.hair[0]).toFixed(1) + "px, rgba(150,232,255,.75) 0%, rgba(51,214,255,0) 100%)";
+            if (st.on) {
+              for (const p of pieces) {
+                const ps = p.band === 1 && !p.skip ? pState(p, t) : null;
+                p.m.visible = !!(ps && onScreen(ps, 0.6));
+                if (p.m.visible) { p.m.position.set(ps.x, ps.y, ps.z); p.m.rotation.set(ps.r[0], ps.r[1], ps.r[2]); p.m.material = depthOnly; }
+              }
+              PASS.value = 0; renderer.render(scene, camera); auraCtx.drawImage(glc, 0, 0);
+              PASS.value = 1; renderer.render(scene, camera); PASS.value = 0;
+              bx1.clearRect(0, 0, 270, 480); bx1.filter = "blur(3px)"; bx1.drawImage(glc, 0, 0, 270, 480); bx1.filter = "none";
+              bx2.clearRect(0, 0, 135, 240); bx2.filter = "blur(4px)"; bx2.drawImage(glc, 0, 0, 135, 240); bx2.filter = "none";
+              const gain = 1 + 0.8 * st.flash;
+              auraCtx.globalCompositeOperation = "lighter";
+              auraCtx.globalAlpha = Math.min(1, 0.85 * gain); auraCtx.drawImage(bc1, 0, 0, W, H);
+              auraCtx.globalAlpha = Math.min(1, 0.75 * gain); auraCtx.drawImage(bc2, 0, 0, W, H);
+              auraCtx.globalCompositeOperation = "source-over"; auraCtx.globalAlpha = 1;
+              for (const p of pieces) p.m.material = p.mat;
+            }
+          }
+
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, END, (p) => renderAt(p * END));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+          tl.set({}, {}, END);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+          renderAt(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

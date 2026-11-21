@@ -1,0 +1,63 @@
+/* GTA-niche 72 Three-way split: shared material for a/ (16:9 columns, .ax) and b/ (9:16 stacked bands, .ay).
+   Oswald only; navy board; one identity accent per game (GTA V green, RDR2 oxblood, GTA VI pink); no logos.
+   Port target: films/gta6-rdr2-gta5/assets/kit/film.css (.fk .col/.div/.chip/.full). */
+.split, .split * { box-sizing: border-box; }
+.split { position: absolute; left: 0; top: 0; overflow: hidden; background: #0B0E1C; font-family: "Oswald", sans-serif; color: #ECEBFA;
+  -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; pointer-events: none; }
+
+/* plates: the opener (first plate full-frame), the live cells (columns on A, bands on B), the winner's full-frame copy */
+.split .opener, .split .full { position: absolute; left: 0; top: 0; overflow: hidden; background: #0B0E1C; }
+.split .full { opacity: 0; }
+.split .cell { position: absolute; overflow: hidden; }
+.split .cell video, .split .full video, .split .opener video { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; object-fit: cover; transform-origin: 0 0; }
+
+/* light riding the winner's wipe edge: a soft specular band, additive, clipped by the frame */
+.split .edge { position: absolute; opacity: 0; mix-blend-mode: screen; pointer-events: none; }
+.split.ax .edge { top: 0; width: 140px; height: 100%; background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.55) 42%, rgba(255,255,255,.9) 50%, rgba(255,255,255,.55) 58%, rgba(255,255,255,0) 100%); }
+.split.ay .edge { left: 0; height: 140px; width: 100%; background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.55) 42%, rgba(255,255,255,.9) 50%, rgba(255,255,255,.55) 58%, rgba(255,255,255,0) 100%); }
+
+/* chrome divider: steel gradient across the bar, 1 px dark edge lines both sides, contact shadow onto both plates, soft specular band clipped to the bar */
+.split .div { position: absolute; overflow: hidden; border: 0 solid #0B0E18;
+  box-shadow: 0 0 0 1px #05060C, 0 0 10px rgba(0,0,0,.8), 0 0 36px rgba(0,0,0,.7); }
+.split.ax .div { border-width: 0 1px; background: linear-gradient(90deg, #23263A 0%, #7F8498 16%, #C9CCD8 34%, #F4F5F8 50%, #AEB2C0 66%, #585C70 86%, #23263A 100%); }
+.split.ay .div { border-width: 1px 0; background: linear-gradient(180deg, #23263A 0%, #7F8498 16%, #C9CCD8 34%, #F4F5F8 50%, #AEB2C0 66%, #585C70 86%, #23263A 100%); }
+.split .div .spec { position: absolute; left: 0; top: 0; }
+.split.ax .div .spec { width: 100%; height: 220px; background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 50%, rgba(255,255,255,0) 100%); }
+.split.ay .div .spec { height: 100%; width: 220px; background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 50%, rgba(255,255,255,0) 100%); }
+
+/* identity chip: a bevelled navy tag with a lit accent spine, name and year; a 2 px lit top edge, inner bottom shadow, contact shadow */
+.split .chip { position: absolute; display: flex; align-items: stretch; height: 100px; border-radius: 12px; overflow: hidden; opacity: 0;
+  background: linear-gradient(180deg, #2B3160 0%, #1F2448 30%, #161A3A 68%, #0F1226 100%);
+  border: 1px solid rgba(255,255,255,.14);
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.26), inset 0 -3px 0 rgba(0,0,0,.6), inset 2px 0 0 rgba(255,255,255,.06), 0 2px 4px rgba(0,0,0,.5), 0 14px 30px rgba(0,0,0,.6); }
+.split .chip::after { content: ""; position: absolute; left: 0; top: 0; right: 0; height: 46%; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,.10) 0%, rgba(255,255,255,0) 100%); }
+/* the spine lights the plate beside it (light spill, not an outer glow) */
+.split .chip::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 90px; pointer-events: none; }
+.split .chip.g5::before { background: linear-gradient(90deg, rgba(70,182,79,.42) 0%, rgba(70,182,79,0) 100%); }
+.split .chip.rdr::before { background: linear-gradient(90deg, rgba(217,68,79,.42) 0%, rgba(217,68,79,0) 100%); }
+.split .chip.g6::before { background: linear-gradient(90deg, rgba(242,85,142,.42) 0%, rgba(242,85,142,0) 100%); }
+/* specular band that sweeps the chip face during the hold (clipped by the chip) */
+.split .chip .gloss { position: absolute; left: 0; top: -10%; width: 120px; height: 120%; transform: skewX(-18deg); pointer-events: none;
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.34) 50%, rgba(255,255,255,0) 100%); }
+.split .chip .spine { width: 10px; flex: none; position: relative; z-index: 1; box-shadow: inset 2px 0 0 rgba(255,255,255,.45), inset -1px 0 0 rgba(0,0,0,.45); }
+.split .chip.g5 .spine { background: linear-gradient(180deg, #A6E8AB 0%, #46B64F 42%, #2B7F32 100%); }
+.split .chip.rdr .spine { background: linear-gradient(180deg, #E8737B 0%, #A3262F 42%, #5E1118 100%); }
+.split .chip.g6 .spine { background: linear-gradient(180deg, #FFB0CD 0%, #F2558E 42%, #A9325F 100%); }
+.split .chip .name { position: relative; z-index: 1; display: flex; align-items: center; padding: 3px 16px 0 20px; font-weight: 700; font-size: 54px; letter-spacing: .03em; line-height: 1;
+  white-space: nowrap; text-shadow: 0 2px 0 rgba(0,0,0,.55); }
+.split .chip .year { position: relative; z-index: 1; display: flex; align-items: center; padding: 19px 20px 0 0; font-weight: 500; font-size: 36px; letter-spacing: .04em; line-height: 1;
+  font-variant-numeric: tabular-nums; white-space: nowrap; text-shadow: 0 2px 0 rgba(0,0,0,.55); }
+.split .chip.g5 .year { color: #46B64F; } .split .chip.rdr .year { color: #D9444F; } .split .chip.g6 .year { color: #F2558E; }
+
+/* payoff bloom behind the winner chip: its accent, soft, only for the land */
+.split .bloom { position: absolute; opacity: 0; border-radius: 50%; filter: blur(26px); pointer-events: none; transform-origin: 50% 50%; }
+.split .bloom.g5 { background: radial-gradient(ellipse at center, rgba(70,182,79,.85) 0%, rgba(70,182,79,.35) 45%, rgba(70,182,79,0) 72%); }
+.split .bloom.rdr { background: radial-gradient(ellipse at center, rgba(217,68,79,.85) 0%, rgba(217,68,79,.35) 45%, rgba(217,68,79,0) 72%); }
+.split .bloom.g6 { background: radial-gradient(ellipse at center, rgba(242,85,142,.85) 0%, rgba(242,85,142,.35) 45%, rgba(242,85,142,0) 72%); }
+
+/* 9:16 sizes (phone-first) */
+.split.ay .chip { height: 112px; border-radius: 14px; }
+.split.ay .chip .spine { width: 12px; }
+.split.ay .chip .name { font-size: 64px; padding: 3px 18px 0 22px; }
+.split.ay .chip .year { font-size: 42px; padding: 21px 22px 0 0; }

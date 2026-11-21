@@ -1,0 +1,252 @@
+<!doctype html>
+<!-- 53 Freeze-frame intro, variant B "Freeze for Shorts" (9:16, 1080x1920, 30 fps, 5.75 s). Full kind: it always shows footage.
+     r09: the evidence's letterbox freeze, phone-first (v0's format in 9:16). The Short plays; on the beat it FREEZES and visibly
+     holds full-frame (exposure hit, shake, 0.3 s still) while the world snaps into the cool steel grade from his face out and
+     Franklin stays warm. Then the frame settles into a FULL-WIDTH frozen band: a real Three.js slab (media/slab3d.js) whose
+     rounded gold lips come in from the top and bottom like letterbox bars while its sides bleed off the frame, mapped from the
+     16:9 frame at 0.92x -> 1.0x (never upscaled), with the same frozen frame racked out above and below it. Franklin's head breaks
+     up out of the band's top edge, and his 3D gold name (media/title3d.js) slams into the top hook band BEHIND his head (his
+     head covers the letters' bottoms, as the hat covers DETECTIVE in the evidence); the role plate sits above it as a kicker.
+     One light beat on the lock-in (a sweep across the name's bevel, bloom held 3 frames). The band pushes in on him through the
+     hold (1.15x on the character), so he rises further through the name. Release: plate shuts, letters fly up and away, the
+     camera dives back into the frame, the colour floods back from his face and the shot PLAYS ON from the frozen frame; then
+     the edit cuts to the next shot (a wide lowrider shot, lesson 21). See README.md, DECISIONS.md and gta/DESIGN.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <script src="media/title3d.js"></script>
+    <script src="media/slab3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #000; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif; background: #000;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #shake2, #shake3, #shake4, #expo, .full { position: absolute; inset: 0; }
+      .shot { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; object-fit: cover; }
+      .vis0 { visibility: hidden; }
+      #still { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; visibility: hidden; }
+      #back { transform-origin: 560px 640px; visibility: hidden; }
+      #back img { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; }
+      /* the next shot after the release (opacity, never visibility, on a video wrapper; lesson 25) */
+      #endW { opacity: 0; transform-origin: 540px 900px; }
+      #slabWrap, #titleWrap { position: absolute; inset: 0; }
+      /* his head in front of the name: the -h cutout registered to the print (same mapping, so inside the band it is invisible and
+         only keeps the name's drop shadow off him), down to the band's bottom edge; his soft contact shadow lands on the letters
+         above the band's top edge only */
+      #headW, #headShW { position: absolute; inset: 0; visibility: hidden; }
+      #headW img, #headShW img { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
+      .src { position: absolute; width: 1px; height: 1px; left: -10px; top: -10px; opacity: 0; }
+      /* role plate: a slanted lacquered ink slab in a gold bevel frame, centred under the name */
+      #plate { position: absolute; left: 504px; top: 248px; height: 100px; visibility: hidden;
+        clip-path: inset(-20px 100% -40px -20px); filter: drop-shadow(0 10px 18px rgba(0,0,0,.5)) drop-shadow(0 3px 4px rgba(0,0,0,.45)); }
+      .pl-frame { position: relative; height: 100px; padding: 5px; border-radius: 7px;
+        background: linear-gradient(180deg, #FFF1C2 0%, #F6C453 30%, #C8862A 62%, #7A4A12 100%); }
+      .pl-face { position: relative; height: 90px; display: flex; align-items: center; padding: 0 38px 0 64px; border-radius: 3px; overflow: hidden;
+        background: linear-gradient(180deg, #4A3822 0%, #2A1F13 30%, #120D08 58%, #070504 100%);
+        box-shadow: inset 0 1px 0 rgba(255,230,170,.55), inset 0 0 0 1px rgba(246,196,83,.28), inset 0 -5px 8px rgba(0,0,0,.75); }
+      .pl-face::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 44%;
+        background: linear-gradient(180deg, rgba(255,240,205,.16) 0%, rgba(255,240,205,.04) 100%); }
+      .pl-cap { position: absolute; left: 0; top: 0; bottom: 0; width: 34px;
+        background: linear-gradient(180deg, #FFF1C2 0%, #F6C453 38%, #C8862A 72%, #8A5516 100%); box-shadow: inset -3px 0 4px rgba(0,0,0,.35), inset 2px 0 0 rgba(255,250,230,.6); }
+      .pl-cap::after { content: ""; position: absolute; right: 7px; top: 50%; width: 11px; height: 11px; margin-top: -5.5px; background: #120E09; transform: rotate(45deg); }
+      .pl-txt { position: relative; overflow: hidden; height: 74px; display: flex; align-items: center; }
+      .pl-txt span { display: inline-block; font: 900 64px/1 "Archivo"; font-stretch: 100%; letter-spacing: 0.01em; color: #FFFFFF; white-space: pre; }
+      .pl-txt .k { color: #F6C453; margin-right: 0.28em; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5.75" data-width="1080" data-height="1920">
+      <!-- the slab's print sources (the -h frame 24 in colour, and the frozen look), decoded before the timeline is built -->
+      <img id="srcCol" class="src" src="media/frz_h.png" alt="" />
+      <img id="srcFrz" class="src" src="media/slab_frz.png" alt="" />
+      <img id="srcSub" class="src" src="media/subj_h.png" alt="" />
+      <img id="srcSh" class="src" src="media/subj_h_shadow.png" alt="" />
+      <div id="shake"><div id="shake2"><div id="shake3"><div id="shake4"><div id="expo">
+        <!-- the same shot playing on after the release (the 16:9 clip from the frozen frame, drawn into the print's texture at the
+             exact Short framing; the element itself sits under the backdrop) -->
+        <div id="vidW" class="full"><video id="winVid" class="clip shot" src="assets/shots/v06-franklin-lamar-portrait-h.mp4" muted playsinline data-start="4.65" data-duration="0.6667" data-media-start="0.7333" data-track-index="3"></video></div>
+        <!-- lead-in: Lamar on the street, then Franklin; the freeze holds frame 24 of v06 (media 0.80 s). After the release the
+             edit carries on with the next shot. Consecutive clips overlap by 2 frames (the incoming one starts early underneath; lesson 25). -->
+        <video id="shotA" class="clip shot" src="assets/shots/v05-franklin-lamar-street-v.mp4" muted playsinline data-start="0" data-duration="0.7667" data-media-start="0.25" data-track-index="0"></video>
+        <video id="shotB" class="clip shot" src="assets/shots/v06-franklin-lamar-portrait-v.mp4" muted playsinline data-start="0.7" data-duration="0.8667" data-media-start="0" data-track-index="1"></video>
+        <img id="still" src="media/frz.png" alt="" />
+        <div id="back" class="full"><img id="backP" src="media/back_pop.png" alt="" /></div>
+        <div id="slabWrap"></div>
+        <div id="endW" class="full">
+          <video id="shotC" class="clip shot" src="assets/shots/v39-lowriders-downtown-v.mp4" muted playsinline data-start="5.1833" data-duration="0.5667" data-media-start="0.1133" data-track-index="2"></video>
+        </div>
+        <div id="titleWrap"></div>
+        <div id="headShW"><img id="headSh" src="media/subj_h_contact.png" alt="" /></div>
+        <div id="headW"><img id="headImg" src="media/subj_h.png" alt="" /></div>
+      </div></div></div></div></div>
+      <div id="plate"><div class="pl-frame"><div class="pl-face">
+        <div class="pl-cap"></div>
+        <div class="pl-txt"><span class="k" id="plK"></span><span id="plW"></span></div>
+      </div></div></div>
+    </div>
+    <script>
+      const CONFIG = {
+        name: "FRANKLIN",                    // the 3D title (A-Z, 0-9 and . , ' ! ? - & : #)
+        roleKicker: "THE",                   // gold word on the plate
+        role: "HUSTLER",                     // white word on the plate
+        // at: the freeze beat (the still is frame 24 of v06, media 0.80 s); pull: the frame settles into the band after a visible
+        // hold; unfreeze: the camera dives back into the frame (resume = unfreeze + dive: the shot plays on); cut: the next shot
+        freeze: { at: 1.50, pull: 1.80, unfreeze: 4.45, cut: 5.25, end: 5.75 },
+        // the frozen band: a slab wider than the Short (its gold side lips bleed off both sides), mapped from the -h frame.
+        // K: the -v shot is the -h shot's x 1015-1622 crop scaled K. F: his face in the -h frame. FL: where the face sits on the slab
+        // (slab px from its top-left; FL.y puts the top lip across his forehead so his head breaks out above it). s0 -> s1: print
+        // scale through the hold, sig0 -> push: the band's scale; together the brief's 1.15x push on him (0.92 -> 1.06 on screen),
+        // anchored at the top of his head (head: canvas x/y), so the name/head overlap stays put while he grows down into the band.
+        slab: { K: 1.7793, size: [1160, 780], radius: 28, depth: 64, bevel: 19, F: [1316, 330], FL: [600, 79], s0: 0.92, s1: 1.0,
+                head: [560, 486], sig0: 1.03, push: 1.06, pull: 0.36, dive: 0.2667, shadowOff: [0, 40, 70], popShadow: [16, 12],
+                colors: { lip: "#F6CD74", side: "#DCA243", deep: "#5A3510" } },
+        // the name in the top hook band, behind his head (his head covers the bottom ~28% of N-K-L)
+        title: { cx: 504, cy: 450, maxInk: 840, depth: 26, bevel: 5.5, shear: 0.2, tilt: 0.1, ink: 8,
+                 colors: { face: ["#FFF7DD", "#F3C766", "#FFE9A6", "#C98A2B", "#6B3F0E"], lip: "#FFE7A8", side: ["#8A5516", "#140B03"] } },
+        timing: { slam0: 2.08, stagger: 0.04, slamDur: 0.13, rakeDur: 0.55, plateAfterLock: 0.08, plateOut: 4.15, lettersOut: 4.25 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        // full kind: bg "none" keeps the footage (the freeze is a treatment of the footage itself)
+        const Z = CONFIG.freeze, FR = 1 / 30, TF = Z.at, TP = Z.pull, TU = Z.unfreeze, TC = Z.cut, END = Z.end, $ = (s) => document.querySelector(s);
+        $("#plK").textContent = CONFIG.roleKicker; $("#plW").textContent = CONFIG.role;
+        const SL = CONFIG.slab, K = SL.K, SW = SL.size[0], SH = SL.size[1], BV = SL.bevel, F = SL.F, FLr = SL.FL;
+        const T0 = TF + FR, TPE = TP + SL.pull, TL = TU + SL.dive;
+        const clamp = (x) => Math.min(1, Math.max(0, x)), lerp = (a, b, k) => a + (b - a) * k, lerpL = (a, b, k) => Math.exp(lerp(Math.log(a), Math.log(b), k));
+        const E = (n) => gsap.parseEase(n), ePull = E("power4.out"), eDive = E("power2.in"), eSine = E("sine.inOut"), eWave = E("power2.out"), eSpec = E("power2.inOut");
+        // the freeze pose: flat, the print covering the Short's exact framing (+18 px each way for the shake), centred on the -v frame
+        const sigF = 1956 / (SH - 2 * BV), sF = K / sigF, CX = 1318.5, CY = 540;
+        const P0 = { cx: K * (CX - 1015), cy: K * CY, sig: sigF, s: sF, FL: [SW / 2 + sF * (F[0] - CX), SH / 2 + sF * (F[1] - CY)] };
+        // the band pose for a given band scale and print scale, anchored at the top of his head (-h y 190 above his face)
+        const anchored = (sig, s) => ({ cx: SL.head[0] - sig * (FLr[0] - SW / 2), cy: SL.head[1] - sig * (FLr[1] - SH / 2) + sig * s * (F[1] - 190), sig, s, FL: FLr });
+        const mixP = (A, B, k) => ({ cx: lerp(A.cx, B.cx, k), cy: lerp(A.cy, B.cy, k), sig: lerpL(A.sig, B.sig, k), s: lerpL(A.s, B.s, k), FL: [lerp(A.FL[0], B.FL[0], k), lerp(A.FL[1], B.FL[1], k)] });
+        let LOCK = 2.49;   // set from the title once it is built
+        function poseAt(t) {
+          const on = t >= T0 && t < TC;
+          // after the hold the frame settles into the band: the camera pulls back, the gold lips come in from the top and bottom
+          // like letterbox bars (the sides stay off-frame), the mapping moves so the top lip crosses his forehead
+          const e = ePull(clamp((t - TP) / SL.pull));
+          // the lock-in: the band settles from 1.03 onto 1.0 on a stiff spring; then the push in on him through the hold
+          const d = t - (LOCK - 0.02), k = d <= 0 ? 0 : 1 - Math.exp(-d / 0.045) * Math.cos(d * 34);
+          const pu = eSine(clamp((t - (LOCK + 0.15)) / (TU - 0.1 - LOCK - 0.15)));
+          const A = anchored(lerp(SL.sig0, 1.0, k) * lerpL(1, SL.push, pu), lerpL(SL.s0, SL.s1, pu));
+          let P = mixP(P0, A, e);
+          P.rx = -0.10 * Math.sin(Math.PI * e); P.ry = 0; P.rz = 0;
+          // the dive: the camera rushes back into the frame, landing flat on the exact Short framing (the inverse of the pull)
+          const x = eDive(clamp((t - TU) / SL.dive));
+          if (x > 0) { const r = P.rx; P = mixP(P, P0, x); P.rx = r - 0.08 * Math.sin(Math.PI * x); P.ry = 0; P.rz = 0; }
+          // the freeze look spreads from his face as a hard wave front; on the resume the colour floods back the same way while
+          // the print plays on (the -h clip from the frozen frame)
+          P.wave = 1600 * eWave(clamp((t - T0 - 0.03) / 0.26));
+          P.wave2 = t >= TL ? 1700 * eWave(clamp((t - TL) / 0.24)) : 0;
+          P.vid = t >= TL - 1e-4;
+          // one light beat: the key swings over the gold lips as the title's sweep crosses (no sheen on the print)
+          const bt = t - LOCK, pk = bt < 0 ? 0 : bt < 0.1 ? 1 : Math.exp(-(bt - 0.1) / 0.22);
+          P.keyA = -1.0 + 1.9 * eSpec(clamp((t - LOCK + 0.04) / 0.55)); P.keyI = 2.0 + 3.2 * pk; P.glint = pk;
+          P.specX = -1e5; P.specAmp = 0;
+          P.shadow = 0.9 * e * (1 - x); P.edge = e * (1 - x); P.pop = e * (1 - x);
+          P.cut = t < TL + 0.27 ? 1 : 0;
+          P.on = on;
+          return P;
+        }
+        const moving = (t) => (t > TP && t < TPE + 0.02) || (t > TU && t < TL + 0.02);
+        // the live print's source: the renderer's decoded frame of #winVid (or the element itself in preview)
+        function videoSource() {
+          const v = document.getElementById("winVid"); if (!v) return null;
+          const img = v.nextElementSibling;
+          if (img && img.classList && img.classList.contains("__render_frame__") && img.complete && img.naturalWidth > 0) return img;
+          if (v.readyState >= 2 && v.videoWidth > 0) return v;
+          return null;
+        }
+        // his head in front of the name: the same cutout, registered to the print, clipped to above the band's top edge
+        function placeHead(t) {
+          const P = poseAt(t), S = P.sig * P.s;
+          const X0 = P.cx + P.sig * (P.FL[0] - SW / 2) - S * F[0], Y0 = P.cy + P.sig * (P.FL[1] - SH / 2) - S * F[1];
+          const tf = "translate(" + X0.toFixed(2) + "px," + Y0.toFixed(2) + "px) scale(" + S.toFixed(5) + ")";
+          $("#headImg").style.transform = tf; $("#headSh").style.transform = tf;
+          const rim = P.cy + P.sig * (BV - SH / 2), bot = P.cy + P.sig * (SH / 2 - BV);
+          $("#headShW").style.clipPath = "inset(0px 0px " + Math.max(0, 1920 - rim).toFixed(2) + "px 0px)";
+          $("#headW").style.clipPath = "inset(0px 0px " + Math.max(0, 1920 - bot).toFixed(2) + "px 0px)";
+        }
+        const FACES = ["900 100px Archivo", "900 100px Inter"];
+        const imgs = [$("#srcCol"), $("#srcFrz"), $("#srcSub"), $("#srcSh"), $("#backP"), $("#still"), $("#headImg"), $("#headSh")];
+        Promise.all(FACES.map((f) => document.fonts.load(f)).concat(imgs.map((im) => im.decode().catch(() => {})))).then(() => document.fonts.ready).then(() => {
+          const tl = gsap.timeline({ paused: true });
+          const Tm = CONFIG.timing, TT = CONFIG.title;
+          gsap.set("#plate", { skewX: -12, xPercent: -50 });
+          gsap.set(".pl-txt span", { yPercent: 115 });   // the words start below their mask, so the wipe never opens on them
+
+          // ---------- 3D name in the top band (letters drop along their italic slant, exit flying up and away) ----------
+          const t3 = Title3D({ W: 1080, H: 1920, glyphs: window.FRZ_GLYPHS, text: CONFIG.name, cx: TT.cx, cy: TT.cy, maxInk: TT.maxInk,
+            depth: TT.depth, bevel: TT.bevel, shear: TT.shear, tilt: TT.tilt, inkPx: TT.ink, colors: TT.colors, shadow: 0.75, shadowOff: [5, -12],
+            slamZ: 0.05, slamY: 0.6, slantPath: true, exitDir: 1, motionBlur: 32, shutter: 0.35,
+            timing: { slam0: Tm.slam0, stagger: Tm.stagger, slamDur: Tm.slamDur, rakeDur: Tm.rakeDur, holdEnd: Tm.lettersOut,
+                      exit0: Tm.lettersOut, exitStagger: 0.015, exitDur: 0.18 } });
+          LOCK = t3.lockAt;
+          // ---------- the frozen band ----------
+          const slab = Slab3D({ W: 1080, H: 1920, imgCol: $("#srcCol"), imgFrz: $("#srcFrz"), imgSub: $("#srcSub"), imgShadow: $("#srcSh"),
+            size: SL.size, radius: SL.radius, depth: SL.depth, bevel: SL.bevel, F: SL.F, FL: P0.FL, colors: SL.colors, shadowOff: SL.shadowOff,
+            popShadow: SL.popShadow, fov: 20, poseAt, moving, videoSource, blur: { samples: 20, shutter: 0.5 } });
+          $("#slabWrap").appendChild(slab.canvas);
+          $("#titleWrap").appendChild(t3.canvas);
+          Look.drive(tl, 0, END, (p) => slab.renderAt(p * END));
+          Look.drive(tl, 0, END, (p) => t3.renderAt(p * END));
+          Look.drive(tl, 0, END, (p) => placeHead(p * END));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") placeHead(e.detail.time); });
+          // the head layer is on from the moment the band has settled until the dive (the WebGL cutout carries it before and after)
+          tl.set(["#headW", "#headShW"], { visibility: "visible" }, TPE);
+          tl.set(["#headW", "#headShW"], { visibility: "hidden" }, TU);
+
+          // ---------- the freeze: exposure hit + shake on the exact frame; the still holds one frame, then the flat print takes it
+          // and the frame visibly HOLDS (0.3 s) while the steel grade spreads from his face ----------
+          tl.set("#still", { visibility: "visible" }, TF);
+          tl.set("#still", { visibility: "hidden" }, TC);
+          // above and below the band: the same frozen frame, racked out, in the steel grade (Franklin filled out, so his head
+          // breaks out against the sky). Its level never changes: it is covered by the print until the pull and after the dive.
+          tl.set("#back", { visibility: "visible" }, T0);
+          tl.set("#back", { visibility: "hidden" }, TC);
+          Look.expose(tl, TF, { target: "#expo", peak: 1.3, hold: 2 * FR, dur: 0.3, saturate: 1.15 });
+          Look.impact(tl, TF, { shake: "#shake", amp: 10, dur: 0.3, flash: 0, zoom: 1.02 });
+          // the world creeps in with the band through the hold, then rushes at the camera with it on the dive
+          tl.fromTo("#back", { scale: 1.0 }, { scale: 1.05, duration: TU - TP, ease: "sine.inOut", immediateRender: false }, TP);
+          tl.to("#back", { scale: 1.5, duration: SL.dive, ease: "power2.in" }, TU);
+
+          // ---------- lock-in (payoff, the one light beat): the band settles, the sweep crosses the name's bevel ----------
+          Look.impact(tl, LOCK, { shake: "#shake2", amp: 6, dur: 0.24, flash: 0, zoom: 1.012 });
+          Look.expose(tl, LOCK, { target: "#expo", peak: 1.1, hold: 3 * FR, dur: 0.28, saturate: 1.06 });
+
+          // ---------- role plate: the kicker above the name (no sheen: one light beat) ----------
+          const PIN = LOCK + Tm.plateAfterLock;
+          tl.set("#plate", { visibility: "visible" }, PIN);
+          tl.fromTo("#plate", { clipPath: "inset(-20px 100% -40px -20px)", y: 18 }, { clipPath: "inset(-20px -20px -40px -20px)", y: 0, duration: 0.3, ease: "expo.out", immediateRender: false }, PIN);
+          tl.fromTo([".pl-txt span"], { yPercent: 115 }, { yPercent: 0, duration: 0.42, ease: "back.out(1.6)", stagger: 0.06, immediateRender: false }, PIN + 0.06);
+          tl.fromTo(".pl-frame", { scale: 1 }, { scale: 1.03, duration: Tm.plateOut - PIN, ease: "sine.inOut", immediateRender: false }, PIN);
+
+          // ---------- release: plate shuts, letters fly away, the camera dives back into the frame, the shot plays on ----------
+          tl.to("#plate", { clipPath: "inset(-20px 100% -40px -20px)", duration: 0.16, ease: "power2.in" }, Tm.plateOut);
+          tl.set("#plate", { visibility: "hidden" }, Tm.plateOut + 0.17);
+          // the resume beat: the dive lands flat on the Short's framing with a small kick, the colour floods back, the shot plays on
+          Look.impact(tl, TL, { shake: "#shake4", amp: 5, dur: 0.22, flash: 0, zoom: 1.012 });
+          // the edit carries on: the next shot lands with a zoom settle
+          tl.set("#endW", { opacity: 1 }, TC);
+          tl.fromTo("#endW", { scale: 1.12, filter: "blur(7px)" }, { scale: 1.0, filter: "blur(0px)", duration: 0.34, ease: "expo.out", immediateRender: false }, TC);
+          Look.impact(tl, TC, { shake: "#shake3", amp: 5, dur: 0.22, flash: 0, zoom: 1.012 });
+
+          tl.set({}, {}, END);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

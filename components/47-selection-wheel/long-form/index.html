@@ -1,0 +1,438 @@
+<!doctype html>
+<!-- 47 Selection wheel, variant A: "Character wheel" (16:9, 1920x1080, 30 fps).
+     The GTA V character-switch wheel as essays rebuild it, with the four quadrant slices as real lit geometry (Three.js):
+     extruded, bevelled smoked-glass wedges whose faces carry a top-lit colour gradient, a natural-skin portrait and a lit
+     inner rim, in a gunmetal bezel ring, over a blurred, desaturated plate. The highlight ticks between slices and lands;
+     the slice is pressed (squash, sinks back) and pops out radially with overshoot. On the overshoot frame two white-hot
+     arcs run the ring, one specular band crosses the slice and a warm bloom lights behind the head. After a held lock the
+     wheel folds into the hub, the pick squashes out and the plate snaps back to colour on a cut.
+     Variable bg: "plate" (sample footage) / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="media/wheel3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Barlow Condensed", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push, #grade { position: absolute; inset: 0; }
+      /* footage is oversized so the open-wheel blur never shows a soft edge */
+      .shot { position: absolute; left: -40px; top: -40px; width: calc(100% + 80px); height: calc(100% + 80px); object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+
+      /* ---------- the wheel (680 px box, centre 340/340) ---------- */
+      #wheel { position: absolute; width: 680px; height: 680px; }
+      .layer { position: absolute; left: 0; top: 0; width: 680px; height: 680px; }
+      #wBack, #wFront, #w3d { position: absolute; left: 0; top: 0; width: 680px; height: 680px; }
+      /* smoked-glass base under the slices: near-opaque ink, so nothing reads as a veil */
+      #wBase { position: absolute; left: 20px; top: 20px; width: 640px; height: 640px; border-radius: 50%;
+        background: radial-gradient(circle at 50% 30%, rgba(34,38,50,.94) 0%, rgba(15,17,24,.95) 55%, rgba(5,6,9,.96) 100%);
+        box-shadow: 0 3px 8px rgba(0,0,0,.4), 0 46px 90px -26px rgba(0,0,0,.8); }
+      #sel { color: #FFA357; }
+
+      /* ---------- name label: everything arrives and leaves through masked windows ---------- */
+      #label { position: absolute; width: 640px; text-align: center; color: #fff; }
+      #kickMask { position: relative; height: 28px; overflow: hidden; }
+      #kick { display: flex; align-items: center; justify-content: center; gap: 16px; height: 28px; font: 700 22px/28px "Barlow Condensed"; letter-spacing: .34em;
+        text-transform: uppercase; color: rgba(255,255,255,.88); text-shadow: 0 1px 2px rgba(0,0,0,.5), 0 4px 14px rgba(0,0,0,.45); }
+      #kick::before, #kick::after { content: ""; width: 64px; height: 2px; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+      #kick::before { background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.8)); }
+      #kick::after { background: linear-gradient(90deg, rgba(255,255,255,.8), rgba(255,255,255,0)); margin-left: -.34em; }
+      #nameMask { position: relative; height: 72px; overflow: hidden; margin-top: 6px; }
+      #nameCol { position: absolute; left: 0; top: 0; width: 100%; }
+      .nm { height: 72px; font: 800 68px/72px "Barlow Condensed"; letter-spacing: .05em; padding-left: .05em; text-transform: uppercase;
+        text-shadow: 0 1px 2px rgba(0,0,0,.45), 0 6px 22px rgba(0,0,0,.5); }
+      #bar { width: 76px; height: 5px; margin: 10px auto 0; border-radius: 3px; background: #FFA357; box-shadow: 0 0 14px rgba(255,163,87,.7); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="4.6" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push"><div id="grade">
+        <video id="shotA" class="clip shot" src="assets/shots/v49-gp-franklin-mural-h.mp4" muted playsinline data-start="0" data-duration="3.85" data-media-start="0" data-track-index="0"></video>
+        <video id="shotB" class="clip shot" src="assets/shots/v08-trevor-rifle-h.mp4" muted playsinline data-start="3.85" data-duration="0.75" data-media-start="0.2" data-track-index="0"></video>
+      </div></div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="4.6" data-track-index="1">
+        <div id="wheel">
+          <div id="wBack"><div id="wBase"></div><svg class="layer" id="bezel" viewBox="0 0 680 680" width="680" height="680"></svg></div>
+          <div id="w3d" data-layout-allow-overlap data-layout-allow-occlusion></div>
+          <div id="wFront">
+            <svg class="layer" id="ring" viewBox="0 0 680 680" width="680" height="680"></svg>
+            <svg class="layer" id="sel" viewBox="0 0 680 680" width="680" height="680"></svg>
+            <svg class="layer" id="hub" viewBox="0 0 680 680" width="680" height="680"></svg>
+            <svg class="layer" id="notch" viewBox="0 0 680 680" width="680" height="680"></svg>
+          </div>
+        </div>
+        <div id="label">
+          <div id="kickMask" data-layout-allow-overflow data-layout-allow-occlusion><div id="kick" data-layout-allow-overflow data-layout-allow-occlusion></div></div>
+          <div id="nameMask" data-layout-allow-overflow data-layout-allow-occlusion><div id="nameCol" data-layout-allow-overflow data-layout-allow-occlusion></div></div>
+          <div id="bar"></div>
+        </div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        kicker: "Switch character",
+        // Four quadrant slices. angle: 0 = right, 90 = bottom, 180 = left, -90 = top. Colours are the GTA V HUD character colours.
+        // img: a transparent PNG cutout (head and shoulders) at the shot's native resolution. face: [x, y, h] = head centre and
+        // head height as fractions of the image, so every head lands at the same size and spot in its slice whatever the crop.
+        slots: [
+          { name: "Franklin", angle: -90, color: "#ABEDAB", img: "media/franklin.png", face: [0.49, 0.507, 0.52] },
+          { name: "Trevor",   angle: 0,   color: "#FFA357", img: "media/trevor.png",   face: [0.49, 0.43, 0.43] },
+          { name: "Lamar",    angle: 90,  color: "#B48CFF", img: "media/lamar.png",    face: [0.5, 0.51, 0.535] },
+          { name: "Michael",  angle: 180, color: "#65B4D4", img: "media/michael.png",  face: [0.46, 0.354, 0.446] }
+        ],
+        current: 0,          // slot highlighted when the wheel opens (the character you are playing)
+        path: [3, 2, 1],     // slots the selector ticks through; the last one is pressed and locked in
+        // head = on-screen head height in px; keep head / face[2] at or below each PNG's size so no face is upscaled
+        wheel: { cx: 1400, cy: 498, radius: 300, head: 138, depth: 10, bevel: 3 },
+        bloom: "#FF9A3C",    // the warm light behind the picked head at the lock
+        plate: { blur: 10, saturate: 0.45, brightness: 0.66, contrast: 1.15 },   // how the footage looks while the wheel is open
+        // press = the pick squashes (0.06 s before lock); lock = the radial pop (the arcs fire on its overshoot frame);
+        // snap = the frame the footage comes back; keep it at collapse + 0.4 (the fold-out takes 0.4 s) and start the next shot there
+        timing: { open: 0.3, ticks: [1.0, 1.32, 1.66], press: 1.96, lock: 2.02, collapse: 3.45, snap: 3.85, end: 4.6 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, W = CONFIG.wheel, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const NS = "http://www.w3.org/2000/svg";
+        const C = 340, R = W.radius, R0 = 52, GAP = 10, CEN = 186, RING = 308, RULE = 320, POP = 22;
+        const rad = (d) => d * Math.PI / 180;
+        const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return "rgba(" + (n >> 16 & 255) + "," + (n >> 8 & 255) + "," + (n & 255) + "," + a + ")"; };
+        // HSL lightness shift: d > 0 lifts toward white by d (absolute), k < 1 scales lightness down
+        const shade = (hex, d, k) => {
+          const n = parseInt(hex.slice(1), 16); let r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+          const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0, s = 0, l = (mx + mn) / 2;
+          if (mx !== mn) { const dd = mx - mn; s = l > 0.5 ? dd / (2 - mx - mn) : dd / (mx + mn);
+            h = mx === r ? (g - b) / dd + (g < b ? 6 : 0) : mx === g ? (b - r) / dd + 2 : (r - g) / dd + 4; h /= 6; }
+          l = Math.min(0.96, Math.max(0, l * (k || 1) + (d || 0)));
+          const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+          const f = (t) => { t = (t + 1) % 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < 0.5 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; };
+          return "rgb(" + Math.round(f(h + 1 / 3) * 255) + "," + Math.round(f(h) * 255) + "," + Math.round(f(h - 1 / 3) * 255) + ")";
+        };
+        const svgEl = (tag, attrs, parent) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (parent) parent.appendChild(n); return n; };
+        const P = (r, a) => [C + r * Math.cos(a), C + r * Math.sin(a)];
+        const arcPath = (r, a1, a2) => { const p1 = P(r, rad(a1)), p2 = P(r, rad(a2)); return "M" + p1[0].toFixed(2) + " " + p1[1].toFixed(2) + " A" + r + " " + r + " 0 0 1 " + p2[0].toFixed(2) + " " + p2[1].toFixed(2); };
+        // a wedge outline in box px (y down), inset by `ins` so it matches the bevelled 3D cap
+        function wedge(ctx, mid, ins, k) {
+          const hg = GAP / 2 + ins, ro = R - ins, ri = R0 + ins, a1 = rad(mid - 45), a2 = rad(mid + 45), dO = Math.asin(hg / ro), dI = Math.asin(hg / ri);
+          const q = (r, a) => [(C + r * Math.cos(a)) * k, (C + r * Math.sin(a)) * k];
+          ctx.beginPath(); ctx.moveTo(...q(ri, a1 + dI)); ctx.lineTo(...q(ro, a1 + dO));
+          ctx.arc(C * k, C * k, ro * k, a1 + dO, a2 - dO, false); ctx.lineTo(...q(ri, a2 - dI));
+          ctx.arc(C * k, C * k, ri * k, a2 - dI, a1 + dI, true); ctx.closePath();
+        }
+
+        // ---------- layout ----------
+        const wheel = $("#wheel");
+        wheel.style.left = (W.cx - C) + "px"; wheel.style.top = (W.cy - C) + "px";
+        const label = $("#label");
+        label.style.left = (W.cx - 320) + "px"; label.style.top = (W.cy + R + 44) + "px";
+        $("#kick").textContent = CONFIG.kicker;
+        const SLOT = CONFIG.slots.map((s) => {
+          const ux = Math.cos(rad(s.angle)), uy = Math.sin(rad(s.angle));
+          return { s, ux, uy, hx: C + ux * CEN, hy: C + uy * CEN - 14 };
+        });
+
+        // ---------- bezel decoration (DOM, behind the 3D ring): 2 px white outer rule that draws on, 4 index ticks ----------
+        const bezel = $("#bezel"), RC = 2 * Math.PI * RULE;
+        const rule = svgEl("circle", { cx: C, cy: C, r: RULE, fill: "none", stroke: "#fff", "stroke-width": 2, "stroke-opacity": 0.9,
+          "stroke-dasharray": RC.toFixed(2), "stroke-dashoffset": RC.toFixed(2), transform: "rotate(-90 " + C + " " + C + ")" }, bezel);
+        const ticks = CONFIG.slots.map((s) => {
+          const a = rad(s.angle), p1 = P(RULE + 4, a), p2 = P(RULE + 16, a);
+          return svgEl("line", { x1: p1[0].toFixed(2), y1: p1[1].toFixed(2), x2: p2[0].toFixed(2), y2: p2[1].toFixed(2), stroke: "#fff", "stroke-width": 2, "stroke-linecap": "round" }, bezel);
+        });
+
+        // lock light: two white-hot arcs (10 px core) that run the ring from the pick and meet opposite it
+        const ringSvg = $("#ring"), rdefs = svgEl("defs", {}, ringSvg);
+        svgEl("feGaussianBlur", { stdDeviation: "12" }, svgEl("filter", { id: "arcGlow47", x: "-50%", y: "-50%", width: "200%", height: "200%" }, rdefs));
+        svgEl("feGaussianBlur", { stdDeviation: "3.5" }, svgEl("filter", { id: "arcHot47", x: "-50%", y: "-50%", width: "200%", height: "200%" }, rdefs));
+        const mkArc = (a1, a2) => {
+          const g = svgEl("g", { opacity: 0 }, ringSvg);
+          const glow = svgEl("path", { d: arcPath(RING, a1, a2), fill: "none", stroke: "#fff", "stroke-width": 44, "stroke-linecap": "round", filter: "url(#arcGlow47)" }, g);
+          svgEl("path", { d: arcPath(RING, a1, a2), fill: "none", stroke: "#fff", "stroke-width": 22, "stroke-linecap": "round", opacity: 0.6, filter: "url(#arcHot47)" }, g);
+          svgEl("path", { d: arcPath(RING, a1, a2), fill: "none", stroke: "#fff", "stroke-width": 10, "stroke-linecap": "round" }, g);
+          return { g, glow };
+        };
+        const arcCW = mkArc(-40, 0), arcCCW = mkArc(0, 40);
+
+        // selector: a three-layer arc riding the bezel ring
+        const sel = $("#sel");
+        svgEl("feGaussianBlur", { stdDeviation: "8" }, svgEl("filter", { id: "selGlow47", x: "-50%", y: "-50%", width: "200%", height: "200%" }, svgEl("defs", {}, sel)));
+        const SR = RING, SA = 38, SL = 2 * Math.PI * SR * (2 * SA) / 360;
+        const arcD = arcPath(SR, -SA, SA), DASH = SL.toFixed(2) + " " + (SL * 2).toFixed(2);
+        const selGlow = svgEl("path", { d: arcD, fill: "none", stroke: "currentColor", "stroke-width": 20, "stroke-linecap": "round", opacity: 0.75, filter: "url(#selGlow47)", "stroke-dasharray": DASH, "stroke-dashoffset": "0" }, sel);
+        const selCore = svgEl("path", { d: arcD, fill: "none", stroke: "currentColor", "stroke-width": 7, "stroke-linecap": "round", "stroke-dasharray": DASH, "stroke-dashoffset": "0" }, sel);
+        const selHot = svgEl("path", { d: arcD, fill: "none", stroke: "#fff", "stroke-width": 2.2, "stroke-linecap": "round", opacity: 0.92, "stroke-dasharray": DASH, "stroke-dashoffset": "0" }, sel);
+        const selArcs = [selGlow, selCore, selHot];
+
+        // hub: 56 px ink disc, 2 px white ring; a small notch that turns to the selected slice
+        const hub = $("#hub");
+        const hg = svgEl("radialGradient", { id: "hubG47", cx: "50%", cy: "28%", r: "80%" }, svgEl("defs", {}, hub));
+        svgEl("stop", { offset: "0", "stop-color": "#2A2E39" }, hg); svgEl("stop", { offset: ".55", "stop-color": "#111319" }, hg); svgEl("stop", { offset: "1", "stop-color": "#050608" }, hg);
+        svgEl("circle", { cx: C, cy: C, r: 28, fill: "url(#hubG47)", stroke: "#fff", "stroke-width": 2 }, hub);
+        const hubHot = svgEl("circle", { cx: C, cy: C, r: 28, fill: "none", stroke: "#fff", "stroke-width": 3.5, opacity: 0 }, hub);
+        const notch = $("#notch");
+        svgEl("path", { d: "M" + (C + 31) + " " + (C - 7.5) + " L" + (C + 43) + " " + C + " L" + (C + 31) + " " + (C + 7.5) + " Z", fill: "currentColor" }, notch);
+        notch.style.color = "#fff";
+
+        // ---------- name roll ----------
+        const order = [CONFIG.current].concat(CONFIG.path);
+        const nameCol = $("#nameCol");
+        order.forEach((i) => { const d = document.createElement("div"); d.className = "nm"; d.setAttribute("data-layout-allow-overflow", ""); d.setAttribute("data-layout-allow-occlusion", ""); d.textContent = CONFIG.slots[i].name; nameCol.appendChild(d); });
+        const sel0 = CONFIG.slots[CONFIG.current];
+        sel.style.color = sel0.color;
+        $("#bar").style.background = sel0.color; $("#bar").style.boxShadow = "0 0 14px " + hexA(sel0.color, .7);
+        ["#sel", "#notch", "#hub", "#wBack", "#wFront", "#ring", "#bezel"].forEach((q) => gsap.set(q, { transformOrigin: "340px 340px" }));
+        gsap.set("#wheel", { transformOrigin: "340px 340px" });
+        gsap.set([arcCW.g, arcCCW.g], { svgOrigin: C + " " + C });
+
+        const pl = CONFIG.plate;
+        const CLEAN = "blur(0px) saturate(1) brightness(1) contrast(1)";
+        const BLUR = "blur(" + pl.blur + "px) saturate(" + pl.saturate + ") brightness(" + pl.brightness + ") contrast(" + pl.contrast + ")";
+
+        // ---------- slice face textures (box coords at 2x): colour, portraits, lit rim + inner shadow ----------
+        const K2 = 2, TS = 680 * K2, INS = W.bevel;
+        const mk = (w, h) => { const c = document.createElement("canvas"); c.width = w; c.height = h || w; return c; };
+        function paintTextures(imgs) {
+          const bg = mk(TS), por = mk(TS), ov = mk(TS);
+          const b = bg.getContext("2d"), p = por.getContext("2d"), v = ov.getContext("2d");
+          b.fillStyle = "#07090d"; b.fillRect(0, 0, TS, TS);
+          SLOT.forEach((S, i) => {
+            const s = S.s;
+            // colour: top-lit 2-stop radial (hub = base, outer rim 12% lighter), then the hub shade
+            b.save(); wedge(b, s.angle, 0, K2); b.clip();
+            const g = b.createRadialGradient(C * K2, C * K2, R0 * K2, C * K2, C * K2, R * K2);
+            g.addColorStop(0, shade(s.color, 0, 0.82)); g.addColorStop(0.45, s.color); g.addColorStop(1, shade(s.color, 0.12));
+            b.fillStyle = g; b.fillRect(0, 0, TS, TS);
+            const hs = b.createRadialGradient(C * K2, C * K2, R0 * K2, C * K2, C * K2, 190 * K2);
+            hs.addColorStop(0, "rgba(0,0,0,.42)"); hs.addColorStop(1, "rgba(0,0,0,0)"); b.fillStyle = hs; b.fillRect(0, 0, TS, TS);
+            b.restore();
+            // portrait: clipped to the bevelled face, faded out at the shoulders
+            const size = W.head / s.face[2], im = imgs[i];
+            const tmp = mk(Math.round(size * K2)), t = tmp.getContext("2d");
+            t.imageSmoothingEnabled = true; t.imageSmoothingQuality = "high";
+            t.drawImage(im, 0, 0, tmp.width, tmp.height);
+            t.globalCompositeOperation = "destination-in";
+            const fade = t.createLinearGradient(0, 0, 0, tmp.height); fade.addColorStop(0, "#000"); fade.addColorStop(0.7, "#000"); fade.addColorStop(0.97, "rgba(0,0,0,0)");
+            t.fillStyle = fade; t.fillRect(0, 0, tmp.width, tmp.height);
+            p.save(); wedge(p, s.angle, INS, K2); p.clip();
+            p.drawImage(tmp, (S.hx - s.face[0] * size) * K2, (S.hy - s.face[1] * size) * K2);
+            p.restore();
+            // overlay: inner shadow along every edge, and a 1 px lit inner rim (brightest at the top of the wheel)
+            v.save(); wedge(v, s.angle, INS, K2); v.clip();
+            v.filter = "blur(" + (8 * K2) + "px)"; v.strokeStyle = "rgba(0,0,0,.55)"; v.lineWidth = 26 * K2; wedge(v, s.angle, INS, K2); v.stroke();
+            v.filter = "none";
+            const lg = v.createLinearGradient(0, (C - R) * K2, 0, (C + R) * K2);
+            lg.addColorStop(0, "rgba(255,255,255,.42)"); lg.addColorStop(0.5, "rgba(255,255,255,.3)"); lg.addColorStop(1, "rgba(255,255,255,.14)");
+            v.strokeStyle = lg; v.lineWidth = 2 * K2; wedge(v, s.angle, INS, K2); v.stroke();
+            v.restore();
+          });
+          // a soft blurred wedge (top slot) for the rim glow and the drop shadow cards
+          const GS = 840, glow = mk(GS), gc = glow.getContext("2d");
+          gc.translate((GS - 680) / 2, (GS - 680) / 2); gc.filter = "blur(18px)"; gc.fillStyle = "#fff"; wedge(gc, -90, 0, 1); gc.fill();
+          return { bg, por, ov, glow, glowSize: GS };
+        }
+
+        const imgs = CONFIG.slots.map((s) => { const im = new Image(); im.src = s.img; return im; });
+        Promise.all(['700 100px "Barlow Condensed"', '800 100px "Barlow Condensed"'].map((f) => document.fonts.load(f)))
+          .then(() => document.fonts.ready).then(() => Promise.all(imgs.map((im) => im.decode()))).then(() => {
+          const tex = paintTextures(imgs);
+          const W3 = Wheel3D({ size: 840, dpr: 2, box: 680, R, R0, GAP, CEN, depth: W.depth, bevel: W.bevel, bloomColor: CONFIG.bloom,
+            ring: { r: RING, w: 16, h: 5, color: "#5A6482" }, tex,
+            slots: SLOT.map((S) => ({ angle: S.s.angle, color: S.s.color, head: [S.hx, S.hy] })) });
+          $("#w3d").appendChild(W3.canvas);
+          W3.canvas.setAttribute("data-layout-allow-overlap", ""); W3.canvas.setAttribute("data-layout-allow-occlusion", "");
+
+          const tl = gsap.timeline({ paused: true });
+          const FT = (el, from, to, at) => tl.fromTo(el, from, Object.assign({ immediateRender: false }, to), at);
+          // the 3D slices' state lives on plain objects in their own timeline, seeked to t on every frame (pure function of t)
+          const ST = gsap.timeline({ paused: true });
+          const SF = (o, from, to, at) => ST.fromTo(o, from, Object.assign({ immediateRender: false }, to), at);
+          const STATE = {
+            dim:  { bright: 0.72, sat: 0.7,  colA: 0.46 },
+            hi:   { bright: 1,    sat: 1,    colA: 0.92 },
+            lock: { bright: 1.06, sat: 1.04, colA: 1 },
+            drop: { bright: 0.62, sat: 0.62, colA: 0.34 }
+          };
+          const SL = SLOT.map((S, i) => Object.assign({ vis: 0, s: 0.5, x: 0, y: 0, z: 0, tilt: 0, bloom: 0, flash: 0, spec: 0, specX0: 0, specX1: 0, glow: 0, hot: 0 },
+            i === CONFIG.current ? STATE.hi : STATE.dim));
+          const RG = { s: 0 }, KEY = { key: -0.9, keyBoost: 0 };
+          const STV = { slices: SL, ring: RG };
+          Object.defineProperty(STV, "key", { get: () => KEY.key }); Object.defineProperty(STV, "keyBoost", { get: () => KEY.keyBoost });
+          const setState = (o, a, b, at, dur) => SF(o, Object.assign({}, a), Object.assign({ duration: dur, ease: "power2.out" }, b), at);
+          const flashAt = (o, at, peak, decay) => {
+            SF(o, { flash: 0 }, { flash: peak, duration: 1 / 30, ease: "none" }, at);
+            SF(o, { flash: peak }, { flash: 0, duration: decay, ease: "power2.out" }, at + 2 / 30);
+          };
+
+          // ---- plate: blur + desaturate while the wheel is open (blacks kept: contrast > 1, brightness < .7) ----
+          if (plate) {
+            gsap.set("#grade", { filter: CLEAN });
+            FT("#grade", { filter: CLEAN }, { filter: BLUR, duration: 0.34, ease: "power2.out" }, T.open);
+            Look.push(tl, "#push", 0, T.snap, { from: 1, to: 1.035 });
+          }
+
+          // ---- open: everything is solid within 2 frames, then springs into place ----
+          const O = T.open;
+          gsap.set("#wheel", { scale: 0.72, opacity: 0 });
+          FT("#wheel", { scale: 0.72 }, { scale: 1, duration: 0.46, ease: "back.out(1.6)" }, O);
+          FT("#wheel", { opacity: 0 }, { opacity: 1, duration: 0.066, ease: "none" }, O);
+          gsap.set("#wBase", { opacity: 0 });
+          FT("#wBase", { opacity: 0 }, { opacity: 1, duration: 0.066, ease: "none" }, O);
+          SF(RG, { s: 0.6 }, { s: 1, duration: 0.5, ease: "back.out(1.8)" }, O);
+          ST.set(RG, { s: 0.6 }, O - 0.001);
+          [0, 1, 2, 3].forEach((i, k) => {     // clockwise from the top slice
+            const o = SL[i], S = SLOT[i], sc = i === CONFIG.current ? 1.035 : 1, at = O + k * 0.03;
+            ST.set(o, { vis: 1 }, at);
+            SF(o, { s: 0.5, x: -S.ux * 30, y: -S.uy * 30 }, { s: sc, x: 0, y: 0, duration: 0.38, ease: "back.out(1.7)" }, at);
+          });
+          FT(rule, { attr: { "stroke-dashoffset": RC } }, { attr: { "stroke-dashoffset": 0 }, duration: 0.55, ease: "expo.out" }, O + 0.08);
+          gsap.set(ticks, { opacity: 0 });
+          ticks.forEach((tk, k) => FT(tk, { opacity: 0 }, { opacity: 1, duration: 0.05 }, O + 0.16 + k * 0.05));
+          gsap.set("#hub", { scale: 0 }); gsap.set("#notch", { scale: 0, rotation: sel0.angle });
+          FT("#hub", { scale: 0 }, { scale: 1, duration: 0.42, ease: "back.out(2.4)" }, O + 0.14);
+          FT("#notch", { scale: 0 }, { scale: 1, duration: 0.42, ease: "back.out(2.4)" }, O + 0.2);
+          gsap.set("#sel", { opacity: 0, rotation: sel0.angle - 30 });
+          FT("#sel", { rotation: sel0.angle - 30 }, { rotation: sel0.angle, duration: 0.42, ease: "back.out(1.8)" }, O + 0.3);
+          FT("#sel", { opacity: 0 }, { opacity: 1, duration: 0.066, ease: "none" }, O + 0.3);
+          flashAt(SL[CONFIG.current], O + 0.36, 0.6, 0.25);
+          // label rolls up into its windows (no fade): kicker, then the name, then the underline draws out
+          gsap.set("#kick", { y: 30 }); gsap.set("#nameCol", { y: 74 }); gsap.set("#bar", { scaleX: 0 });
+          FT("#kick", { y: 30 }, { y: 0, duration: 0.34, ease: "expo.out" }, O + 0.3);
+          FT("#nameCol", { y: 74 }, { y: 0, duration: 0.36, ease: "expo.out" }, O + 0.36);
+          FT("#bar", { scaleX: 0 }, { scaleX: 1, duration: 0.34, ease: "expo.out" }, O + 0.44);
+
+          // ---- ticks ----
+          let rot = sel0.angle, prev = CONFIG.current;
+          CONFIG.path.forEach((n, k) => {
+            const t = T.ticks[k], a = SL[prev], b = SL[n], c0 = CONFIG.slots[prev].color, c1 = CONFIG.slots[n].color;
+            const delta = ((CONFIG.slots[n].angle - CONFIG.slots[prev].angle + 540) % 360) - 180, r1 = rot + delta;
+            FT("#sel", { rotation: rot }, { rotation: r1, duration: 0.17, ease: "back.out(2.6)" }, t);
+            FT("#notch", { rotation: rot }, { rotation: r1, duration: 0.18, ease: "back.out(1.6)" }, t + 1 / 30);
+            FT("#sel", { color: c0 }, { color: c1, duration: 0.1, ease: "none" }, t);
+            setState(a, STATE.hi, STATE.dim, t, 0.14);
+            SF(a, { s: 1.035 }, { s: 1, duration: 0.16, ease: "power2.out" }, t);
+            setState(b, STATE.dim, STATE.hi, t, 0.12);
+            SF(b, { s: 1 }, { s: 1.035, duration: 0.22, ease: "back.out(3)" }, t);
+            flashAt(b, t, 0.7, 0.2);
+            FT("#wheel", { scale: 1 }, { scale: 1.012, duration: 0.05, ease: "power2.out" }, t);
+            FT("#wheel", { scale: 1.012 }, { scale: 1, duration: 0.14, ease: "power2.out" }, t + 0.05);
+            FT("#nameCol", { y: -72 * k }, { y: -72 * (k + 1), duration: 0.16, ease: "back.out(1.2)" }, t);
+            FT("#bar", { backgroundColor: c0, boxShadow: "0 0 14px " + hexA(c0, .7) }, { backgroundColor: c1, boxShadow: "0 0 14px " + hexA(c1, .7), duration: 0.12 }, t);
+            rot = r1; prev = n;
+          });
+
+          // ---- PRESS: the picked slice squashes to .96 and sinks back, tipping in; the hub sinks with it ----
+          const pick = SL[prev], PS = SLOT[prev], pc = CONFIG.slots[prev].color, PA = CONFIG.slots[prev].angle;
+          SF(pick, { s: 1.035, z: 0, tilt: 0 }, { s: 0.96, z: -10, tilt: 0.1, duration: 0.06, ease: "power2.out" }, T.press);
+          FT("#sel", { scale: 1 }, { scale: 0.96, duration: 0.06, ease: "power2.out" }, T.press);
+          FT(["#hub", "#notch"], { scale: 1 }, { scale: 0.86, duration: 0.06, ease: "power2.out" }, T.press);
+
+          // ---- LOCK-IN (payoff): radial pop with overshoot; on the overshoot frame the arcs fire ----
+          const L = T.lock, POPD = 0.4, OVR = L + 0.2;   // back.out(2.2) peaks at 0.54 of its duration
+          SF(pick, { s: 0.96, x: 0, y: 0 }, { s: 1.07, x: PS.ux * POP, y: PS.uy * POP, duration: POPD, ease: "back.out(2.2)" }, L);
+          SF(pick, { z: -10 }, { z: 14, duration: POPD, ease: "back.out(2.2)" }, L);
+          SF(pick, { tilt: 0.1 }, { tilt: -0.12, duration: 0.16, ease: "power2.out" }, L);
+          SF(pick, { tilt: -0.12 }, { tilt: 0, duration: 0.5, ease: "elastic.out(1, 0.45)" }, L + 0.16);
+          FT("#sel", { scale: 0.96, x: 0, y: 0 }, { scale: 1.07, x: PS.ux * POP, y: PS.uy * POP, duration: POPD, ease: "back.out(2.2)" }, L);
+          FT(["#hub", "#notch"], { scale: 0.86 }, { scale: 1, duration: 0.4, ease: "back.out(4)" }, L);
+          FT("#notch", { color: "#ffffff" }, { color: pc, duration: 0.08 }, L);
+          FT(hubHot, { opacity: 0 }, { opacity: 1, duration: 1 / 30, ease: "none" }, L);
+          FT(hubHot, { opacity: 1 }, { opacity: 0, duration: 0.35, ease: "power2.out" }, L + 2 / 30);
+          setState(pick, STATE.hi, STATE.lock, L, 0.12);
+          SLOT.forEach((S, i) => { if (SL[i] !== pick) setState(SL[i], STATE.dim, STATE.drop, L, 0.28); });
+          // warm bloom behind the head: up in 2 frames, held 3 frames, settles to a glow
+          SF(pick, { bloom: 0 }, { bloom: 1, duration: 2 / 30, ease: "power1.out" }, L);
+          SF(pick, { bloom: 1 }, { bloom: 0.28, duration: 0.45, ease: "power2.out" }, L + 5 / 30);
+          // rim light in the pick colour, and the glass bevels flare
+          SF(pick, { glow: 0, hot: 0 }, { glow: 1, hot: 1, duration: 0.1, ease: "power2.out" }, L);
+          SF(pick, { glow: 1, hot: 1 }, { glow: 0.5, hot: 0.25, duration: 0.5, ease: "power2.out" }, L + 0.12);
+          SF(pick, { glow: 0.5 }, { glow: 0.72, duration: 0.45, ease: "sine.inOut" }, L + 0.7);     // breathes once in the hold
+          SF(pick, { glow: 0.72 }, { glow: 0.5, duration: 0.45, ease: "sine.inOut" }, L + 1.15);
+          // one clipped specular band (60 deg, 0 -> .4 -> 0) across the slice in 0.35 s
+          const dir = [Math.cos(rad(-60)), Math.sin(rad(-60))];
+          let p0 = 1e9, p1 = -1e9;
+          for (let a = -45; a <= 45; a += 5) [R0, R].forEach((r) => { const x = r * Math.cos(rad(PA + a)), y = -r * Math.sin(rad(PA + a)), d = x * dir[0] + y * dir[1]; p0 = Math.min(p0, d); p1 = Math.max(p1, d); });
+          Object.assign(pick, { specX0: p0 - 60, specX1: p1 + 60 });
+          SF(pick, { spec: 0 }, { spec: 1, duration: 0.35, ease: "power2.out" }, L + 0.02);
+          ST.set(pick, { spec: 0 }, L + 0.37);
+          // the key light rakes across the wheel through the pop: glints run along the bevels
+          SF(KEY, { key: -0.9, keyBoost: 0 }, { key: 0.8, keyBoost: 1.4, duration: 0.3, ease: "power2.inOut" }, L);
+          SF(KEY, { keyBoost: 1.4 }, { keyBoost: 0, duration: 0.5, ease: "power2.out" }, L + 0.3);
+          // white-hot arcs fire on the overshoot frame, from the pick round both halves of the ring
+          [arcCW.glow, arcCCW.glow].forEach((g) => g.setAttribute("stroke", pc));
+          FT(arcCW.g, { rotation: PA }, { rotation: PA + 180, duration: 0.45, ease: "power2.inOut" }, OVR);
+          FT(arcCCW.g, { rotation: PA }, { rotation: PA - 180, duration: 0.45, ease: "power2.inOut" }, OVR);
+          [arcCW.g, arcCCW.g].forEach((g) => {
+            FT(g, { opacity: 0 }, { opacity: 1, duration: 0.034, ease: "none" }, OVR);
+            FT(g, { opacity: 1 }, { opacity: 0, duration: 0.12, ease: "power2.in" }, OVR + 0.38);
+          });
+          FT(selCore, { attr: { "stroke-width": 7 } }, { attr: { "stroke-width": 11 }, duration: 0.2, ease: "back.out(3)" }, OVR);
+          FT(selHot, { attr: { "stroke-width": 2.2 } }, { attr: { "stroke-width": 3.6 }, duration: 0.2, ease: "back.out(3)" }, OVR);
+          FT("#bar", { width: 76 }, { width: 230, duration: 0.45, ease: "expo.out" }, L);
+          FT("#bar", { boxShadow: "0 0 14px " + hexA(pc, .7) }, { boxShadow: "0 0 26px " + hexA(pc, 1), duration: 0.15 }, L);
+
+          // ---- exit: everything folds into the hub, the pick squashes out, cut on the zero frame ----
+          const K = T.collapse;
+          FT("#nameCol", { y: -72 * CONFIG.path.length }, { y: -72 * CONFIG.path.length - 76, duration: 0.18, ease: "power3.in" }, K - 0.04);
+          FT("#kick", { y: 0 }, { y: -30, duration: 0.16, ease: "power3.in" }, K - 0.02);
+          FT("#bar", { scaleX: 1 }, { scaleX: 0, duration: 0.16, ease: "power3.in" }, K);
+          tl.set("#label", { autoAlpha: 0 }, K + 0.2);
+          selArcs.forEach((p) => FT(p, { attr: { "stroke-dasharray": DASH, "stroke-dashoffset": 0 } },
+            { attr: { "stroke-dasharray": "0 " + (SL * 3).toFixed(2), "stroke-dashoffset": -SL / 2 }, duration: 0.16, ease: "power3.in" }, K));
+          tl.set("#sel", { opacity: 0 }, K + 0.16);
+          let k = 0;
+          SLOT.forEach((S, i) => {
+            const o = SL[i]; if (o === pick) return;
+            const at = K + k * 0.02;
+            SF(o, { s: 1, x: 0, y: 0, z: 0 }, { s: 0, z: -20, duration: 0.22, ease: "power3.in" }, at);
+            ST.set(o, { vis: 0 }, at + 0.22);
+            k++;
+          });
+          const KZ = K + 0.26;
+          FT("#wBack", { scale: 1 }, { scale: 0, duration: 0.26, ease: "power3.in" }, K);
+          SF(RG, { s: 1 }, { s: 0, duration: 0.26, ease: "power3.in" }, K);
+          FT(["#hub", "#notch"], { scale: 1 }, { scale: 0, duration: 0.24, ease: "power3.in" }, K + 0.02);
+          FT("#ring", { scale: 1 }, { scale: 0, duration: 0.26, ease: "power3.in" }, K);
+          tl.set(["#wBack", "#hub", "#notch", "#ring"], { opacity: 0 }, KZ);
+          // the pick: squash 1.07 -> 0.92 (anticipation), then out to 0 on its own centre
+          const ks = KZ - 0.06;
+          const pin = (s) => ((1.07 - s) * CEN + POP);   // scale about the wheel centre + matching translate = scale about the slice centre
+          SF(pick, { s: 1.07, x: PS.ux * pin(1.07), y: PS.uy * pin(1.07) }, { s: 0.92, x: PS.ux * pin(0.92), y: PS.uy * pin(0.92), duration: 0.08, ease: "power2.out" }, ks);
+          SF(pick, { s: 0.92, x: PS.ux * pin(0.92), y: PS.uy * pin(0.92) }, { s: 0, x: PS.ux * pin(0), y: PS.uy * pin(0), duration: T.snap - ks - 0.08, ease: "power3.in" }, ks + 0.08);
+          SF(pick, { glow: 0.5, flash: 0 }, { glow: 1, flash: 0.9, duration: T.snap - ks, ease: "power2.in" }, ks);
+          ST.set(pick, { vis: 0 }, T.snap);
+
+          if (plate) {
+            FT("#grade", { filter: BLUR }, { filter: CLEAN, duration: 1 / 60, ease: "none" }, T.snap - 1 / 60);
+            // a bright landing frame: keep the lift gentle and hold it 3 frames (DESIGN 11.22)
+            Look.expose(tl, T.snap, { target: "#shake", peak: 1.16, hold: 3 / 30, dur: 0.36, saturate: 1.12 });
+            Look.impact(tl, T.snap, { shake: "#shake", amp: 7, dur: 0.3, flash: 0, zoom: 1.03 });
+            Look.push(tl, "#push", T.snap, T.end - T.snap, { from: 1, to: 1.03 });
+          }
+
+          // the 3D wheel is drawn from t on every render (and on hf-seek)
+          ST.set({}, {}, T.end);
+          const draw = (t) => { ST.seek(t, true); W3.render(STV); };
+          Look.drive(tl, 0, T.end, (p) => draw(p * T.end));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") draw(e.detail.time); });
+
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

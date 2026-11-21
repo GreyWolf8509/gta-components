@@ -1,0 +1,559 @@
+<!doctype html>
+<!-- 59 Choice branch, variant B: vertical neon tree for a Short, the chosen option locks in (9:16, 1080x1920, 30 fps).
+     Tubes, fork node and option slabs are real Three.js geometry; labels and title are DOM pinned to projected 3D anchors. See ../DECISIONS.md.
+     Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #dim { position: absolute; inset: 0; z-index: 20; pointer-events: none; opacity: 0;
+        background: linear-gradient(180deg, rgba(0,0,0,.3) 0%, rgba(0,0,0,.26) 24%, rgba(0,0,0,0) 34%), radial-gradient(75% 48% at 47% 50%, rgba(0,0,0,.5) 0%, rgba(0,0,0,.38) 55%, rgba(0,0,0,.24) 100%); }
+      #ov { position: absolute; inset: 0; }
+      #gl { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; }
+
+      /* caption on top, as the evidence */
+      #title { position: absolute; left: 72px; width: 864px; top: 238px; text-align: center; }
+      #pill { display: inline-flex; align-items: center; gap: 14px; height: 52px; padding: 0 26px 0 22px; border-radius: 26px;
+        font: 800 27px/1 "Inter"; letter-spacing: .14em; color: #FFFFFF; white-space: nowrap; visibility: hidden;
+        background: linear-gradient(180deg, #FF7CC0 0%, #FF4FA3 45%, #D92A7E 100%);
+        box-shadow: inset 0 1.5px 0 rgba(255,255,255,.65), inset 0 -2px 3px rgba(120,0,50,.45), 0 0 0 1.5px rgba(60,0,25,.55),
+          0 6px 16px rgba(0,0,0,.45), 0 0 22px rgba(255,79,163,.45); text-shadow: 0 1px 1px rgba(110,0,45,.6); }
+      #pill .dot { width: 12px; height: 12px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 0 8px #FFFFFF; }
+      #tline { margin-top: 26px; font: 800 108px/1.02 "Inter"; letter-spacing: -0.025em; color: #FFFFFF; white-space: nowrap; }
+      .w { display: inline-block; overflow: hidden; vertical-align: top; padding: 6px 10px 16px; margin: -6px -10px -16px; }
+      .wi { display: inline-block; will-change: transform;
+        -webkit-text-stroke: 6px rgba(10,8,14,.78); paint-order: stroke fill; text-shadow: 0 5px 18px rgba(0,0,0,.55); }
+      .wi .k { color: #FFB2D9; text-shadow: 0 0 6px rgba(255,79,163,.95), 0 0 18px rgba(255,79,163,.85), 0 0 36px rgba(255,79,163,.55), 0 4px 14px rgba(0,0,0,.5); }
+
+      /* option labels, pinned to projected anchors */
+      .opt { position: absolute; left: 0; top: 0; transform-origin: 50% 0; text-align: center; white-space: nowrap; visibility: hidden; }
+      .kw { overflow: hidden; height: 44px; padding: 0 12px; margin: 0 -12px 2px; }
+      .kin { will-change: transform; }
+      .kl { height: 44px; font: 800 34px/44px "Inter"; letter-spacing: .12em; color: #FFFFFF;
+        -webkit-text-stroke: 4px rgba(10,8,14,.8); paint-order: stroke fill; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
+      .kl.on { color: #FF62B0; text-shadow: 0 0 12px rgba(255,79,163,.7), 0 2px 8px rgba(0,0,0,.6); }
+      .nw { overflow: hidden; padding: 4px 16px 14px; margin: -4px -16px -14px; }
+      .nin { will-change: transform; font-family: "Archivo"; font-weight: 900; font-stretch: 66%; font-size: 112px; line-height: .96;
+        letter-spacing: -0.01em; color: #FFFFFF; -webkit-text-stroke: 7px rgba(8,6,12,.9); paint-order: stroke fill;
+        text-shadow: 0 6px 18px rgba(0,0,0,.5); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <video id="s1" class="clip shot" style="z-index:5" src="assets/shots/v05-franklin-lamar-street-v.mp4" muted playsinline data-start="0" data-duration="1.3" data-media-start="0" data-track-index="0"></video>
+        <video id="s2" class="clip shot" style="z-index:4" src="assets/shots/v13-lowrider-gang-v.mp4" muted playsinline data-start="1.233" data-duration="1.167" data-media-start="0" data-track-index="1"></video>
+        <video id="s3" class="clip shot" style="z-index:3" src="assets/shots/v14-driveby-sunset-v.mp4" muted playsinline data-start="2.333" data-duration="0.937" data-media-start="0.35" data-track-index="0"></video>
+        <video id="s4" class="clip shot" style="z-index:2" src="assets/shots/v44-bridge-skyline-v.mp4" muted playsinline data-start="3.203" data-duration="1.667" data-media-start="0" data-track-index="1"></video>
+        <video id="s5" class="clip shot" style="z-index:1" src="assets/shots/v36-hills-city-view-v.mp4" muted playsinline data-start="4.803" data-duration="1.197" data-media-start="0.3" data-track-index="0"></video>
+        <div id="dim"></div>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="6" data-track-index="2">
+        <canvas id="gl" width="1080" height="1920"></canvas>
+        <div id="title"><div id="pill"><span class="dot"></span><span id="pillTxt"></span></div><div id="tline"></div></div>
+        <div class="opt" id="opt0"><div class="kw"><div class="kin"><div class="kl k1"></div><div class="kl k2 on"></div></div></div><div class="nw"><div class="nin"></div></div></div>
+        <div class="opt" id="opt1"><div class="kw"><div class="kin"><div class="kl k1"></div><div class="kl k2 on"></div></div></div><div class="nw"><div class="nin"></div></div></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        pill: "GROVE STREET · WHAT IF?",
+        title: "one choice.|two [endings].",          // [word] = pink keyword, "|" = line break
+        options: [
+          { kicker: "SIDE WITH", chosenKicker: "YOU SIDED WITH", name: "LAMAR",   icon: "crew",   color: ["#5BF098", "#1DB257", "#0A6A31"] },
+          { kicker: "SIDE WITH", chosenKicker: "YOU SIDED WITH", name: "STRETCH", icon: "dagger", color: ["#BE8EFF", "#7E43EE", "#43179A"] }
+        ],
+        chosen: 0,
+        neon: "#FF4FA3", neonHot: "#FFE9F4",
+        timing: { title: 0.16, trunk: 0.40, trunkDur: 0.56, fork: 0.96, branchDur: 0.56, tiles: 1.34, labels: 1.52,
+                  pulse: 2.62, hit: 3.27, out: 5.05, end: 6.0 }
+      };
+
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const C = CONFIG, T = C.timing, $ = (s) => document.querySelector(s);
+        const W = 1080, H = 1920, VERT = true;
+        if (!plate) { document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none")); $("#dim").style.display = "none"; }
+
+        // ---------------- layout (page px) ----------------
+        const LY = {
+          r: 9, pivot: [504, 950],
+          trunk: [[504, 585], [504, 800]], node: [504, 800],
+          S: 222, bev: 10, depth: 38, corner: 50, gap: 16,
+          tiles: [[290, 1090], [718, 1090]],
+          restRot: [[0.24, -0.12], [0.24, 0.12]],          // [rx, ry]
+          labelDX: 0, nodeR: 21, spark: 92
+        };
+        const HALF = LY.S / 2 + LY.bev, KH = 44;              // KH = kicker line height (px)                      // outer half size of a tile
+        const ATT = HALF + LY.gap;                           // wrap / socket offset from tile centre
+
+        // ---------------- helpers ----------------
+        const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+        const seg = (t, a, d) => clamp((t - a) / d);
+        const lerp = (a, b, k) => a + (b - a) * k;
+        const eO3 = (p) => 1 - Math.pow(1 - p, 3), eI2 = (p) => p * p, eI3 = (p) => p * p * p;
+        const eIO2 = (p) => (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2);
+        const eOB = (p, s = 1.7) => 1 + (s + 1) * Math.pow(p - 1, 3) + s * Math.pow(p - 1, 2);
+        const springTo = (p, k = 6, f = 2.4) => p <= 0 ? 0 : 1 - Math.exp(-k * p) * Math.cos(f * Math.PI * p);
+        const hex3 = (h) => { const n = parseInt(h.slice(1), 16); return new THREE.Vector3(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255); };
+
+        // ---------------- DOM text ----------------
+        $("#pillTxt").textContent = C.pill;
+        const tline = $("#tline"), words = [];
+        C.title.split("|").forEach((line, li) => {
+          if (li) tline.appendChild(document.createElement("br"));
+          line.split(" ").forEach((wd, wi, arr) => {
+            const m = wd.match(/^(.*?)\[(.+?)\](.*)$/);
+            const w = document.createElement("span"); w.className = "w";
+            const i = document.createElement("span"); i.className = "wi";
+            if (m) { i.appendChild(document.createTextNode(m[1])); const kk = document.createElement("span"); kk.className = "k"; kk.textContent = m[2]; i.appendChild(kk); i.appendChild(document.createTextNode(m[3])); }
+            else i.textContent = wd;
+            w.appendChild(i); tline.appendChild(w); words.push(i);
+            if (wi < arr.length - 1) tline.appendChild(document.createTextNode(" "));
+          });
+        });
+        const opts = C.options.map((o, i) => {
+          const el = $("#opt" + i);
+          el.querySelector(".k1").textContent = o.kicker; el.querySelector(".k2").textContent = o.chosenKicker;
+          el.querySelector(".nin").textContent = o.name;
+          return { el, kin: el.querySelector(".kin"), nin: el.querySelector(".nin"), k1: el.querySelector(".k1"), k2: el.querySelector(".k2") };
+        });
+
+        function radialTex(stops, size = 128) {
+          const cv = document.createElement("canvas"); cv.width = cv.height = size; const ctx = cv.getContext("2d");
+          const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+          stops.forEach(([o, c]) => g.addColorStop(o, c)); ctx.fillStyle = g; ctx.fillRect(0, 0, size, size);
+          const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; return tex;
+        }
+
+        // ---------------- tile faces: our own icons ----------------
+        function person(c, x, y, r, bw, bottom) {
+          c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+          const top = y + r + 20, ry = bw * 0.82, cy = top + ry;
+          c.beginPath(); c.ellipse(x, cy, bw, ry, 0, Math.PI, 0); c.lineTo(x + bw, bottom - 26);
+          c.quadraticCurveTo(x + bw, bottom, x + bw - 26, bottom); c.lineTo(x - bw + 26, bottom);
+          c.quadraticCurveTo(x - bw, bottom, x - bw, bottom - 26); c.closePath(); c.fill();
+        }
+        const ICONS = {
+          crew(c, N, o) {
+            c.fillStyle = "rgba(255,255,255,.80)"; person(c, 322, 170, 56, 104, 404);
+            c.save(); c.shadowColor = "transparent"; c.fillStyle = o.color[1];
+            c.beginPath(); c.arc(208, 196, 84, 0, Math.PI * 2); c.fill();
+            c.beginPath(); c.ellipse(208, 196 + 68 + 20 + 116, 144, 128, 0, Math.PI, 0); c.lineTo(352, 420); c.lineTo(64, 420); c.closePath(); c.fill();
+            c.restore();
+            c.fillStyle = "#FFFFFF"; person(c, 208, 196, 68, 128, 410);
+          },
+          dagger(c, N) {
+            c.translate(256, 262); c.rotate(Math.PI / 4); c.fillStyle = "#FFFFFF";
+            c.beginPath(); c.moveTo(0, -214); c.lineTo(40, -158); c.lineTo(38, 26); c.lineTo(-38, 26); c.lineTo(-40, -158); c.closePath(); c.fill();
+            c.save(); c.shadowColor = "transparent"; c.fillStyle = "rgba(40,20,70,.16)";
+            c.beginPath(); c.moveTo(0, -214); c.lineTo(40, -158); c.lineTo(38, 26); c.lineTo(0, 26); c.closePath(); c.fill(); c.restore();
+            c.beginPath(); c.roundRect(-98, 26, 196, 38, 19); c.fill();
+            c.beginPath(); c.roundRect(-24, 64, 48, 112, 12); c.fill();
+            c.save(); c.shadowColor = "transparent"; c.fillStyle = "rgba(40,20,70,.22)";
+            for (let k = 0; k < 4; k++) c.fillRect(-24, 84 + k * 24, 48, 7); c.restore();
+            c.beginPath(); c.arc(0, 200, 32, 0, Math.PI * 2); c.fill();
+          }
+        };
+        function faceCanvas(o) {
+          const N = 512, cv = document.createElement("canvas"); cv.width = cv.height = N; const c = cv.getContext("2d");
+          let g = c.createLinearGradient(0, 0, 0, N); g.addColorStop(0, o.color[0]); g.addColorStop(0.52, o.color[1]); g.addColorStop(1, o.color[2]);
+          c.fillStyle = g; c.fillRect(0, 0, N, N);
+          g = c.createRadialGradient(N * 0.28, N * 0.1, 0, N * 0.28, N * 0.1, N * 0.8); g.addColorStop(0, "rgba(255,255,255,.34)"); g.addColorStop(1, "rgba(255,255,255,0)");
+          c.fillStyle = g; c.fillRect(0, 0, N, N);
+          g = c.createLinearGradient(0, N * 0.62, 0, N); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.3)");
+          c.fillStyle = g; c.fillRect(0, 0, N, N);
+          c.save(); c.shadowColor = "rgba(0,0,0,.4)"; c.shadowBlur = 22; c.shadowOffsetY = 10;
+          ICONS[o.icon](c, N, o); c.restore();
+          const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4; return tex;
+        }
+
+        function build() {
+          const canvas = $("#gl");
+          const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+          renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 0);
+          renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+          const scene = new THREE.Scene();
+          const FOV = 24, DIST = (H / 2) / Math.tan((FOV / 2) * Math.PI / 180);
+          const camera = new THREE.PerspectiveCamera(FOV, W / H, 10, DIST * 3);
+          camera.position.set(0, 0, DIST); camera.lookAt(0, 0, 0);
+
+          // studio env for the clear coat
+          const envScene = new THREE.Scene();
+          envScene.add(new THREE.Mesh(new THREE.SphereGeometry(50, 48, 24), new THREE.ShaderMaterial({
+            side: THREE.BackSide, depthWrite: false,
+            vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+            fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 top = vec3(0.92,0.94,1.0), hor = vec3(0.24,0.2,0.26), low = vec3(0.03,0.03,0.04);" +
+              " vec3 c = y > 0.0 ? mix(hor, top, smoothstep(0.0, 0.9, y)) : mix(hor, low, smoothstep(0.0, 0.45, -y)); gl_FragColor = vec4(c, 1.0); }"
+          })));
+          const panel = (w, h, x, y, z, c) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); envScene.add(m); };
+          panel(36, 14, -14, 26, 26, new THREE.Color(4.2, 4.1, 4.0));
+          panel(5, 34, 30, 2, 18, new THREE.Color(2.4, 2.5, 2.9));
+          panel(30, 8, -30, -4, 10, new THREE.Color(3.2, 0.9, 2.0));       // pink neon strip on the left
+          panel(26, 8, -6, -24, 24, new THREE.Color(0.8, 0.75, 0.8));
+          const pmrem = new THREE.PMREMGenerator(renderer);
+          scene.environment = pmrem.fromScene(envScene, 0.02, 0.1, 200).texture;
+          const key = new THREE.DirectionalLight(0xffffff, 2.1); key.position.set(-0.5, 0.9, 1.0); scene.add(key);
+          scene.add(new THREE.HemisphereLight(0xffffff, 0x2a2232, 0.85));
+
+          // diagram group, pivoted at the diagram centre
+          const G = new THREE.Group(); G.position.set(LY.pivot[0] - W / 2, H / 2 - LY.pivot[1], 0); scene.add(G);
+          const P = (x, y, z = 0) => new THREE.Vector3(x - LY.pivot[0], LY.pivot[1] - y, z);
+
+          // ---------- neon shaders ----------
+          const VS = "varying vec2 vUv; varying vec3 vN; varying vec3 vV;" +
+            "void main(){ vUv = uv; vec4 mv = modelViewMatrix * vec4(position,1.0); vV = mv.xyz; vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * mv; }";
+          const COMMON = "uniform vec3 uCol; uniform vec3 uHot; uniform float uLen, uProg, uTail, uFade, uDim, uGlow, uP1, uA1, uP2, uA2, uP3, uA3;" +
+            "varying vec2 vUv; varying vec3 vN; varying vec3 vV;" +
+            "float bump(float x, float p){ float d = x - p; float w = d < 0.0 ? 170.0 : 30.0; return exp(-d*d/(w*w)); }" +
+            "float pulses(float x){ return uA1*bump(x,uP1) + uA2*bump(x,uP2) + uA3*bump(x,uP3); }";
+          const FS_CORE = COMMON +
+            "void main(){ float x = vUv.x * uLen; if (x > uProg || x < uTail) discard;" +
+            " vec3 N = normalize(vN); vec3 V = normalize(-vV); float f = clamp(abs(dot(N,V)),0.0,1.0);" +
+            " vec3 lit = mix(uCol*0.5, uCol, smoothstep(0.0,0.5,f)); lit = mix(lit, uHot, smoothstep(0.55,0.97,f)*0.92);" +
+            " vec3 off = vec3(0.30,0.24,0.31)*(0.55+0.45*f);" +
+            " vec3 L = normalize(vec3(-0.45,0.8,0.6)); vec3 Hh = normalize(L+V); float sp = pow(max(dot(N,Hh),0.0),24.0);" +
+            " float pl = pulses(x);" +
+            " vec3 c = mix(off, lit, uDim) + vec3(1.0,0.93,0.97)*pl + vec3(1.0)*sp*(0.28+0.3*(1.0-uDim));" +
+            " float a = uFade > 0.0 ? smoothstep(0.0, uFade, x) : 1.0;" +
+            " gl_FragColor = vec4(min(c, vec3(1.0)), a); }";
+          const FS_GLOW = COMMON +
+            "void main(){ float x = vUv.x * uLen; if (x > uProg || x < uTail) discard;" +
+            " vec3 N = normalize(vN); vec3 V = normalize(-vV); float f = clamp(abs(dot(N,V)),0.0,1.0);" +
+            " float pl = pulses(x); float a = pow(f, 2.4) * (uGlow + pl*0.45);" +
+            " a *= uFade > 0.0 ? smoothstep(0.0, uFade*1.4, x) : 1.0;" +
+            " gl_FragColor = vec4(mix(uCol, vec3(1.0,0.9,0.96), clamp(pl*0.5,0.0,0.7)), clamp(a,0.0,1.0)); }";
+          const FS_SHADOW = COMMON +
+            "void main(){ float x = vUv.x * uLen; if (x > uProg || x < uTail) discard;" +
+            " vec3 N = normalize(vN); vec3 V = normalize(-vV); float f = clamp(abs(dot(N,V)),0.0,1.0);" +
+            " float a = pow(f, 1.6) * uGlow; a *= uFade > 0.0 ? smoothstep(0.0, uFade*1.4, x) : 1.0;" +
+            " gl_FragColor = vec4(0.02,0.0,0.03, clamp(a,0.0,1.0)); }";
+          const NEON = hex3(C.neon), HOT = hex3(C.neonHot);
+          function uni(len, fade) {
+            return { uCol: { value: NEON }, uHot: { value: HOT }, uLen: { value: len }, uProg: { value: 0 }, uTail: { value: 0 }, uFade: { value: fade || 0 },
+              uDim: { value: 1 }, uGlow: { value: 0.55 }, uP1: { value: -999 }, uA1: { value: 0 }, uP2: { value: -999 }, uA2: { value: 0 }, uP3: { value: -999 }, uA3: { value: 0 } };
+          }
+          // a neon line = shadow + glow + core tubes sharing one uniform set
+          function neon(curve, parent, fade, segs) {
+            const len = curve.getLength(), n = segs || Math.max(24, Math.round(len / 3));
+            const U = uni(len, fade);
+            const mk = (rad, fs, order, depthWrite) => {
+              const m = new THREE.Mesh(new THREE.TubeGeometry(curve, n, rad, 20, false),
+                new THREE.ShaderMaterial({ uniforms: U, vertexShader: VS, fragmentShader: fs, transparent: true, depthWrite, side: THREE.FrontSide }));
+              m.renderOrder = order; parent.add(m); return m;
+            };
+            const sh = mk(LY.r * 3.0, FS_SHADOW, 0, false);
+            const gl = mk(LY.r * 4.2, FS_GLOW, 1, false);
+            const co = mk(LY.r, FS_CORE, 2, true);
+            return { curve, len, U, meshes: [sh, gl, co], shadowU: null };
+          }
+          // shadow tube uses its own glow strength (darker, steadier)
+          function neonLine(curve, parent, fade) {
+            const L = neon(curve, parent, fade);
+            const SU = Object.assign({}, L.U, { uGlow: { value: 0.36 } });
+            L.meshes[0].material.uniforms = SU; L.SU = SU; return L;
+          }
+          function sync(L) { ["uProg", "uTail", "uDim"].forEach((k) => (L.SU[k].value = L.U[k].value)); }
+
+          // trunk + branches
+          const trunk = neonLine(new THREE.LineCurve3(P(...LY.trunk[0]), P(...LY.trunk[1])), G, 70);
+          const branches = LY.tiles.map(([tx, ty]) => {
+            const n = LY.node;
+            const c = VERT
+              ? new THREE.CubicBezierCurve3(P(n[0], n[1]), P(n[0], n[1] + 92), P(tx, ty - ATT - 104), P(tx, ty - ATT))
+              : new THREE.CubicBezierCurve3(P(n[0], n[1]), P(n[0] + 140, n[1]), P(tx - ATT - 112, ty), P(tx - ATT, ty));
+            return neonLine(c, G, 0);
+          });
+
+          // materials
+          const chrome = new THREE.MeshPhysicalMaterial({ color: 0xdfe3ea, metalness: 1, roughness: 0.22, clearcoat: 0.6, clearcoatRoughness: 0.1, envMapIntensity: 1.4 });
+          const pearl = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.18, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.04, emissive: 0xffe0f0, emissiveIntensity: 0.55, envMapIntensity: 1.3 });
+          const sparkTex = radialTex([[0, "rgba(255,255,255,1)"], [0.14, "rgba(255,246,251,.98)"], [0.32, "rgba(255,120,190,.55)"], [0.62, "rgba(255,79,163,.16)"], [1, "rgba(255,79,163,0)"]], 128);
+          const haloPink = radialTex([[0, "rgba(255,140,200,.9)"], [0.35, "rgba(255,79,163,.42)"], [0.7, "rgba(255,79,163,.1)"], [1, "rgba(255,79,163,0)"]], 128);
+          const ringTex = radialTex([[0, "rgba(255,79,163,0)"], [0.58, "rgba(255,79,163,0)"], [0.74, "rgba(255,170,215,.85)"], [0.86, "rgba(255,79,163,.3)"], [1, "rgba(255,79,163,0)"]], 256);
+          const shadowTex = radialTex([[0, "rgba(0,0,0,.6)"], [0.5, "rgba(0,0,0,.3)"], [1, "rgba(0,0,0,0)"]], 128);
+          const bandTex = (() => {
+            const N = 512, cv = document.createElement("canvas"); cv.width = cv.height = N; const c = cv.getContext("2d");
+            c.translate(N / 2, N / 2); c.rotate(0.36);
+            const g = c.createLinearGradient(-N * 0.13, 0, N * 0.13, 0);
+            g.addColorStop(0, "rgba(255,255,255,0)"); g.addColorStop(0.38, "rgba(255,255,255,.42)"); g.addColorStop(0.5, "rgba(255,255,255,.9)"); g.addColorStop(0.62, "rgba(255,255,255,.42)"); g.addColorStop(1, "rgba(255,255,255,0)");
+            c.fillStyle = g; c.fillRect(-N * 0.13, -N * 0.62, N * 0.26, N * 1.24);
+            const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; return tex;
+          })();
+          const sprite = (tex, order, depthTest) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: !!depthTest })); s.renderOrder = order; s.visible = false; return s; };
+
+          // fork node
+          const nodeG = new THREE.Group(); nodeG.position.copy(P(...LY.node, 2)); G.add(nodeG);
+          nodeG.add(new THREE.Mesh(new THREE.SphereGeometry(LY.nodeR, 40, 24), pearl));
+          const nodeHalo = sprite(haloPink, 1, true); nodeHalo.position.z = -6; nodeG.add(nodeHalo);
+          const ripple = sprite(ringTex, 6, false); ripple.position.copy(P(...LY.node, 4)); G.add(ripple);
+
+          // sparks (draw heads, pulse comet, hit flare)
+          const sparks = [0, 1, 2].map(() => { const s = sprite(sparkTex, 10, false); G.add(s); return s; });
+          const comet = sprite(sparkTex, 11, false); G.add(comet);
+          const flare = sprite(sparkTex, 12, false); G.add(flare);
+          const wrapSparks = [0, 1].map(() => { const s = sprite(sparkTex, 10, false); G.add(s); return s; });
+
+          // option tiles
+          function rrShape(w, h, r) {
+            const s = new THREE.Shape(), x0 = -w / 2, y0 = -h / 2, x1 = w / 2, y1 = h / 2;
+            s.moveTo(x0 + r, y0); s.lineTo(x1 - r, y0); s.absarc(x1 - r, y0 + r, r, -Math.PI / 2, 0, false);
+            s.lineTo(x1, y1 - r); s.absarc(x1 - r, y1 - r, r, 0, Math.PI / 2, false);
+            s.lineTo(x0 + r, y1); s.absarc(x0 + r, y1 - r, r, Math.PI / 2, Math.PI, false);
+            s.lineTo(x0, y0 + r); s.absarc(x0 + r, y0 + r, r, Math.PI, Math.PI * 1.5, false); return s;
+          }
+          const tileGeo = new THREE.ExtrudeGeometry(rrShape(LY.S, LY.S, LY.corner), { depth: LY.depth, bevelEnabled: true, bevelThickness: LY.bev, bevelSize: LY.bev, bevelSegments: 6, curveSegments: 18 });
+          tileGeo.translate(0, 0, -LY.depth / 2);
+          // wrap path around a tile: two halves from the socket side to the far side
+          function wrapHalves() {
+            const hw = ATT, r = LY.corner + LY.bev + LY.gap, pts = [];
+            // full loop clockwise starting at left-mid (A) or top-mid (B), in tile-local coords (y up)
+            const steps = [];
+            const arc = (cx, cy, a0, a1) => { for (let k = 0; k <= 10; k++) { const a = lerp(a0, a1, k / 10); steps.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); } };
+            const line = (x0, y0, x1, y1) => { for (let k = 0; k <= 8; k++) steps.push([lerp(x0, x1, k / 8), lerp(y0, y1, k / 8)]); };
+            if (!VERT) {
+              line(-hw, 0, -hw, hw - r); arc(-hw + r, hw - r, Math.PI, Math.PI / 2); line(-hw + r, hw, hw - r, hw); arc(hw - r, hw - r, Math.PI / 2, 0); line(hw, hw - r, hw, 0);
+            } else {
+              line(0, hw, -(hw - r), hw); arc(-hw + r, hw - r, Math.PI / 2, Math.PI); line(-hw, hw - r, -hw, -(hw - r)); arc(-hw + r, -hw + r, Math.PI, Math.PI * 1.5); line(-hw + r, -hw, 0, -hw);
+            }
+            const dedup = steps.filter((p, i) => i === 0 || Math.hypot(p[0] - steps[i - 1][0], p[1] - steps[i - 1][1]) > 0.5);
+            const A = dedup.map(([x, y]) => new THREE.Vector3(x, y, 0));
+            const B = dedup.map(([x, y]) => new THREE.Vector3(VERT ? -x : x, VERT ? y : -y, 0));
+            return [new THREE.CatmullRomCurve3(A, false, "catmullrom", 0.2), new THREE.CatmullRomCurve3(B, false, "catmullrom", 0.2)];
+          }
+          const tiles = LY.tiles.map(([tx, ty], i) => {
+            const o = C.options[i], tex = faceCanvas(o);
+            tex.repeat.set(1 / LY.S, 1 / LY.S); tex.offset.set(0.5, 0.5);
+            const face = new THREE.MeshPhysicalMaterial({ map: tex, roughness: 0.34, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 1.0,
+              emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0 });
+            const side = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(o.color[2]), roughness: 0.28, metalness: 0.15, clearcoat: 1, clearcoatRoughness: 0.06, envMapIntensity: 1.2 });
+            const g = new THREE.Group(); g.position.copy(P(tx, ty, 0)); G.add(g);
+            const body = new THREE.Group(); g.add(body);
+            body.add(new THREE.Mesh(tileGeo, [face, side]));
+            const sh = new THREE.Mesh(new THREE.PlaneGeometry(LY.S * 2.0, LY.S * 2.0), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
+            sh.position.set(0, -14, -LY.depth / 2 - LY.bev - 4); sh.renderOrder = 0; body.add(sh);
+            const halo = new THREE.Mesh(new THREE.PlaneGeometry(LY.S * 3.4, LY.S * 3.4), new THREE.MeshBasicMaterial({
+              map: radialTex([[0, o.color[0]], [0.3, o.color[0] + "E0"], [0.46, o.color[1] + "80"], [0.7, o.color[1] + "22"], [1, o.color[1] + "00"]], 256), transparent: true, depthWrite: false, opacity: 0, toneMapped: false }));
+            halo.position.z = -LY.depth / 2 - LY.bev - 2; halo.renderOrder = 1; halo.visible = false; body.add(halo);
+            const btex = bandTex.clone(); btex.needsUpdate = true; btex.repeat.set(1 / LY.S, 1 / LY.S); btex.offset.set(0.5, 0.5);
+            const band = new THREE.Mesh(new THREE.ShapeGeometry(rrShape(LY.S, LY.S, LY.corner), 18), new THREE.MeshBasicMaterial({ map: btex, transparent: true, depthWrite: false,
+              blending: THREE.AdditiveBlending, toneMapped: false, opacity: 0 }));
+            band.position.z = LY.depth / 2 + LY.bev + 0.6; band.renderOrder = 4; band.visible = false; body.add(band);
+            // electrode sleeve where the branch plugs in
+            const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(LY.r * 1.6, LY.r * 1.6, LY.gap + 12, 24), chrome);
+            if (!VERT) { sleeve.rotation.z = Math.PI / 2; sleeve.position.copy(P(tx - HALF - LY.gap / 2 + 2, ty, 0)); }
+            else { sleeve.position.copy(P(tx, ty - HALF - LY.gap / 2 + 2, 0)); }
+            G.add(sleeve);
+            const spill = new THREE.PointLight(0xff4fa3, 0, 260, 0);
+            spill.position.copy(VERT ? P(tx, ty - HALF - 60, 50) : P(tx - HALF - 60, ty, 50)); G.add(spill);
+            const anchor = new THREE.Object3D();
+            anchor.position.copy(VERT ? P(tx, ty + HALF + 28, 0) : P(tx + LY.labelDX, ty, 0)); G.add(anchor);
+            const wraps = wrapHalves().map((cv) => neonLine(cv, body, 0));
+            return { g, body, face, side, halo, band, btex, sleeve, spill, anchor, wraps, x: tx, y: ty };
+          });
+
+          const ch = C.chosen, lo = 1 - ch;
+          const Lt = trunk.len;
+          // loser flicker: a dying neon sign (step times relative to the pulse passing the node)
+          const FL = [[0, 0.22], [0.05, 1], [0.09, 0.12], [0.15, 0.85], [0.19, 0.1], [0.27, 0.6], [0.31, 0.1], [0.38, 0.35], [0.42, 0.08]];
+          const tNode = T.pulse + (T.hit - T.pulse) * Math.sqrt(Lt / (Lt + branches[ch].len));
+          function flick(t) { if (t < tNode) return 1; let v = 1; const d = t - tNode; for (const [a, b] of FL) if (d >= a) v = b; return v; }
+
+          const v3 = new THREE.Vector3(), v3b = new THREE.Vector3();
+          function project(obj) {
+            obj.getWorldPosition(v3); const a = v3.clone().project(camera);
+            v3b.copy(v3); v3b.x += 100; const b = v3b.project(camera);
+            return [(a.x + 1) / 2 * W, (1 - a.y) / 2 * H, ((b.x - a.x) / 2 * W) / 100];
+          }
+
+          function renderAt(t) {
+            // ----- group drift (parallax) -----
+            G.rotation.y = lerp(-0.07, 0.03, clamp(t / T.end));
+            G.rotation.x = lerp(0.035, -0.015, clamp(t / T.end));
+
+            // ----- draw on / erase -----
+            const pT = eIO2(seg(t, T.trunk, T.trunkDur)), pB = eO3(seg(t, T.fork, T.branchDur));
+            const xT = eI2(seg(t, T.out, 0.3)), xB = eI2(seg(t, T.out + 0.24, 0.3));
+            trunk.U.uProg.value = pT * Lt; trunk.U.uTail.value = xT * (Lt + 1);
+            branches.forEach((b) => { b.U.uProg.value = pB * b.len; b.U.uTail.value = xB * (b.len + 1); });
+            const showT = pT > 0 && xT < 1, showB = pB > 0 && xB < 1;
+            trunk.meshes.forEach((m) => (m.visible = showT)); branches.forEach((b) => b.meshes.forEach((m) => (m.visible = showB)));
+            // draw-head sparks
+            const sp = (s, on, pt, sc) => { s.visible = on; if (on) { s.position.copy(pt); s.position.z += 6; s.scale.setScalar(sc); s.material.opacity = 1; } };
+            sp(sparks[0], pT > 0 && pT < 1, trunk.curve.getPointAt(clamp(pT)), LY.spark);
+            sp(sparks[1], pB > 0 && pB < 1, branches[0].curve.getPointAt(clamp(pB)), LY.spark);
+            sp(sparks[2], pB > 0 && pB < 1, branches[1].curve.getPointAt(clamp(pB)), LY.spark);
+
+            // ----- node -----
+            const nIn = springTo(seg(t, T.fork - 0.03, 0.5), 6, 2.2), nOut = eI3(seg(t, T.out + 0.2, 0.14));
+            const ns = Math.max(0, nIn * (1 - nOut));
+            nodeG.visible = ns > 0.001; nodeG.scale.setScalar(Math.max(ns, 0.001));
+            nodeHalo.visible = nodeG.visible; nodeHalo.scale.setScalar(LY.nodeR * 6.2); nodeHalo.material.opacity = 0.85;
+            const rp = seg(t, T.fork, 0.42); ripple.visible = rp > 0 && rp < 1;
+            if (ripple.visible) { ripple.scale.setScalar(LY.nodeR * lerp(2.2, 9, eO3(rp))); ripple.material.opacity = 0.9 * (1 - rp); }
+
+            // ----- pulses -----
+            const L1 = Lt + branches[ch].len;
+            const pp = seg(t, T.pulse, T.hit - T.pulse), sMain = L1 * pp * pp;
+            const mainOn = t >= T.pulse && t < T.hit + 0.2, mainA = mainOn ? (t < T.hit ? 1.3 : 1.3 * (1 - seg(t, T.hit, 0.2))) : 0;
+            const s2 = L1 * seg(t, T.hit + 0.72, 0.62), a2 = (t > T.hit + 0.72 && t < T.hit + 1.4 && t < T.out) ? 0.55 : 0;
+            const s3 = L1 * seg(t, T.hit + 1.36, 0.62), a3 = (t > T.hit + 1.36 && t < T.hit + 2.04 && t < T.out) ? 0.55 : 0;
+            trunk.U.uP1.value = sMain; trunk.U.uA1.value = mainA;
+            trunk.U.uP2.value = s2; trunk.U.uA2.value = a2; trunk.U.uP3.value = s3; trunk.U.uA3.value = a3;
+            const bc = branches[ch];
+            bc.U.uP1.value = sMain - Lt; bc.U.uA1.value = mainA; bc.U.uP2.value = s2 - Lt; bc.U.uA2.value = a2; bc.U.uP3.value = s3 - Lt; bc.U.uA3.value = a3;
+            const lb = branches[lo];
+            lb.U.uP1.value = sMain - Lt; lb.U.uA1.value = 0; // the pulse never enters the losing branch
+            // comet sprite riding the main pulse
+            comet.visible = t >= T.pulse && t < T.hit;
+            if (comet.visible) { const pt = sMain < Lt ? trunk.curve.getPointAt(clamp(sMain / Lt)) : bc.curve.getPointAt(clamp((sMain - Lt) / bc.len)); comet.position.copy(pt); comet.position.z += 8; comet.scale.setScalar(LY.spark * 1.25); comet.material.opacity = 1; }
+
+            // ----- loser dies, chosen burns brighter -----
+            const fv = flick(t);
+            lb.U.uDim.value = fv; lb.U.uGlow.value = 0.55 * fv * fv; lb.SU.uGlow.value = 0.36 * (0.4 + 0.6 * fv);
+            const lockP = seg(t, T.hit, 0.3);
+            const boost = 0.55 + 0.2 * eO3(lockP);
+            trunk.U.uGlow.value = boost; bc.U.uGlow.value = boost;
+            [trunk, ...branches].forEach(sync);
+
+            // ----- tiles -----
+            const wsPend = [];
+            tiles.forEach((tl, i) => {
+              const tin = seg(t, T.tiles + i * 0.08, 0.55), tout = seg(t, T.out + 0.44, 0.26);
+              const s = (tin <= 0 ? 0 : eOB(tin, 1.9)) * (1 - eI3(tout));
+              tl.g.visible = s > 0.002; tl.sleeve.visible = showB && tin > 0.3 && tout < 0.5;
+              tl.g.scale.setScalar(Math.max(s, 0.001));
+              const [rx0, ry0] = LY.restRot[i];
+              let rx = rx0 + (1 - eO3(tin)) * -1.25 + eI3(tout) * 1.1, ry = ry0, pz = 0, sx = 1, sz = 1, em = 0;
+              if (i === ch) {
+                const hp = t - T.hit;
+                if (hp >= 0) {
+                  let d;
+                  if (hp < 0.07) d = -eI2(hp / 0.07);
+                  else { const q = hp - 0.07; d = 0.4 - 1.4 * Math.exp(-5.2 * q) * Math.cos(9 * q); }
+                  pz = 18 * d; sz = 1 + 0.22 * Math.min(d, 0);
+                  const grow = 1 + 0.06 * eO3(seg(t, T.hit + 0.07, 0.4));
+                  sx = grow * (1 + 0.03 * Math.min(d, 0) * -1);
+                  const sq = eO3(seg(t, T.hit + 0.05, 0.5)); rx = lerp(rx, 0.03, sq); ry = lerp(ry, 0.07, sq);
+                  // face lights from inside: 2-frame attack, 3-frame hold, decay
+                  em = hp < 0.05 ? lerp(0, 1.5, hp / 0.05) : hp < 0.15 ? 1.5 : lerp(1.5, 0.16, eO3(seg(hp, 0.15, 0.7)));
+                }
+                tl.halo.visible = hp >= 0 && tout < 1;
+                tl.halo.material.opacity = hp < 0 ? 0 : (hp < 0.05 ? hp / 0.05 : hp < 0.15 ? 1 : lerp(1, 0.55, eO3(seg(hp, 0.15, 0.8)))) * (1 - tout);
+                tl.halo.scale.setScalar(hp < 0.15 ? 1.06 : lerp(1.06, 0.92, eO3(seg(hp, 0.15, 0.7))));
+                tl.face.color.setScalar(1); tl.side.color.set(C.options[i].color[2]);
+              } else {
+                const dp = eO3(seg(t, tNode + 0.1, 0.5));
+                rx += -0.22 * dp; pz = -22 * dp; sx = 1 - 0.08 * dp; sz = sx;
+                tl.face.color.setRGB(1 - 0.68 * dp, 1 - 0.7 * dp, 1 - 0.64 * dp);
+                tl.side.color.set(C.options[i].color[2]).multiplyScalar(1 - 0.6 * dp);
+                tl.face.envMapIntensity = 1 - 0.45 * dp;
+                tl.halo.visible = false;
+              }
+              tl.face.emissiveIntensity = em;
+              const b1 = seg(t, T.tiles + i * 0.08 + 0.32, 0.5), b2 = i === ch ? seg(t, T.hit + 0.06, 0.46) : 0;
+              const bOn = (b1 > 0 && b1 < 1) || (b2 > 0 && b2 < 1);
+              tl.band.visible = bOn && s > 0.5;
+              if (bOn) { const q = b2 > 0 ? eIO2(b2) : eIO2(b1); tl.btex.offset.x = 0.5 + lerp(0.95, -0.95, q); tl.band.material.opacity = b2 > 0 ? 1.0 : 0.55; }
+              tl.body.position.z = pz; tl.body.rotation.set(rx, ry, 0); tl.body.scale.set(sx, sx, sx * sz);
+              // neon spill on the socket side
+              const bf = i === ch ? (1 + 0.6 * (t >= T.hit ? Math.exp(-4 * (t - T.hit)) : 0)) : fv;
+              tl.spill.intensity = showB ? 2.4 * bf * pB : 0;
+              // wrap frame (chosen only)
+              tl.wraps.forEach((w, k) => {
+                const on = i === ch;
+                const wp = on ? eO3(seg(t, T.hit + 0.02, 0.32)) : 0, wx = eI2(seg(t, T.out + 0.4, 0.14));
+                w.U.uProg.value = wp * w.len; w.U.uTail.value = wx * (w.len + 1); w.U.uGlow.value = boost;
+                w.U.uP1.value = (sMain - L1) * 1.0; w.U.uA1.value = 0;
+                w.U.uP2.value = s2 - L1 + 40; w.U.uA2.value = 0; sync(w);
+                const vis = on && wp > 0 && wx < 1; w.meshes.forEach((m) => (m.visible = vis));
+                const wsS = wrapSparks[k]; wsS.visible = vis && wp < 1; if (wsS.visible) wsPend.push([wsS, w, tl.body, wp]);
+              });
+            });
+            scene.updateMatrixWorld();
+            wsPend.forEach(([wsS, w, body, wp]) => { const pt = w.curve.getPointAt(clamp(wp)).clone(); body.localToWorld(pt); G.worldToLocal(pt); wsS.position.copy(pt); wsS.position.z += 8; wsS.scale.setScalar(LY.spark); });
+            // hit flare at the socket + raking light across the chosen clear coat
+            const tc = tiles[ch], fp = seg(t, T.hit, 0.24);
+            flare.visible = fp > 0 && fp < 1;
+            if (flare.visible) { flare.position.copy(VERT ? P(tc.x, tc.y - ATT, 10) : P(tc.x - ATT, tc.y, 10)); flare.scale.setScalar(LY.spark * lerp(3.2, 1.4, eO3(fp))); flare.material.opacity = 1 - eI2(fp); }
+
+            renderer.render(scene, camera);
+            scene.updateMatrixWorld();
+
+            // ----- DOM: title -----
+            const pin = seg(t, T.title, 0.42), pout = seg(t, T.out + 0.14, 0.16);
+            const pill = $("#pill");
+            pill.style.visibility = pin > 0 && pout < 1 ? "visible" : "hidden";
+            pill.style.opacity = Math.min(1, pin / 0.12) * (1 - pout);
+            pill.style.transform = "translateY(" + ((1 - eO3(pin)) * 18).toFixed(1) + "px) scale(" + (lerp(0.55, 1, eOB(pin, 2.2)) * (1 - 0.4 * eI2(pout))).toFixed(3) + ")";
+            words.forEach((w, k) => {
+              const a = seg(t, T.title + 0.1 + k * 0.06, 0.55), b = seg(t, T.out + k * 0.035, 0.3);
+              const y = (1 - eO3(a)) * 112 - eI3(b) * 112;
+              w.style.transform = "translateY(" + y.toFixed(1) + "%)"; w.style.visibility = a > 0 && b < 1 ? "visible" : "hidden";
+              w.style.filter = a > 0 && a < 0.5 ? "blur(" + ((1 - a / 0.5) * 5).toFixed(1) + "px)" : "none";
+            });
+
+            // ----- DOM: option labels -----
+            opts.forEach((o, i) => {
+              const [sx, sy, k] = project(tiles[i].anchor);
+              const lin = seg(t, T.labels + i * 0.1, 0.5), kin = seg(t, T.labels - 0.04 + i * 0.1, 0.45), lout = seg(t, T.out, 0.26);
+              o.el.style.visibility = kin > 0 && lout < 1 ? "visible" : "hidden";
+              let sc = k, op = 1;
+              if (i === ch) {
+                const hp = t - T.hit;
+                if (hp > 0) sc *= 1 + 0.1 * Math.exp(-5 * hp) * Math.sin(Math.min(hp, 0.6) / 0.6 * Math.PI * 1.0) + 0.04 * eO3(seg(hp, 0, 0.4));
+              } else {
+                const dd = eO3(seg(t, tNode + 0.1, 0.4)); sc *= 1 - 0.06 * dd;
+                const cN = [255 - 63 * dd, 255 - 71 * dd, 255 - 41 * dd].map(Math.round), cK = [255 - 69 * dd, 255 - 79 * dd, 255 - 49 * dd].map(Math.round);
+                o.nin.style.color = "rgb(" + cN.join(",") + ")"; o.k1.style.color = "rgb(" + cK.join(",") + ")";
+              }
+              o.el.style.transform = (VERT ? "translate(" + sx.toFixed(1) + "px," + sy.toFixed(1) + "px) translateX(-50%) scale(" + sc.toFixed(4) + ")"
+                : "translate(" + sx.toFixed(1) + "px," + sy.toFixed(1) + "px) translateY(-50%) scale(" + sc.toFixed(4) + ")");
+              const roll = i === ch ? eIO2(seg(t, T.hit + 0.06, 0.24)) : 0;
+              const ky = (1 - eO3(kin)) * KH - roll * KH + (roll > 0.5 ? -1 : 1) * eI3(lout) * KH;
+              o.kin.style.transform = "translateY(" + ky.toFixed(1) + "px)";
+              const shown = kin > 0 && lout < 1; o.k1.style.visibility = shown && roll < 1 ? "visible" : "hidden"; o.k2.style.visibility = shown && roll > 0 ? "visible" : "hidden";
+              const ny = (1 - eO3(lin)) * 112 + eI3(seg(t, T.out + 0.03, 0.26)) * 112;
+              o.nin.style.transform = "translateY(" + ny.toFixed(1) + "%)";
+              o.nin.style.filter = lin > 0 && lin < 0.45 ? "blur(" + ((1 - lin / 0.45) * 6).toFixed(1) + "px)" : "none";
+            });
+
+            // ----- plate dim (the evidence's dimmed shot) -----
+            if (plate) $("#dim").style.opacity = (eIO2(seg(t, 0.2, 0.5)) * (1 - eIO2(seg(t, T.out + 0.2, 0.45)))).toFixed(3);
+          }
+
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+          const tl = gsap.timeline({ paused: true });
+          renderAt(0);
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          if (plate) {
+            Look.impact(tl, T.hit, { shake: "#shake", amp: 6, dur: 0.3, flash: 0, zoom: 1.012 });
+            Look.push(tl, "#push", 0, T.end, { to: 1.04 });
+          }
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        }
+
+        const FACES = ["800 100px Inter", "900 100px Archivo"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(build);
+      })();
+    </script>
+  </body>
+</html>

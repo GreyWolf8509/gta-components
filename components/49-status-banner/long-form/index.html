@@ -1,0 +1,377 @@
+<!doctype html>
+<!-- 49 Status banner, variant A: "Passed banner". 16:9 1920x1080, 30 fps, 5.8 s. Full kind: the footage always shows.
+     The creators' "mission passed" moment, our way: on the hit the shot drains to black-and-white and a full-width smoked-glass
+     band splits open from a gold line. CHALLENGE PASSED flips up into it letter by letter as real Three.js geometry (traced
+     Archivo outlines, extruded, gold face with a polished gold lip and black-chrome walls). Then one gold light sweep crosses
+     the frame: it rakes the bevels (HDR bloom) and paints the colour back into the footage behind it. The band collapses
+     into its line on the exit. Our own lettering; no Pricedown, no game logos. See gta/DESIGN.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #000; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif; background: #000;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake { position: absolute; inset: 0; }
+      .layer { position: absolute; inset: 0; }
+      .pushed { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      /* the black-and-white copy of the held shot (media/party-bw-h.mp4); the sweep clips it away to paint the colour back */
+      #greyWrap .shot { filter: contrast(1.22) brightness(0.8); }
+      /* the band: the same shot pre-blurred (media/party-glass-h.mp4) and smoked (glass, not a flat box) */
+      #bandWrap .shot { filter: brightness(0.36) saturate(0.55) contrast(1.12); }
+      #bandTint { position: absolute; left: 0; width: 100%;
+        background: linear-gradient(180deg, rgba(255,214,140,.10) 0%, rgba(0,0,0,0) 9%, rgba(0,0,0,0) 70%, rgba(0,0,0,.30) 100%),
+                    radial-gradient(ellipse 58% 120% at 50% 50%, rgba(0,0,0,.30) 0%, rgba(0,0,0,0) 100%); }
+      .shade { position: absolute; left: 0; width: 100%; height: 90px; }
+      #shadeT { background: linear-gradient(0deg, rgba(0,0,0,.42), rgba(0,0,0,0)); }
+      #shadeB { background: linear-gradient(180deg, rgba(0,0,0,.42), rgba(0,0,0,0)); }
+      .edge { position: absolute; left: 0; width: 1920px; height: 3px; transform-origin: 50% 50%;
+        background: linear-gradient(90deg, rgba(246,196,83,0) 0%, rgba(246,196,83,.85) 22%, #FFE9B0 50%, rgba(246,196,83,.85) 78%, rgba(246,196,83,0) 100%);
+        box-shadow: 0 0 14px rgba(246,180,60,.55), 0 0 3px rgba(255,220,140,.9); }
+      #sweep { position: absolute; top: -60px; width: 520px; height: 1200px; mix-blend-mode: screen; pointer-events: none;
+        background: linear-gradient(90deg, rgba(255,170,40,0) 0%, rgba(255,176,60,.16) 28%, rgba(255,214,130,.42) 47%, rgba(255,246,214,.58) 50%, rgba(255,214,130,.42) 53%, rgba(255,176,60,.16) 72%, rgba(255,170,40,0) 100%); }
+      #gl { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; display: block; }
+      #bandContent { position: absolute; inset: 0; }
+      #sub { position: absolute; left: 0; width: 100%; height: 48px; overflow: hidden; text-align: center; }
+      #subIn { display: inline-block; font: 800 38px/48px "Inter"; letter-spacing: .16em; text-indent: .16em; color: #fff; white-space: nowrap;
+        text-shadow: 0 2px 10px rgba(0,0,0,.55); font-feature-settings: "tnum" 1; }
+      #subIn b { color: #F6C453; font-weight: 800; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5.8" data-width="1920" data-height="1080">
+      <div id="shake">
+        <!-- footage: the cash table pre-roll, then the held party shot (it starts 2 frames early underneath the cut) -->
+        <div class="layer" id="plateWrap"><div class="pushed">
+          <video id="shotB" class="clip shot" src="assets/shots/v35-penthouse-dusk-h.mp4" muted playsinline data-start="0.8667" data-duration="4.9333" data-media-start="0" data-track-index="0"></video>
+          <video id="shotA" class="clip shot" src="assets/shots/v10-cash-table-h.mp4" muted playsinline data-start="0" data-duration="0.9333" data-media-start="0.2" data-track-index="1"></video>
+        </div></div>
+        <div class="layer" id="greyWrap"><div class="pushed">
+          <video id="shotBgrey" class="clip shot" src="media/party-bw-h.mp4" muted playsinline data-start="0.8667" data-duration="4.9333" data-media-start="0" data-track-index="2"></video>
+        </div></div>
+        <div class="layer" id="bandWrap"><div class="pushed">
+          <video id="shotBband" class="clip shot" src="media/party-glass-h.mp4" muted playsinline data-start="0.8667" data-duration="4.9333" data-media-start="0" data-track-index="3"></video>
+        </div><div id="bandTint"></div></div>
+        <div class="shade" id="shadeT"></div>
+        <div class="shade" id="shadeB"></div>
+        <div id="sweep" data-layout-allow-overflow></div>
+        <div class="edge" id="edgeT"></div>
+        <div class="edge" id="edgeB"></div>
+        <canvas id="gl" width="1920" height="1080"></canvas>
+        <div id="bandContent"><div id="sub" data-layout-allow-overflow><span id="subIn"></span></div></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        title: "CHALLENGE PASSED",                       // the status line (A-Z, 0-9, space . , ' ! ? - & : # $ +)
+        sub: "<b>$1,000,000</b> IN 24 HOURS",            // the white line under it ("" to hide); <b> = gold
+        tracking: 12,                                    // extra letter spacing, font units (cap height = 688)
+        // material: gold face (top -> bottom), the polished lip of the bevel, and the deep walls (black chrome)
+        face: ["#FFF0BC", "#F8CC58", "#E39A22", "#9A560C"],
+        lip: "#F6C453",
+        wall: "#16110A",
+        // layout in canvas px: the band (centre y, height) and the title (centre x, cap-centre y, ink width)
+        band: { y: 520, h: 300 },
+        word: { x: 960, y: 486, width: 1440 },
+        subY: 612,
+        bloom: { strength: 0.55, threshold: 1.25 },
+        // the held shot's three layers (colour, black-and-white, band glass) share these ids
+        held: ["shotB", "shotBgrey", "shotBband"],
+        timing: { hit: 1.3, band: 1.3, flip: 1.42, stagger: 0.024, flipDur: 0.46, sweep: 2.02, sweepDur: 0.78, sub: 2.28, exit: 4.95, end: 5.8 }
+      };
+
+      (function () {
+        const T = CONFIG.timing, W = 1920, H = 1080, $ = (s) => document.querySelector(s);
+        const F = window.BANNER_GLYPHS;
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+        const lerp = (a, b, p) => a + (b - a) * p;
+        const smooth = (a, b, x) => { const p = clamp((x - a) / (b - a), 0, 1); return p * p * (3 - 2 * p); };
+        const E = (n) => gsap.parseEase(n);
+        const eFlip = E("back.out(1.9)"), eOpen = E("back.out(1.5)"), eExpo = E("expo.out"), eIn3 = E("power3.in"), eSweep = E("power2.inOut"), eSine = E("sine.inOut");
+
+        $("#subIn").innerHTML = CONFIG.sub;
+        if (!CONFIG.sub) $("#sub").style.display = "none";
+
+        // ---------- renderer + HDR bloom (the glints come from the metal itself) ----------
+        const canvas = $("#gl");
+        const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+        renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 0);
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.12;
+        const scene = new THREE.Scene();
+        const FOV = 22, PPU = CONFIG.word.width / 16;            // the title is 16 world units wide; PPU = px per unit at z = 0
+        const DIST = (H / PPU / 2) / Math.tan(FOV * Math.PI / 360);
+        const camera = new THREE.PerspectiveCamera(FOV, W / H, 0.1, 400);
+
+        const BLOOM_OK = renderer.capabilities.isWebGL2 && renderer.extensions.has("EXT_color_buffer_float");
+        const rtMain = new THREE.WebGLRenderTarget(W, H, { type: THREE.HalfFloatType, samples: 4 });
+        const RTO = { type: THREE.HalfFloatType, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false };
+        const LV = [2, 4, 8].map((d) => [new THREE.WebGLRenderTarget(W / d, H / d, RTO), new THREE.WebGLRenderTarget(W / d, H / d, RTO)]);
+        const postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), postScene = new THREE.Scene();
+        const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2)); quad.frustumCulled = false; postScene.add(quad);
+        const VS = "varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }";
+        const post = (u, fs, extra) => new THREE.ShaderMaterial(Object.assign({ uniforms: u, vertexShader: VS, fragmentShader: fs, depthTest: false, depthWrite: false, blending: THREE.NoBlending }, extra || {}));
+        const brightMat = post({ tSrc: { value: null }, uTh: { value: 1.2 }, uKnee: { value: 0.6 } }, [
+          "uniform sampler2D tSrc; uniform float uTh, uKnee; varying vec2 vUv;",
+          "void main(){ vec4 c = texture2D(tSrc, vUv); float l = max(c.r, max(c.g, c.b)); if (!(l < 6.0e4)) { c = vec4(0.0); l = 0.0; }",
+          "  float k = smoothstep(uTh, uTh + uKnee, l); gl_FragColor = vec4(c.rgb * k * c.a, 1.0); }"].join("\n"));
+        const blurMat = post({ tSrc: { value: null }, uDir: { value: new THREE.Vector2() } }, [
+          "uniform sampler2D tSrc; uniform vec2 uDir; varying vec2 vUv;",
+          "void main(){ vec3 c = texture2D(tSrc, vUv).rgb * 0.2270270270;",
+          "  c += (texture2D(tSrc, vUv + uDir * 1.3846153846).rgb + texture2D(tSrc, vUv - uDir * 1.3846153846).rgb) * 0.3162162162;",
+          "  c += (texture2D(tSrc, vUv + uDir * 3.2307692308).rgb + texture2D(tSrc, vUv - uDir * 3.2307692308).rgb) * 0.0702702703;",
+          "  gl_FragColor = vec4(c, 1.0); }"].join("\n"));
+        const compMat = post({ tMain: { value: null }, t1: { value: null }, t2: { value: null }, t3: { value: null }, uStr: { value: 0.7 } }, [
+          "uniform sampler2D tMain, t1, t2, t3; uniform float uStr; varying vec2 vUv;",
+          "void main(){ vec4 m = texture2D(tMain, vUv); if (!(m.r + m.g + m.b + m.a < 1.0e5)) m = vec4(0.0);",
+          "  vec3 b = texture2D(t1, vUv).rgb + texture2D(t2, vUv).rgb * 0.75 + texture2D(t3, vUv).rgb * 0.5; if (!(b.r + b.g + b.b < 1.0e5)) b = vec3(0.0);",
+          "  gl_FragColor = vec4(m.rgb + b * uStr, m.a);",
+          "  #include <tonemapping_fragment>",
+          "  #include <colorspace_fragment>",
+          "}"].join("\n"), { toneMapped: true });
+        function runPass(mat, target) { quad.material = mat; renderer.setRenderTarget(target); renderer.render(postScene, postCam); }
+        function renderFrame(bloomStr) {
+          if (!BLOOM_OK) { renderer.setRenderTarget(null); renderer.render(scene, camera); return; }
+          renderer.setRenderTarget(rtMain); renderer.render(scene, camera);
+          brightMat.uniforms.tSrc.value = rtMain.texture; brightMat.uniforms.uTh.value = CONFIG.bloom.threshold; runPass(brightMat, LV[0][0]);
+          let src = LV[0][0];
+          LV.forEach(([A, B]) => {
+            blurMat.uniforms.tSrc.value = src.texture; blurMat.uniforms.uDir.value.set(1 / A.width, 0); runPass(blurMat, B);
+            blurMat.uniforms.tSrc.value = B.texture; blurMat.uniforms.uDir.value.set(0, 1 / A.height); runPass(blurMat, A);
+            src = A;
+          });
+          compMat.uniforms.tMain.value = rtMain.texture;
+          compMat.uniforms.t1.value = LV[0][0].texture; compMat.uniforms.t2.value = LV[1][0].texture; compMat.uniforms.t3.value = LV[2][0].texture;
+          compMat.uniforms.uStr.value = bloomStr;
+          runPass(compMat, null);
+        }
+
+        // ---------- studio environment (computed once): dark room, a top softbox, a hot horizon strip, warm side cards ----------
+        const envScene = new THREE.Scene();
+        envScene.add(new THREE.Mesh(new THREE.SphereGeometry(60, 48, 24), new THREE.ShaderMaterial({
+          side: THREE.BackSide, depthWrite: false,
+          vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: [
+            "varying vec3 vP;",
+            "void main(){",
+            "  float y = vP.y;",
+            "  vec3 c = mix(vec3(0.012, 0.010, 0.008), vec3(0.09, 0.075, 0.06), smoothstep(-0.4, 0.5, y));",
+            "  c += vec3(1.0, 0.93, 0.80) * 3.2 * smoothstep(0.62, 0.86, y);",                       // top softbox
+            "  c += vec3(1.0, 0.88, 0.66) * 1.7 * exp(-pow((y - 0.22) / 0.05, 2.0)) * smoothstep(-0.2, 0.6, vP.z);",   // horizon strip in front
+            "  c += vec3(1.0, 0.80, 0.52) * 1.4 * smoothstep(0.72, 0.94, abs(vP.x)) * smoothstep(-0.3, 0.3, y);",      // side cards
+            "  gl_FragColor = vec4(c, 1.0);",
+            "}"].join("\n")
+        })));
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        scene.environment = pmrem.fromScene(envScene, 0.0, 0.1, 200).texture;
+
+        // ---------- lights ----------
+        const key = new THREE.DirectionalLight(0xfff1dc, 2.2); key.position.set(-6, 9, 10); scene.add(key);
+        const rim = new THREE.DirectionalLight(0xffc06a, 1.3); rim.position.set(7, 4, -8); scene.add(rim);
+        scene.add(new THREE.HemisphereLight(0xfff2dd, 0x2a1a08, 0.7));
+
+        // ---------- materials; the sweep's light (RAKE) lives in both ----------
+        const RAKE = { pos: { value: new THREE.Vector3(-99, 0, 3) }, amt: { value: 0 } };
+        const rakeGLSL =
+          "  { vec3 Nw = inverseTransformDirection(normal, viewMatrix); if (!(dot(Nw, Nw) > 1e-6 && dot(Nw, Nw) < 10.0)) Nw = vec3(0.0, 0.0, 1.0);\n" +
+          "    vec3 Lr = uRakePos - vWP; Lr = normalize(Lr);\n" +
+          "    vec3 Hh = normalize(Lr + normalize(cameraPosition - vWP));\n" +
+          "    float wx = (vWP.x - uRakePos.x) / 1.0;\n" +
+          "    float sp = pow(max(dot(Nw, Hh), 0.0), 60.0) * exp(-wx * wx);\n" +
+          "    float sheet = exp(-wx * wx * 1.6) * 0.18;\n" +
+          "    outgoingLight += mix(diffuseColor.rgb, vec3(1.0, 0.95, 0.85), 0.45) * (sp + sheet) * uRakeAmt; }\n#include <opaque_fragment>";
+        function addRake(mat, extraVert, extraFrag) {
+          mat.onBeforeCompile = (sh) => {
+            sh.uniforms.uRakePos = RAKE.pos; sh.uniforms.uRakeAmt = RAKE.amt;
+            if (extraFrag) Object.assign(sh.uniforms, extraFrag.uniforms);
+            sh.vertexShader = "varying vec3 vWP; varying float vLZ;\n" + sh.vertexShader.replace("#include <worldpos_vertex>",
+              "#include <worldpos_vertex>\n  vWP = (modelMatrix * vec4(transformed, 1.0)).xyz; vLZ = position.z;");
+            let fs = "varying vec3 vWP; varying float vLZ; uniform vec3 uRakePos; uniform float uRakeAmt;\n" + (extraFrag ? extraFrag.decl : "") + sh.fragmentShader;
+            if (extraFrag) fs = fs.replace("#include <color_fragment>", "#include <color_fragment>\n" + extraFrag.color);
+            sh.fragmentShader = fs.replace("#include <opaque_fragment>", rakeGLSL);
+          };
+          return mat;
+        }
+        function faceTexture() {
+          const c = document.createElement("canvas"); c.width = 64; c.height = 512;
+          const x = c.getContext("2d"), g = x.createLinearGradient(0, 0, 0, 512);
+          g.addColorStop(0, CONFIG.face[0]); g.addColorStop(0.34, CONFIG.face[1]); g.addColorStop(0.7, CONFIG.face[2]); g.addColorStop(1, CONFIG.face[3]);
+          x.fillStyle = g; x.fillRect(0, 0, 64, 512);
+          for (let i = 0; i < 512; i += 2) {   // fine brushed streaks (deterministic)
+            const v = Look.hash(i * 7 + 3);
+            x.fillStyle = v > 0.5 ? "rgba(255,255,255," + ((v - 0.5) * 0.05).toFixed(3) + ")" : "rgba(0,0,0," + ((0.5 - v) * 0.05).toFixed(3) + ")";
+            x.fillRect(0, i, 64, 1);
+          }
+          const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+        }
+
+        // ---------- the title: traced Archivo outlines, kerned, extruded with a rounded bevel ----------
+        const DEPTH = 0.62, BT = 0.075, BS = 0.07, MIN_SEG = 0.03, CURVE_SEG = 10;
+        function glyphShapes(d, ox, oy, s) {
+          const sp = new THREE.ShapePath(); const re = /([MLQCZ])([^MLQCZ]*)/g; let m;
+          while ((m = re.exec(d))) {
+            const n = m[2].trim() ? m[2].trim().split(/[\s,]+/).map(Number) : [];
+            const P = []; for (let i = 0; i < n.length; i += 2) P.push(ox + n[i] * s, oy - n[i + 1] * s);
+            if (m[1] === "M") sp.moveTo(P[0], P[1]);
+            else if (m[1] === "L") sp.lineTo(P[0], P[1]);
+            else if (m[1] === "Q") sp.quadraticCurveTo(P[0], P[1], P[2], P[3]);
+            else if (m[1] === "C") sp.bezierCurveTo(P[0], P[1], P[2], P[3], P[4], P[5]);
+          }
+          const clean = (pts) => {
+            const out = [];
+            for (const p of pts) if (!out.length || p.distanceTo(out[out.length - 1]) > MIN_SEG) out.push(p);
+            while (out.length > 3 && out[0].distanceTo(out[out.length - 1]) <= MIN_SEG) out.pop();
+            return out;
+          };
+          return sp.toShapes(false).map((sh) => {
+            const s2 = new THREE.Shape(clean(sh.getPoints(CURVE_SEG)));
+            sh.holes.forEach((h) => s2.holes.push(new THREE.Path(clean(h.getPoints(CURVE_SEG)))));
+            return s2;
+          });
+        }
+        const text = CONFIG.title.toUpperCase();
+        const glyphs = []; let pen = 0;
+        for (let i = 0; i < text.length; i++) {
+          const ch = F.g[text[i]] ? text[i] : " ", g = F.g[ch];
+          glyphs.push({ ch, x: pen, g });
+          pen += g[0] + (i < text.length - 1 ? (F.k[text[i] + text[i + 1]] || 0) + CONFIG.tracking : 0);
+        }
+        const ink = glyphs.filter((o) => o.ch !== " ");
+        const inkL = ink[0].x + ink[0].g[2], inkR = ink[ink.length - 1].x + ink[ink.length - 1].g[3];
+        const S = 16 / (inkR - inkL), CAP = F.cap * S;
+        // the group's origin is the band centre (the exit collapses into it); the cap centre sits at CONFIG.word.y
+        const group = new THREE.Group(); scene.add(group);
+        const gx = (CONFIG.word.x - W / 2) / PPU, gy = (H / 2 - CONFIG.band.y) / PPU;
+        const capMid = (CONFIG.band.y - CONFIG.word.y) / PPU;      // cap centre above the band centre, world units
+        const base = capMid - CAP / 2;
+        const ox0 = -8 - inkL * S;
+        const tex = faceTexture(); tex.repeat.set(1, 1 / CAP); tex.offset.set(0, -base / CAP);
+        const faceMat = addRake(new THREE.MeshPhysicalMaterial({ map: tex, metalness: 0.55, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 1.1 }));
+        // walls: the front bevel is a polished gold lip; behind it the walls fall to black chrome (our take on the outline)
+        const wallMat = addRake(new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 1, roughness: 0.2, envMapIntensity: 1.25 }), null, {
+          uniforms: { uLip: { value: new THREE.Color(CONFIG.lip) }, uWall: { value: new THREE.Color(CONFIG.wall) }, uBT: { value: BT } },
+          decl: "uniform vec3 uLip, uWall; uniform float uBT;\n",
+          color: "  diffuseColor.rgb = mix(uWall, uLip, smoothstep(-uBT * 1.6, -uBT * 0.55, vLZ));"
+        });
+        const letters = [];
+        glyphs.forEach((G) => {
+          if (G.ch === " ") return;
+          const shapes = glyphShapes(G.g[1], ox0 + G.x * S, base, S);
+          const geo = new THREE.ExtrudeGeometry(shapes, { depth: DEPTH, bevelEnabled: true, bevelThickness: BT, bevelSize: BS, bevelOffset: -BS, bevelSegments: 4, curveSegments: 1 });
+          geo.computeBoundingBox();
+          const bb = geo.boundingBox.clone(), cx = (bb.min.x + bb.max.x) / 2, cy = (bb.min.y + bb.max.y) / 2;
+          geo.translate(-cx, -cy, -(DEPTH + BT));     // front face at z = 0
+          geo.computeVertexNormals();
+          const nA = geo.attributes.normal;   // degenerate bevel triangles give zero / NaN normals: point them forward
+          for (let q = 0; q < nA.count; q++) { const l = Math.hypot(nA.getX(q), nA.getY(q), nA.getZ(q)); if (!(l > 1e-6)) nA.setXYZ(q, 0, 0, 1); }
+          const mesh = new THREE.Mesh(geo, [faceMat, wallMat]);
+          mesh.position.set(cx, cy, 0);
+          mesh.userData = { i: letters.length, cx, cy };
+          group.add(mesh); letters.push(mesh);
+        });
+        const NL = letters.length;
+
+        // ---------- DOM band parts ----------
+        const plateEls = Array.from(document.querySelectorAll(".pushed"));
+        const greyWrap = $("#greyWrap"), bandWrap = $("#bandWrap"), tint = $("#bandTint");
+        const shadeT = $("#shadeT"), shadeB = $("#shadeB"), edgeT = $("#edgeT"), edgeB = $("#edgeB"), sweep = $("#sweep");
+        const bandContent = $("#bandContent"), sub = $("#sub"), subIn = $("#subIn");
+        sub.style.top = (CONFIG.subY - 24) + "px";
+        bandContent.style.transformOrigin = "960px " + CONFIG.band.y + "px";
+        const SK = 150;                              // sweep edge slant: x shift between top and centre, px
+        const SKEW = Math.atan(-2 * SK / H) * 180 / Math.PI;
+
+        // ---------- per-frame ----------
+        const prj = new THREE.Vector3();
+        function renderAt(t) {
+          t = clamp(t, 0, T.end);
+          const BY = CONFIG.band.y, BH = CONFIG.band.h;
+          // band: the gold line draws out from the centre, then splits open into the band; on the exit it closes and retracts
+          const lineK = eExpo(clamp((t - T.band) / 0.16, 0, 1)) * (1 - E("power2.in")(clamp((t - T.exit - 0.27) / 0.13, 0, 1)));
+          const openK = eOpen(clamp((t - T.band - 0.1) / 0.34, 0, 1));
+          const exitK = eIn3(clamp((t - T.exit) / 0.28, 0, 1));
+          const hh = (BH / 2) * openK * (1 - exitK);
+          const top = BY - hh, bot = BY + hh;
+          bandWrap.style.clipPath = hh > 0.25 ? "inset(" + top.toFixed(2) + "px 0px " + (H - bot).toFixed(2) + "px 0px)" : "inset(50% 0px 50% 0px)";
+          bandWrap.style.visibility = hh > 0.25 ? "visible" : "hidden";
+          tint.style.top = top + "px"; tint.style.height = (bot - top) + "px";
+          shadeT.style.top = (top - 90) + "px"; shadeB.style.top = bot + "px";
+          shadeT.style.opacity = shadeB.style.opacity = (openK * (1 - exitK)).toFixed(3);
+          const lineOn = lineK > 0.002;
+          edgeT.style.visibility = edgeB.style.visibility = lineOn ? "visible" : "hidden";
+          edgeT.style.transform = "translateY(" + (top - 1.5).toFixed(2) + "px) scaleX(" + lineK.toFixed(4) + ")";
+          edgeB.style.transform = "translateY(" + (bot - 1.5).toFixed(2) + "px) scaleX(" + lineK.toFixed(4) + ")";
+          edgeT.style.top = edgeB.style.top = "0px";
+
+          // the drain: the held shot goes black-and-white on the hit...
+          greyWrap.style.opacity = smooth(T.hit, T.hit + 0.28, t).toFixed(3);
+          // ...and the gold sweep paints the colour back behind it (the B/W copy is clipped away left to right)
+          const sp = clamp((t - T.sweep) / T.sweepDur, 0, 1), X = lerp(-560, W + 560, eSweep(sp));
+          greyWrap.style.clipPath = "polygon(" + (X + SK).toFixed(1) + "px 0px, 100% 0px, 100% 100%, " + (X - SK).toFixed(1) + "px 100%)";
+          const swOn = sp > 0 && sp < 1;
+          sweep.style.visibility = swOn ? "visible" : "hidden";
+          sweep.style.transform = "translateX(" + (X - 260).toFixed(1) + "px) skewX(" + SKEW.toFixed(3) + "deg)";
+          sweep.style.opacity = swOn ? Math.pow(Math.sin(Math.PI * sp), 0.35).toFixed(3) : "0";
+
+          // sub line rises through its window after the sweep has passed it
+          const sk = E("expo.out")(clamp((t - T.sub) / 0.5, 0, 1));
+          subIn.style.transform = "translateY(" + ((1 - sk) * 105).toFixed(2) + "%)";
+          bandContent.style.transform = "scaleY(" + (1 - exitK).toFixed(4) + ")";
+          bandContent.style.visibility = exitK >= 1 ? "hidden" : "visible";
+
+          // camera: a slow lateral drift across the hold, so the walls and lip read as depth
+          const drift = eSine(clamp((t - T.flip) / (T.exit - T.flip + 0.4), 0, 1));
+          camera.position.set(gx + lerp(-1.1, 1.0, drift), gy + lerp(-0.25, 0.35, drift) + 0.0, DIST);
+          camera.lookAt(gx, gy, 0);
+          camera.updateProjectionMatrix();
+          group.position.set(gx, gy, 0);
+          group.rotation.set(-0.11, 0, 0);
+          group.scale.set(1, Math.max(1 - exitK, 0.0001), 1);
+          // the letters flip up into the band one by one (they rise off their backs, rock past upright and lock)
+          letters.forEach((m) => {
+            const s0 = T.flip + m.userData.i * T.stagger;
+            const p = clamp((t - s0) / T.flipDur, 0, 1);
+            m.visible = t >= s0 && exitK < 1;
+            const k = eFlip(p);
+            m.rotation.x = lerp(-1.62, 0, k);
+            m.position.z = lerp(-0.9, 0, E("power2.out")(p));
+            m.position.y = m.userData.cy + lerp(-0.35, 0, E("power3.out")(p));
+          });
+          // the sweep's light on the metal: a raking lobe that rides the sweep's screen position across the title
+          const wx = (X - W / 2) / PPU + 0;
+          RAKE.pos.value.set(wx, gy + 1.6, 2.2);
+          RAKE.amt.value = swOn ? 3.6 * Math.pow(Math.sin(Math.PI * sp), 0.5) : 0;
+          key.intensity = 2.2;
+          renderFrame(CONFIG.bloom.strength * (1 + (swOn ? 0.6 * Math.sin(Math.PI * sp) : 0)));
+          canvas.style.filter = exitK > 0 && exitK < 1 ? "blur(" + (3 * exitK).toFixed(2) + "px)" : "none";
+        }
+        window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+
+        Promise.all(["800 38px Inter", "900 38px Inter"].map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          Look.push(tl, ".pushed", 0, T.end, { from: 1.0, to: 1.05 });
+          // the hit: a small punch as the band splits open (no flash: light comes from the sweep)
+          Look.impact(tl, T.band + 0.12, { shake: "#shake", amp: 3, dur: 0.25, flash: 0, zoom: 1.008 });
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+          renderAt(0);
+        });
+        renderAt(0);
+      })();
+    </script>
+  </body>
+</html>

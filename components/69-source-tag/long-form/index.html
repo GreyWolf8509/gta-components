@@ -1,0 +1,219 @@
+<!doctype html>
+<!-- GTA-niche 69 Source tag, variant A: "Source pill" (16:9 long-form, 1920x1080, 30 fps, 5.8 s).
+     The creators' small source pill that sits centred just above the caption line so a claim carries its source.
+     Ours is a real object (Three.js): a hot-pink candy-gloss capsule with a dark glass lens and a chrome bezel at its
+     left end, holding our own chrome link mark. The caption rises in, the pill pops up as a disc and stretches out to
+     unroll "SOURCE: OFFICIAL TRAILER" (crisp DOM type pinned to the 3D face); on the cut the link snaps shut (payoff):
+     the pill takes the hit, the lens lights up pink, the bezel goes hot and one soft light sweep rakes across the gloss.
+     Variable: bg "plate" (sample footage) / "none" (transparent overlay). See ../DECISIONS.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/pill3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov, #t3d { position: absolute; inset: 0; pointer-events: none; }
+      /* the printed type on the pill face (pinned to the 3D face every frame) */
+      #ptxt { position: absolute; left: 0; top: 0; transform-origin: 0 0; white-space: nowrap; }
+      #ptxt .row { position: absolute; left: 0; top: 0; line-height: 1; white-space: nowrap; color: #FFFFFF;
+        text-shadow: 0 2px 0 rgba(122, 0, 58, .34), 0 0 2px rgba(122, 0, 58, .25); }
+      #ptxt .k { color: #FFE2F1; }
+      #ptxt .mk { display: inline-block; width: 0; height: 0; vertical-align: baseline; }
+      /* the caption line under it (the creators' lowercase heavy caption with one pink keyword) */
+      #cap { position: absolute; left: 0; top: 0; white-space: nowrap; color: #FFFFFF; font-weight: 800; letter-spacing: -0.012em;
+        line-height: 1; paint-order: stroke fill; -webkit-text-stroke: 5px #16060F;
+        text-shadow: 0 3px 3px rgba(10, 2, 8, .45), 0 6px 22px rgba(10, 2, 8, .38); }
+      #cap .m { display: inline-block; overflow: hidden; vertical-align: top; padding: .08em .1em .22em; margin: -.08em -.1em -.22em; }
+      #cap .w { display: inline-block; will-change: transform; }
+      #cap .kw { color: #FF5CB2; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5.8" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="s4" class="clip shot" src="assets/shots/v28-tennis-mansion-h.mp4" muted playsinline data-start="3.5" data-duration="2.3" data-media-start="0" data-track-index="3"></video>
+        <video id="s3" class="clip shot" src="assets/shots/v03-franklin-street-h.mp4" muted playsinline data-start="2.4667" data-duration="1.1" data-media-start="0" data-track-index="2"></video>
+        <video id="s2" class="clip shot" src="assets/shots/v33-trio-kitchen-h.mp4" muted playsinline data-start="1.2667" data-duration="1.2667" data-media-start="0" data-track-index="1"></video>
+        <video id="s1" class="clip shot" src="assets/shots/v22-trio-jumpsuits-h.mp4" muted playsinline data-start="0" data-duration="1.3333" data-media-start="0" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="5.8" data-track-index="4">
+        <div id="t3d"></div>
+        <div id="ptxt"></div>
+        <div id="cap"></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        // the pill: one row, kicker + source name (keep it short: it is a tag, not a sentence)
+        rows: [[{ text: "SOURCE:", cls: "k" }, { text: " OFFICIAL TRAILER", cls: "m" }]],
+        rowFont: [{ family: "Inter", weight: 900, size: 31, tracking: 0.04, stretch: 100 }],
+        // the caption line the pill backs up (show:false for the pill alone over your own captions)
+        caption: { show: true, text: "you can switch between three criminals", keyword: "three criminals", size: 64 },
+        colors: {
+          pill: ["#FF9AD0", "#FF55AE", "#F42C92", "#C9177A"],         // candy-gloss face, top -> bottom
+          side: ["#FF4FA8", "#7E0A47", "#FFC4E4"],                    // moulded edge: near, far, lit lip
+          rim: "#FF8CCB", rimK: 0.5,                                   // the candy rim glow at the silhouette
+          lens: ["#5A1442", "#2E0A24", "#12030D"],                    // dark plum glass lens
+          glow: "#FF61B6",                                             // the lens lights up when the link closes
+          chrome: "#ECEFF4"
+        },
+        layout: { cx: 960, cy: 792, h: 76, lens: 0.33, bezel: 0.05, gap: 14, padR: 0.3, rest: { rx: 0.07, ry: -0.03 }, capBase: 902 },
+        // the link snaps shut on the cut (s1 -> s2 at 1.333 s)
+        timing: { cap: 0.18, in: 0.42, stretch: 0.56, click: 1.3333, out: 5.0, end: 5.8 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const $ = (s) => document.querySelector(s);
+        const C = CONFIG, L = C.layout, TM = C.timing, FR = 1 / 30, W = 1920, H = 1080;
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+        const lerp = (a, b, k) => a + (b - a) * k;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const FACES = ["900 100px Inter", "800 100px Inter", "900 100px Archivo"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          // ---------- the printed type: rows measured in DOM (advance width, baseline), stacked by cap height ----------
+          const ptxt = $("#ptxt"), rowsEl = [];
+          const CAPK = { Inter: 0.7275, Archivo: 0.688 };
+          let tw = 0, y = 0;
+          C.rows.forEach((row, i) => {
+            const F = C.rowFont[i], el = document.createElement("div"); el.className = "row";
+            el.style.fontFamily = "'" + F.family + "'"; el.style.fontWeight = F.weight; el.style.fontSize = F.size + "px";
+            el.style.letterSpacing = F.tracking + "em"; el.style.fontStretch = F.stretch + "%";
+            row.forEach((p) => { const s = document.createElement("span"); s.className = p.cls; s.textContent = p.text; el.appendChild(s); });
+            const mk = document.createElement("span"); mk.className = "mk"; el.appendChild(mk);
+            ptxt.appendChild(el);
+            const base = mk.offsetTop, capH = CAPK[F.family] * F.size, w = el.offsetWidth - F.tracking * F.size;
+            if (i > 0) y += (F.gap || 12);
+            el.style.top = (y - (base - capH)).toFixed(2) + "px";
+            y += capH; tw = Math.max(tw, w); rowsEl.push({ el, w });
+          });
+          const span = y;
+          ptxt.style.width = Math.ceil(tw) + "px"; ptxt.style.height = Math.ceil(span) + "px";
+          // ---------- pill geometry from the text ----------
+          const h = L.h, R = h / 2, RW = h * L.lens, BZ = h * L.bezel;
+          const lead = RW + BZ * 1.1 + L.gap, padR = R * L.padR;      // lens edge -> text, text -> right end
+          const uAf = (tw + lead - padR) / 2, PW = 2 * uAf + h;
+          // ---------- motion ----------
+          const E = (n) => gsap.parseEase(n), eIO = E("power2.inOut"), eSine = E("sine.inOut");
+          const spring = (r, A, tau, per) => (r <= 0 ? 0 : A * Math.exp(-r / tau) * Math.sin(r * 2 * Math.PI / per));
+          const settle = (r, tau, per) => (r <= 0 ? 0 : 1 - Math.exp(-r / tau) * Math.cos(r * 2 * Math.PI / per));
+          const squash = (r, a) => { const w = r / 0.22; if (r <= 0 || w >= 1) return 0; return a * Math.cos(w * Math.PI * 1.5) * Math.exp(-3.2 * w); };
+          const pk = (r, a, hold, dec) => (r < 0 ? 0 : r < a ? r / a : r < a + hold ? 1 : Math.exp(-(r - a - hold) / dec));
+          const tPop = 0.2, outA = TM.out, outB = TM.out + 0.2, outEnd = outB + 0.2;
+          function geo(t) {
+            // pop up: the disc stands up from lying back, scales up and springs
+            const r = t - TM.in, u = clamp(r / tPop, 0, 1);
+            let s = r < 0 ? 0 : lerp(0.35, 1, 1 - Math.pow(1 - u, 3)) + spring(r - tPop, 0.05, 0.07, 0.22);
+            let rx = L.rest.rx + (r < 0 ? 0 : -1.25 * Math.pow(1 - u, 2.2)) + spring(r - tPop, -0.12, 0.08, 0.26);
+            // stretch: the capsule unrolls from a disc to full length (fast start, ~8% overshoot)
+            let uA = uAf * settle(t - TM.stretch, 0.085, 0.44);
+            // payoff: the hit. A 0.12 s wind-up (the pill draws up), then on the click a 2-frame squash to x 1.04 /
+            // y 0.92 that springs back elastically, a push back into the frame and a nod
+            const q = t - TM.click;
+            const hit = q <= 0 ? 0 : q < 2 * FR ? q / (2 * FR) : Math.exp(-(q - 2 * FR) / 0.1) * Math.cos(2 * Math.PI * (q - 2 * FR) / 0.24);
+            const pre = q < 0 ? Math.pow(clamp((t - (TM.click - 0.12)) / 0.12, 0, 1), 2) : 0;
+            let z = spring(q, -30, 0.07, 0.2);
+            rx += spring(q, -0.05, 0.09, 0.24);
+            // exit: the capsule rolls back into its disc, then the disc tips back and drops away
+            const xo = clamp((t - outA) / (outB - outA), 0, 1), xd = clamp((t - outB) / (outEnd - outB), 0, 1);
+            uA *= 1 - Math.pow(xo, 2.2);
+            if (xd > 0) { const k = 1 - Math.pow(1 - xd, 2.2); s *= 1 - k; rx -= 1.3 * k; }
+            const hold = clamp((t - TM.click - 0.4) / (outA - TM.click - 0.4), 0, 1);
+            const ry = L.rest.ry + 0.05 * (eSine(hold) - 0.5) * (t > TM.click ? 1 : 0);
+            return { s, rx, ry, rz: 0, z, uA, sx: 1 + 0.04 * hit - 0.012 * pre, sy: 1 - 0.08 * hit + 0.025 * pre, q, r, xo, xd };
+          }
+          const P3 = Pill3D({
+            W, H, fov: 18, px: L.cx, py: L.cy, w: PW, h,
+            colors: C.colors, lens: { r: RW, bezel: BZ }, shadow: 0.5, wideShadow: 0.26, shadowOff: [0, 9],
+            shutter: (t) => ((t > TM.in - 0.02 && t < TM.stretch + 0.3) || (t > TM.click - 0.13 && t < TM.click + 0.1) || t > outA - 0.02 ? 1 / 50 : 0),
+            subframes: 10,
+            pose: (t, tf) => {
+              if (tf < TM.in - 1e-4 || tf >= outEnd) return { hide: true };
+              const G = geo(t), P = { cx: L.cx, cy: L.cy, s: G.s, z: G.z, rx: G.rx, ry: G.ry, rz: G.rz, sx: G.sx, sy: G.sy, uA: G.uA };
+              // the link: open and idly swinging, then snapped shut on the cut (accelerating in, a small rebound)
+              const sn = clamp((t - (TM.click - 0.12)) / 0.12, 0, 1);
+              P.open = (1 - Math.pow(sn, 2.4)) * (0.94 + 0.06 * Math.sin((t - TM.in) * 7.0)) + spring(G.q, -0.12, 0.05, 0.14);
+              // the lens punches 1 -> 1.18 -> 1 on the click (2-frame attack, elastic settle)
+              P.lensS = 1 + 0.18 * (G.q <= 0 ? 0 : G.q < 2 * FR ? G.q / (2 * FR) : Math.exp(-(G.q - 2 * FR) / 0.08) * Math.cos(2 * Math.PI * (G.q - 2 * FR) / 0.3));
+              // light: the hit rakes the key across, the bezel goes hot (3-frame peak), the lens lights up and stays lit
+              const env = pk(G.q, 2 * FR, 3 * FR, 0.2);
+              P.rimHot = 1.3 * env;
+              P.linkHot = 0.9 * env + (G.q > 0 ? 0.3 : 0);
+              P.glow = G.q < 0 ? 0 : 0.5 + 0.5 * env;
+              P.bloom = 0.08 + 0.3 * env;
+              P.bloomTh = 1.3 + 0.15 * env;
+              const rk = eIO(clamp((G.q + 0.04) / 0.5, 0, 1));
+              P.keyAngle = -0.9 + 1.4 * rk - 0.7 * eSine(clamp((G.q - 0.6) / 3, 0, 1));
+              P.key = 2.0 + 0.9 * Math.exp(-Math.pow((G.q - 0.05) / 0.14, 2));
+              // one soft specular sweep across the gloss, left to right, riding the hit
+              const sw = clamp((G.q - 5 * FR) / 0.3, 0, 1);
+              if (sw > 0 && sw < 1) { const a = -uAf - R - 160, b = uAf + R + 160, e = E("power2.out")(sw); P.specX = a + (b - a) * e; P.specAmp = 0.62 * Math.sin(Math.PI * sw); P.specW = 70; }
+              return P;
+            }
+          });
+          $("#t3d").appendChild(P3.canvas);
+          // ---------- the caption: masked words with the keyword in pink ----------
+          const cap = $("#cap"), capWords = [];
+          if (C.caption.show) {
+            cap.style.fontSize = C.caption.size + "px";
+            const kw = C.caption.keyword ? C.caption.keyword.split(" ") : [], words = C.caption.text.split(" ");
+            let ki = words.findIndex((w, i) => kw.length && kw.every((k, j) => words[i + j] === k));
+            words.forEach((w, i) => {
+              const m = document.createElement("span"); m.className = "m";
+              const s = document.createElement("span"); s.className = "w" + (ki >= 0 && i >= ki && i < ki + kw.length ? " kw" : ""); s.textContent = w;
+              m.appendChild(s); cap.appendChild(m); capWords.push(s);
+              if (i < words.length - 1) cap.appendChild(document.createTextNode(" "));
+            });
+            const mk = document.createElement("span"); mk.style.cssText = "display:inline-block;width:0;height:0;vertical-align:baseline"; cap.appendChild(mk);
+            const base = mk.offsetTop;
+            cap.style.transform = "translate(" + (L.cx - cap.offsetWidth / 2).toFixed(1) + "px," + (L.capBase - base).toFixed(1) + "px)";
+          }
+          document.querySelectorAll("#root *").forEach((n) => { n.setAttribute("data-layout-allow-overlap", ""); n.setAttribute("data-layout-allow-occlusion", ""); });
+
+          const tl = gsap.timeline({ paused: true });
+          // ---------- render the 3D pill and pin the printed type to its face, every frame ----------
+          Look.drive(tl, 0, TM.end, (p) => {
+            const t = p * TM.end;
+            P3.renderAt(t);
+            if (P3.isHidden()) { ptxt.style.visibility = "hidden"; return; }
+            const G = geo(t), xL = -G.uA + lead, zT = 0.6;
+            const Q = P3.project([[xL, span / 2, zT], [xL + tw, span / 2, zT], [xL + tw, -span / 2, zT], [xL, -span / 2, zT]]);
+            ptxt.style.transform = Pill3D.quadMatrix(tw, span, Q);
+            // revealed by the pill's right end as it unrolls (and swallowed again on the exit)
+            const vis = (G.uA + R * 0.62) - xL, cut = clamp(tw - vis, 0, tw + 2);
+            ptxt.style.visibility = cut >= tw || G.s < 0.05 ? "hidden" : "visible";
+            ptxt.style.clipPath = cut > 0 ? "inset(-40px " + cut.toFixed(2) + "px -40px -40px)" : "none";
+          });
+          // ---------- caption: words rise through masks; drop out on the exit ----------
+          if (capWords.length) {
+            gsap.set(capWords, { yPercent: 175 });
+            tl.fromTo(capWords, { yPercent: 175 }, { yPercent: 0, duration: 0.42, ease: "expo.out", stagger: 0.04, immediateRender: false }, TM.cap);
+            tl.to(capWords, { yPercent: 175, duration: 0.24, ease: "power3.in", stagger: 0.02, immediateRender: false }, TM.out + 0.04);
+          }
+          if (plate) {
+            Look.push(tl, "#push", 0, TM.end, { to: 1.04 });
+            Look.impact(tl, TM.click, { shake: "#shake", amp: 3, dur: 0.2, zoom: 1.006, flash: 0 });
+          }
+          P3.renderAt(0);
+          tl.set({}, {}, TM.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,319 @@
+<!doctype html>
+<!-- 25 Sponsor card, variant B: "Code lower third" (16:9, 1920x1080, 30 fps, 6.25 s).
+     The compact sponsor plug that keeps gameplay running: the product (a real 3D can) pops in bottom-left (clear of the radar),
+     a glossy 3D sponsor plate hinges out from behind it, the discount code types into a coupon tile and locks in
+     (press, gold fill, tick), and a 30% OFF tab slams onto the tile's corner. Variable: bg "plate" / "none" (transparent). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/sponsor3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      #stage { position: absolute; inset: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.25" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="shot1" class="clip shot" src="assets/shots/v28-tennis-mansion-h.mp4" muted playsinline data-start="0" data-duration="2.45" data-media-start="0.06" data-track-index="0"></video>
+        <video id="shot2" class="clip shot" src="assets/shots/v11-yacht-h.mp4" muted playsinline data-start="2.45" data-duration="2.1" data-media-start="0" data-track-index="0"></video>
+        <video id="shot3" class="clip shot" src="assets/shots/v44-bridge-skyline-h.mp4" muted playsinline data-start="4.55" data-duration="1.7" data-media-start="0.02" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="6.25" data-track-index="1">
+        <div id="stage" data-layout-allow-occlusion data-layout-allow-overflow></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        brand: { name: "AFTERBURN", sub: "ENERGY" },
+        label: "USE CODE",
+        code: "EVEREST30",
+        tab: "30% OFF",                                  // the discount tab that slams onto the code tile's corner
+        canFoot: "ZERO SUGAR · 250 ML",
+        colors: {
+          plate: ["#F0303A", "#D0101E", "#7E0812"], edge: "#7A0812", accent: "#FFD23C", ink: "#16070B",
+          gold: ["#FFEB8F", "#FFC51F"], red: "#D3132A",
+          canTop: "#B80F22", canMid: "#E0242C", canBot: "#8E0A18"
+        },
+        // frame px. Bottom at 930 keeps the GTA radar (bottom-left ~300 x 140) clear; move both together to re-anchor.
+        can: { x: 205, bottom: 930, R: 62, H: 290 },
+        plate: { left: 170, top: 740, w: 780, h: 190 },
+        timing: { in: 0.25, type: 1.32, perChar: 0.07, payoff: 2.45, out: 5.5, end: 6.25 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const C = CONFIG, T = C.timing, K = C.colors, PI = Math.PI, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const Ez = (n) => gsap.parseEase(n);
+        const seg = (t, a, b, e) => { const p = t <= a ? 0 : t >= b ? 1 : (t - a) / (b - a); return e ? Ez(e)(p) : p; };
+        const spring = (t, t0, f, z) => { const x = t - t0; if (x <= 0) return 0; const w = 2 * PI * f, wd = w * Math.sqrt(1 - z * z);
+          return 1 - Math.exp(-z * w * x) * (Math.cos(wd * x) + (z * w / wd) * Math.sin(wd * x)); };
+        const wob = (t, t0, amp, f, k) => (t < t0 ? 0 : amp * Math.exp(-k * (t - t0)) * Math.sin(2 * PI * f * (t - t0)));
+        const TS = 2;
+
+        const FACES = ["900 100px Inter", "800 100px Inter", "700 100px Inter", "900 100px Archivo"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const mk = (w, h) => { const c = document.createElement("canvas"); c.width = Math.round(w * TS); c.height = Math.round(h * TS); return c; };
+          const arch = (g, size) => { g.font = "900 " + size + "px Archivo"; try { g.fontStretch = "condensed"; } catch (e) {} g.letterSpacing = "0px"; };
+          const inter = (g, wt, size, track) => { g.font = wt + " " + size + "px Inter"; try { g.fontStretch = "normal"; } catch (e) {} g.letterSpacing = (track || 0) + "px"; };
+          const fit = (g, text, maxW, maxS) => { arch(g, 100); const w = g.measureText(text).width; return Math.min(maxS, 100 * maxW / w); };
+          const yellowType = (g, text, x, y, size, stroke) => {
+            g.lineJoin = "round"; g.lineWidth = stroke; g.strokeStyle = K.ink;
+            g.save(); g.shadowColor = "rgba(40,0,6,.5)"; g.shadowBlur = 8; g.shadowOffsetY = 4; g.strokeText(text, x, y); g.restore();
+            const gr = g.createLinearGradient(0, y - size * 0.75, 0, y); gr.addColorStop(0, "#FFF6C2"); gr.addColorStop(0.42, K.accent); gr.addColorStop(1, "#F5A30E");
+            g.fillStyle = gr; g.fillText(text, x, y);
+          };
+
+          // ---------------- plate face ----------------
+          const PB = 5, PW = C.plate.w - 2 * PB, PH = C.plate.h - 2 * PB;
+          const CHIP = { x: 290, y: 94, w: 442, h: 74, bevel: 3, depth: 11 };
+          const plateCv = mk(PW, PH);
+          (function drawPlate() {
+            const g = plateCv.getContext("2d"); g.scale(TS, TS);
+            let gr = g.createLinearGradient(0, 0, PW * 0.35, PH * 1.6);
+            gr.addColorStop(0, K.plate[0]); gr.addColorStop(0.45, K.plate[1]); gr.addColorStop(1, K.plate[2]);
+            g.fillStyle = gr; g.fillRect(0, 0, PW, PH);
+            // moulded panel: key light confined to the top 40 px, a 2 px lit top bevel, a 10 px inner shadow at the bottom,
+            // and one faint diagonal gloss reflection (acrylic), so the brand red holds over bright footage
+            gr = g.createLinearGradient(0, 0, 0, 40); gr.addColorStop(0, "rgba(255,190,190,.16)"); gr.addColorStop(1, "rgba(255,190,190,0)");
+            g.fillStyle = gr; g.fillRect(0, 0, PW, 40);
+            g.fillStyle = "rgba(255,138,143,.6)"; g.fillRect(14, 0, PW - 28, 2);
+            gr = g.createLinearGradient(0, PH - 10, 0, PH); gr.addColorStop(0, "rgba(40,0,6,0)"); gr.addColorStop(1, "rgba(40,0,6,.45)");
+            g.fillStyle = gr; g.fillRect(0, PH - 10, PW, 10);
+            g.save(); g.beginPath(); g.moveTo(PW * 0.52, 0); g.lineTo(PW * 0.6, 0); g.lineTo(PW * 0.5, PH); g.lineTo(PW * 0.38, PH); g.closePath();
+            gr = g.createLinearGradient(PW * 0.38, 0, PW * 0.6, 0); gr.addColorStop(0, "rgba(255,255,255,0)"); gr.addColorStop(0.5, "rgba(255,240,240,.07)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+            g.fillStyle = gr; g.fill(); g.restore();
+            g.fillStyle = "rgba(70,0,10,.22)";
+            for (let yy = 0; yy < PH; yy += 10) for (let xx = PW - 300; xx < PW; xx += 10) {
+              const d = Math.hypot(PW - xx, PH - yy), r = 3.6 * (1 - d / 330);
+              if (r > 0.35) { g.beginPath(); g.arc(xx + ((yy / 10) % 2 ? 5 : 0), yy, r, 0, PI * 2); g.fill(); }
+            }
+            g.textBaseline = "alphabetic";
+            const bs = fit(g, C.brand.name, 268, 62); arch(g, bs); yellowType(g, C.brand.name, 128, 72, bs, bs * 0.12);
+            const bw = g.measureText(C.brand.name).width;
+            inter(g, 800, 21, 6); g.fillStyle = "#fff"; g.fillText(C.brand.sub, 128 + bw + 16, 67);
+            inter(g, 800, 23, 2.2); g.fillStyle = "#fff"; g.fillText(C.label, 128, CHIP.y + CHIP.h / 2 + 8.5);
+            // the coupon well the code tile sits in
+            g.save(); g.beginPath(); g.roundRect(CHIP.x - 6, CHIP.y - 6, CHIP.w + 12, CHIP.h + 12, 18); g.fillStyle = "rgba(64,0,10,.45)"; g.fill(); g.clip();
+            gr = g.createLinearGradient(0, CHIP.y - 6, 0, CHIP.y + 12); gr.addColorStop(0, "rgba(30,0,4,.6)"); gr.addColorStop(1, "rgba(30,0,4,0)");
+            g.fillStyle = gr; g.fillRect(CHIP.x - 6, CHIP.y - 6, CHIP.w + 12, 18); g.restore();
+            g.strokeStyle = "rgba(255,180,180,.22)"; g.lineWidth = 1.2; g.beginPath(); g.roundRect(CHIP.x - 6, CHIP.y - 6, CHIP.w + 12, CHIP.h + 12, 18); g.stroke();
+          })();
+
+          // ---------------- code tile face (redrawn on state change) ----------------
+          const CW2 = CHIP.w - 2 * CHIP.bevel, CH2 = CHIP.h - 2 * CHIP.bevel;
+          const chipCv = mk(CW2, CH2);
+          function drawChip(s) {
+            const g = chipCv.getContext("2d"); g.setTransform(TS, 0, 0, TS, 0, 0); g.clearRect(0, 0, CW2, CH2);
+            let gr = g.createLinearGradient(0, 0, 0, CH2); gr.addColorStop(0, "#2A0D13"); gr.addColorStop(1, "#110508");
+            g.fillStyle = gr; g.fillRect(0, 0, CW2, CH2);
+            if (s.fill > 0) {
+              const X = s.fill * (CW2 + 70) - 30;
+              gr = g.createLinearGradient(0, 0, 0, CH2); gr.addColorStop(0, K.gold[0]); gr.addColorStop(1, K.gold[1]);
+              g.save(); g.beginPath(); g.rect(0, 0, Math.max(0, X + 30), CH2); g.clip();
+              g.fillStyle = gr; g.fillRect(0, 0, Math.max(0, X), CH2);
+              const e = g.createLinearGradient(X, 0, X + 30, 0); e.addColorStop(0, K.gold[1]); e.addColorStop(1, "rgba(255,197,31,0)");
+              g.fillStyle = e; g.fillRect(X, 0, 30, CH2); g.restore();
+            }
+            g.fillStyle = s.fill > 0.5 ? "rgba(255,255,255,.85)" : "rgba(255,255,255,.16)"; g.fillRect(8, 1, CW2 - 16, 1.2);
+            // coupon border: dashed while empty / typing, solid ink once locked
+            g.lineWidth = 2;
+            if (s.fill < 0.5) { g.setLineDash([9, 6]); g.strokeStyle = "rgba(255,210,60,.62)"; }
+            else { g.setLineDash([]); g.strokeStyle = "rgba(22,7,11,.55)"; }
+            g.beginPath(); g.roundRect(6, 6, CW2 - 12, CH2 - 12, 9); g.stroke(); g.setLineDash([]);
+            // the code, typed: centred as a whole, each new key pops
+            arch(g, 58); g.letterSpacing = "3px"; g.textBaseline = "alphabetic";
+            const full = g.measureText(C.code).width, x0 = (CW2 - full) / 2 - (s.tick > 0 ? 24 * s.tick : 0), base = CH2 / 2 + 20.5;
+            const drawCode = (col) => {
+              let x = x0;
+              for (let i = 0; i < s.n; i++) {
+                const ch = C.code[i], w = g.measureText(ch).width;
+                const pop = i === s.n - 1 ? s.pop : 0, sc = 1 + 0.42 * pop;
+                g.save(); g.translate(x + w / 2, base - 20); g.scale(sc, sc);
+                g.fillStyle = col;
+                if (pop > 0.05) { g.shadowColor = "rgba(255,226,120," + (0.9 * pop).toFixed(3) + ")"; g.shadowBlur = 16 * pop; }
+                g.fillText(ch, -w / 2, 20); g.restore();
+                x += w;
+              }
+              return x;
+            };
+            // yellow on the ink side of the wipe, ink on the gold side (never ink on ink mid-wipe)
+            const WX = s.fill * (CW2 + 70) - 15;
+            let x = x0;
+            if (s.fill <= 0) x = drawCode(K.accent);
+            else if (s.fill >= 1) x = drawCode(K.ink);
+            else {
+              g.save(); g.beginPath(); g.rect(WX, 0, CW2, CH2); g.clip(); x = drawCode(K.accent); g.restore();
+              g.save(); g.beginPath(); g.rect(0, 0, Math.max(0, WX), CH2); g.clip(); drawCode(K.ink); g.restore();
+            }
+            if (s.caret) { g.fillStyle = K.accent; g.fillRect(x + 4, base - 44, 4, 50); }
+            if (s.tick > 0) {                                     // the lock-in tick
+              const cx = CW2 - 38, cy = CH2 / 2, r = 19 * Math.min(1, s.tick * 1.15);
+              g.fillStyle = K.ink; g.beginPath(); g.arc(cx, cy, r, 0, PI * 2); g.fill();
+              const k = Math.max(0, Math.min(1, (s.tick - 0.35) / 0.65));
+              if (k > 0) {
+                g.strokeStyle = K.accent; g.lineWidth = 4.5; g.lineCap = "round"; g.lineJoin = "round"; g.beginPath();
+                const a = [cx - 9, cy + 0.5], b = [cx - 3, cy + 7], c = [cx + 9.5, cy - 6.5];
+                g.moveTo(a[0], a[1]);
+                if (k < 0.4) g.lineTo(a[0] + (b[0] - a[0]) * k / 0.4, a[1] + (b[1] - a[1]) * k / 0.4);
+                else { g.lineTo(b[0], b[1]); const q = (k - 0.4) / 0.6; g.lineTo(b[0] + (c[0] - b[0]) * q, b[1] + (c[1] - b[1]) * q); }
+                g.stroke();
+              }
+            }
+          }
+
+          // ---------------- discount tab face: ink with gold-foil lettering (same system as the wordmark) ----------------
+          const TAB = { w: 172, h: 56, r: 13, bevel: 3, depth: 11 };
+          const TW2 = TAB.w - 2 * TAB.bevel, TH2 = TAB.h - 2 * TAB.bevel;
+          const tabCv = mk(TW2, TH2);
+          (function () {
+            const g = tabCv.getContext("2d"); g.scale(TS, TS);
+            let gr = g.createLinearGradient(0, 0, 0, TH2); gr.addColorStop(0, "#34090F"); gr.addColorStop(1, "#12050A");
+            g.fillStyle = gr; g.fillRect(0, 0, TW2, TH2);
+            g.fillStyle = "rgba(255,255,255,.2)"; g.fillRect(9, 1, TW2 - 18, 1.2);
+            g.strokeStyle = "rgba(255,210,60,.55)"; g.lineWidth = 1.4; g.beginPath(); g.roundRect(5, 5, TW2 - 10, TH2 - 10, 8); g.stroke();
+            g.textAlign = "center"; g.textBaseline = "alphabetic";
+            const fs = fit(g, C.tab, TW2 - 34, 40); arch(g, fs); g.letterSpacing = "1px";
+            gr = g.createLinearGradient(0, TH2 / 2 - fs * 0.38, 0, TH2 / 2 + fs * 0.36);
+            gr.addColorStop(0, "#FFF6C4"); gr.addColorStop(0.45, K.accent); gr.addColorStop(1, "#E0920E");
+            g.save(); g.shadowColor = "rgba(0,0,0,.6)"; g.shadowBlur = 4; g.shadowOffsetY = 2;
+            g.fillStyle = gr; g.fillText(C.tab, TW2 / 2 + 0.5, TH2 / 2 + fs * 0.36); g.restore();
+          })();
+
+          // ---------------- 3D scene ----------------
+          // two windows on one camera: the plate, and the can above it (the can carries its own payoff bloom)
+          const st = S3D.stage({ x: 100, y: 600, w: 1000, h: 480, ss: 2, fov: 24, exposure: 1.0 });
+          const sc2 = S3D.stage({ x: 50, y: 480, w: 320, h: 600, ss: 2, fov: 24, exposure: 1.0 });
+          $("#stage").appendChild(st.canvas); $("#stage").appendChild(sc2.canvas);
+          st.canvas.style.filter = "drop-shadow(0 14px 18px rgba(0,0,0,.42))";
+          const NS = "http://www.w3.org/2000/svg", mbs = document.createElementNS(NS, "svg");
+          mbs.setAttribute("width", "0"); mbs.setAttribute("height", "0"); mbs.style.position = "absolute";
+          mbs.innerHTML = '<filter id="mby" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB"><feGaussianBlur id="mbyg" stdDeviation="0 0"/></filter>';
+          document.body.appendChild(mbs); const mby = document.getElementById("mbyg");
+          const CANF = (k) => (k > 0.01 ? "drop-shadow(0 0 " + (6 + 10 * k).toFixed(1) + "px rgba(255,214,110," + (0.85 * k).toFixed(3) + ")) drop-shadow(0 0 " + (22 + 18 * k).toFixed(1) + "px rgba(255,170,40," + (0.5 * k).toFixed(3) + ")) " : "") + "drop-shadow(0 12px 14px rgba(0,0,0,.38))";
+          // a warm rim from behind-left grazes the can's left edge (separates it from any footage)
+          const rim = new THREE.DirectionalLight(0xfff0d8, 2.6); rim.position.set(-sc2.DIST * 0.9, sc2.DIST * 0.3, -sc2.DIST * 0.7); sc2.scene.add(rim);
+          const pivot = new THREE.Group(); const [PX, PY] = st.W(C.plate.left, C.plate.top + C.plate.h / 2);
+          pivot.position.set(PX, PY, 0); st.scene.add(pivot);
+          const plateS = S3D.slab({ w: C.plate.w, h: C.plate.h, r: 28, depth: 18, bevel: PB, face: plateCv, side: K.edge, sideMetal: 0.4, emissive: 0.9, env: 1.0, diffuse: 0.06, bandK: 0.12 });
+          plateS.mesh.position.x = C.plate.w / 2; pivot.add(plateS.mesh);
+          const L = (fx, fy) => [fx - PW / 2, PH / 2 - fy];
+          // the can's shadow on the plate where it stands in front of it
+          const cfx = C.can.x + 16 - C.plate.left - PB;
+          const canPSh = S3D.shadow(C.can.R * 2 - 24, PH - 34, 30, 12); canPSh.mesh.position.set(cfx - PW / 2, -4, 0.5); canPSh.mat.opacity = 0.42; plateS.mesh.add(canPSh.mesh);
+          const chip = S3D.slab({ w: CHIP.w, h: CHIP.h, r: 15, depth: CHIP.depth, bevel: CHIP.bevel, face: chipCv, side: "#3A1018", sideMetal: 0.3, emissive: 0.92, env: 0.9, diffuse: 0.05, bandK: 0.65 });
+          const chipG = new THREE.Group(); const [qx, qy] = L(CHIP.x + CHIP.w / 2, CHIP.y + CHIP.h / 2);
+          chipG.position.set(qx, qy, 0); plateS.mesh.add(chipG); chipG.add(chip.mesh);
+          const chipSh = S3D.shadow(CHIP.w - 6, CHIP.h - 6, 15, 7); chipSh.mesh.position.z = 0.6; chipG.add(chipSh.mesh);
+          const tab = S3D.slab({ w: TAB.w, h: TAB.h, r: TAB.r, depth: TAB.depth, bevel: TAB.bevel, face: tabCv, side: "#2A060C", sideMetal: 0.3, emissive: 1.0, env: 0.8, bandK: 0.4 });
+          const tabG = new THREE.Group(); const [tx0, ty0] = L(PW - TAB.w / 2 - 6, 2);
+          tabG.position.set(tx0, ty0, 0); plateS.mesh.add(tabG); tabG.add(tab.mesh);
+          const tabSh = S3D.shadow(TAB.w - 6, TAB.h - 6, TAB.r, 8); tabSh.mesh.position.z = 0.6; tabG.add(tabSh.mesh);
+
+          const can = S3D.can({ R: C.can.R, H: C.can.H, label: S3D.drawLabel(C, C.can.R, C.can.H), metal: 0.42 });
+          const canRig = new THREE.Group(); const [CX, CY] = st.W(C.can.x, C.can.bottom - 0.112 * C.can.R - C.can.H / 2);
+          canRig.position.set(CX, CY, 40); sc2.scene.add(canRig); canRig.add(can.group);
+
+          // ---------------- state from time ----------------
+          const P = T.payoff, X = T.out, TC = T.in + 0.78;
+          const setOp = (m, op) => { const tr = op < 0.999; if (m.transparent !== tr) { m.transparent = tr; m.needsUpdate = true; } m.opacity = op; };
+                    let chipKey = "";
+          function renderAt(t) {
+            const on = t >= T.in && t < X + 0.62;
+            st.canvas.style.visibility = on ? "visible" : "hidden"; sc2.canvas.style.visibility = on ? "visible" : "hidden";
+            // payoff bloom on the can only: 1-frame attack, 3-frame hold, decay (no glow at rest)
+            const gp = seg(t, P + 0.1, P + 0.134) * (1 - seg(t, P + 0.234, P + 0.56, "power2.out"));
+            const canY = (tt) => 250 * (1 - spring(tt, T.in, 2.4, 0.67)) + 270 * seg(tt, X + 0.36, X + 0.6, "power3.in");
+            const vy = Math.abs(canY(t + 1 / 60) - canY(t - 1 / 60)), cb = Math.min(8, Math.max(0, vy - 6) * 0.2);
+            if (cb > 0.3) mby.setAttribute("stdDeviation", "0 " + cb.toFixed(2));
+            sc2.canvas.style.filter = (cb > 0.3 ? "url(#mby) " : "") + CANF(gp);
+            if (!on) return;
+            // can: pops up with a spin, sways gently front-on, whips one turn that lands face-on on the lock-in, drops out last
+            const ce = spring(t, T.in, 1.8, 0.5), ex = seg(t, X + 0.36, X + 0.6, "power3.in");
+            can.group.scale.setScalar(1);
+            canRig.position.y = CY - canY(t);
+            canRig.rotation.set(0.04, 0, -0.05 + 0.06 * (1 - ce));
+            const sway = 0.14 * Math.sin(2 * PI * (t - 1.25) / 3.6) * seg(t, 1.25, 1.9);
+            can.group.rotation.y = -0.1 - 4 * (1 - Ez("power3.out")(seg(t, T.in, T.in + 0.9))) + sway
+              + 2 * PI * Ez("power2.inOut")(seg(t, P - 0.3, P + 0.12)) + wob(t, P + 0.12, 0.12, 2, 6) + 3 * ex;
+            // plate hinges out from behind the can, and back in on exit
+            const pe = spring(t, T.in + 0.3, 1.5, 0.55), px = seg(t, X + 0.06, X + 0.38, "power3.in");
+            pivot.visible = t >= T.in + 0.3 && px < 1;
+            pivot.rotation.y = 0.1 + 1.35 * (1 - pe) + 1.4 * px;
+            pivot.position.z = -10 * wob(t, P, 1, 2.4, 7) * 0.5;
+            // code tile: drops into its well; on the lock-in it is pressed (sinks 4 px, shrinks, darkens) and springs back
+            const cx = t - TC;
+            chipG.visible = cx >= 0;
+            const dr = cx <= 0 ? 0 : Math.min(1, Ez("power2.in")(Math.min(1, cx / 0.1)));
+            const l = cx < 0.1 ? 40 * (1 - dr) : (cx < 0.19 ? 4 * Math.sin(PI * (cx - 0.1) / 0.09) : 0);
+            const pr = t < P - 0.02 ? seg(t, P - 0.1, P - 0.02, "power2.out") : 1 - spring(t, P - 0.02, 3.5, 0.28);
+            const cop = seg(t, TC, TC + 0.03);
+            [chip.faceMat, chip.sideMat].forEach((m) => setOp(m, cop));
+            chip.mesh.position.set(0, -4 * pr, CHIP.depth + l - 5 * pr);
+            const din = 1 + 0.03 * (1 - dr);
+            chip.mesh.scale.set(din * (1 + 0.03 * pr), din * (1 - 0.08 * pr), 1);
+            chipSh.mat.opacity = cop * Math.max(0.08, 0.55 * (1 - l / 300)) * (1 + 0.3 * pr);
+            const ssc = 1 + Math.max(0, l) / 500 - 0.03 * pr; chipSh.mesh.scale.set(ssc, ssc, 1); chipSh.mesh.position.set(1 + l * 0.05, -(3 + Math.max(0, l) * 0.14) - 2 * pr, 0.6);
+            const expo = seg(t, P + 0.02, P + 0.055) * (1 - seg(t, P + 0.155, P + 0.45, "power2.out"));
+            chip.faceMat.emissiveIntensity = 0.92 * (1 - 0.22 * Math.max(0, pr)) * (1 + 0.22 * expo);
+            // typing
+            const n = Math.max(0, Math.min(C.code.length, Math.floor((t - T.type) / T.perChar + 1e-6) + 1));
+            const lastT = T.type + (n - 1) * T.perChar, pop = n > 0 ? 1 - seg(t, lastT, lastT + 0.12, "power2.out") : 0;
+            const typed = t >= T.type + (C.code.length - 1) * T.perChar + 0.08;
+            const caret = t >= TC + 0.08 && t < P - 0.1 && (!typed && t < T.type + C.code.length * T.perChar || Math.floor((t - T.type) / 0.27) % 2 === 0 || t < T.type);
+            const s = { n: t >= T.type ? n : 0, pop: t >= T.type ? pop : 0, caret: caret ? 1 : 0,
+              fill: seg(t, P, P + 0.18, "power2.out"), tick: seg(t, P + 0.1, P + 0.36, "power2.out") };
+            const k = [s.n, s.pop.toFixed(3), s.caret, s.fill.toFixed(3), s.tick.toFixed(3)].join("|");
+            if (k !== chipKey) { chipKey = k; drawChip(s); chip.tex.needsUpdate = true; }
+            // the discount tab slams onto the tile's corner (scale 1.6 -> 1, -18 deg -> -6 deg), pops off first on exit
+            const ta = P + 0.26, tx = t - ta;
+            tabG.visible = tx >= 0;
+            const fall = tx <= 0 ? 0 : Math.min(1, Ez("power2.in")(Math.min(1, tx / 0.13)));
+            const sl = tx < 0.13 ? 240 * (1 - fall) : (tx < 0.24 ? 7 * Math.sin(PI * (tx - 0.13) / 0.11) : 0);
+            const so = seg(t, X, X + 0.16, "back.in(2)");
+            const tS = Math.max(0.01, (1 + 0.5 * (1 - fall)) * (1 - so));
+            tab.mesh.position.set(80 * (1 - fall), 70 * (1 - fall), TAB.depth + 0.5 + sl);
+            tab.mesh.rotation.z = -0.105 - 0.21 * (1 - fall) + wob(t, ta + 0.13, 0.04, 3, 8) - 0.9 * so;
+            tab.mesh.scale.set(tS, tS, 1);
+            const top = seg(t, ta, ta + 0.02); [tab.faceMat, tab.sideMat].forEach((m) => setOp(m, top));
+            tabSh.mat.opacity = top * Math.max(0.1, 0.55 * (1 - sl / 260)) * Math.min(1, tS); tabSh.mesh.position.set(2, -4 - sl * 0.1, 0.6);
+            tabSh.mesh.scale.set(Math.min(1, tS) * (1 + sl / 600), Math.min(1, tS) * (1 + sl / 600), 1); tabSh.mesh.rotation.z = tab.mesh.rotation.z;
+            // light: one clipped specular band across the tile (faint on the plate) + a raking light, on the lock-in
+            const bp = seg(t, P + 0.04, P + 0.4, "power1.inOut"), bc = PX + C.plate.w * 0.6;
+            S3D.U.uBand.value = bc - 380 + 760 * bp; S3D.U.uBandW.value = 40;
+            S3D.U.uBandAmp.value = seg(t, P + 0.02, P + 0.07) * (1 - seg(t, P + 0.32, P + 0.42)) * 0.6;
+            st.rake.intensity = 1.0 * seg(t, P - 0.02, P + 0.08) * (1 - seg(t, P + 0.3, P + 0.6, "power2.out"));
+            st.rake.position.set((-1 + 2 * bp) * st.DIST, st.DIST * 0.55, st.DIST * 0.5);
+            sc2.rake.intensity = 0.6 * st.rake.intensity; sc2.rake.position.copy(st.rake.position);
+            st.render(); sc2.render();
+          }
+
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+          if (plate) Look.push(tl, "#push", 0, T.end, { to: 1.045 });
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          renderAt(0);
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

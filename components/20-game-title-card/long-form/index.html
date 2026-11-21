@@ -1,0 +1,102 @@
+<!doctype html>
+<!-- 20 Game title card, variant A "Series title" (16:9, 1920x1080, 30 fps, 5.6 s).
+     A series lock-up ("LOS SANTOS STORIES") stamped over intro footage, the way creators drop a game logo sticker:
+     stacked heavy white caps with a black edge, plus a coloured accent bar. Real Three.js geometry (media/logo3d.js).
+     Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). See gta/DESIGN.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <script src="media/logo3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      #stage { position: absolute; inset: 0; }
+      /* a soft local shade behind the lock-up only (plate renders): keeps the white caps off the bright sky without a frame-wide veil */
+      #shade { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; opacity: 0;
+        background: radial-gradient(560px 330px at 960px 520px, rgba(6,8,14,.34), rgba(6,8,14,.16) 55%, rgba(6,8,14,0) 100%); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5.6" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="shot1" class="clip shot" src="assets/shots/v24-sunset-powerlines-h.mp4" muted playsinline data-start="0" data-duration="1.05" data-media-start="0.3" data-track-index="0"></video>
+        <video id="shot2" class="clip shot" src="assets/shots/v36-hills-city-view-h.mp4" muted playsinline data-start="1.05" data-duration="1.9" data-media-start="0" data-track-index="0"></video>
+        <video id="shot3" class="clip shot" src="assets/shots/v44-bridge-skyline-h.mp4" muted playsinline data-start="2.95" data-duration="1.7" data-media-start="0" data-track-index="0"></video>
+        <video id="shot4" class="clip shot" src="assets/shots/v11-yacht-h.mp4" muted playsinline data-start="4.65" data-duration="0.95" data-media-start="0.2" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="5.6" data-track-index="1">
+        <div id="shade"></div>
+        <div id="stage"></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        lines: ["LOS", "SANTOS"],          // stacked title lines (A-Z, 0-9, & . , ' ! ? - : #)
+        tag: "STORIES",                    // the word on the accent bar
+        layout: { cx: 960, cy: 516, cap: 168, lead: 0.15, tracking: -0.005, align: "center", barH: 100, barGap: 24, tagCap: 56, tagTracking: 0.14 },
+        colors: {
+          face: ["#FFFFFF", "#E8ECF1", "#A9B3C1"],   // pearl-white enamel: top, mid, foot
+          lip: "#F6F8FB", wall: ["#0E0F13", "#020203"], ink: "#050608",
+          bar: ["#F0207F", "#FF7A1A"],     // accent bar: sunset pink -> orange
+          barWall: ["#8E0B47", "#2A0314"], barLip: "#FF8CC0", tagWall: ["#6E0A36", "#24030F"]
+        },
+        timing: {                           // seconds
+          lineIn: [0.30, 0.40], stagger: 0.022, upDur: 0.32,
+          barIn: 0.62, barDur: 0.3, tagIn: 1.04, tagStagger: 0.018, tagDur: 0.26,
+          lock: 1.05, floatZ: 140, fallDur: 0.14, squashY: 0.08, squashX: 0.05, shake: 4,
+          sweep: 1.14, sweepDur: 0.75, bloomAt: 1.05,
+          exit: 4.55, exitStagger: 0.018, exitDur: 0.3, barOut: 4.6, barOutDur: 0.28,
+          end: 5.6
+        }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, L = CONFIG.layout, K = CONFIG.colors, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const FACES = ["900 100px Archivo", "800 100px Archivo"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const tl = gsap.timeline({ paused: true });
+          const logo = Logo3D({
+            W: 1920, H: 1080, glyphs: window.LOGO_GLYPHS, cx: L.cx, cy: L.cy,
+            lines: CONFIG.lines, cap: L.cap, lead: L.lead, tracking: L.tracking, align: L.align,
+            bar: { text: CONFIG.tag, h: L.barH, gap: L.barGap, cap: L.tagCap, tracking: L.tagTracking,
+              colors: K.bar, wall: K.barWall, lip: K.barLip, textWall: K.tagWall },
+            colors: { face: K.face, lip: K.lip, wall: K.wall, ink: K.ink, faceGlow: 0.14, tagGlow: 0.3 },
+            inkPx: 8, shadow: 0.6, shadowOff: [5, -12], tilt: -0.24, turn: [-0.19, -0.07], depthK: 0.42,
+            sweepW: 0.18, sweepAmp: 1.0, faceSweep: 0.9, faceEnv: 0.6, bloomTh: 2.8, bloomBase: 0.03, bloomPeak: 0.3, wallEnv: 0.35,
+            timing: T
+          });
+          $("#stage").appendChild(logo.canvas);
+          logo.renderAt(0);
+          Look.drive(tl, 0, T.end, (p) => logo.renderAt(p * T.end));
+          if (plate) {
+            Look.push(tl, "#push", 0, T.end, { from: 1.0, to: 1.06 });
+            Look.impact(tl, T.lock, { shake: "#shake", amp: 6, dur: 0.22, flash: 0, zoom: 1.015 });
+            // local shade in with the lock-up, out with it (opaque steps would read as a veil pop: it eases both ways)
+            tl.fromTo("#shade", { opacity: 0 }, { opacity: 1, duration: 0.4, ease: "power2.out", immediateRender: false }, T.lineIn[0]);
+            tl.fromTo("#shade", { opacity: 1 }, { opacity: 0, duration: 0.35, ease: "power2.in", immediateRender: false }, T.exit);
+          } else $("#shade").style.display = "none";
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

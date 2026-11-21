@@ -1,0 +1,407 @@
+<!doctype html>
+<!-- 50 Star checklist, variant A (16:9, 1920x1080, 30 fps): the creators' star-checklist card, docked top-right.
+     A plum lacquer card with a neon edge drops in. Five conditions tick red to green, and each tick drops a real faceted
+     3D star into its socket. The fifth star is the payoff: every star turns gold, a light rakes across them and the tab
+     rolls to the payoff word. Variable bg: "plate" (sample footage) / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Archivo", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      #shake { z-index: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #gl, #gl2 { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; z-index: 2; }
+      #gl2 { z-index: 4; }
+      #ui { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+      #card { position: absolute; left: 0; top: 0; transform-origin: 50% 50%; visibility: hidden; }
+      .tab { position: absolute; border-radius: 999px; overflow: hidden; transform-origin: 0% 50%;
+        box-shadow: 0 0 0 2px rgba(20, 6, 34, .9), 0 5px 12px rgba(0, 0, 0, .5), 0 0 20px rgba(255, 79, 163, .55); }
+      .tab .bg { position: absolute; inset: 0; background: linear-gradient(180deg, #FF86C5 0%, #FF4FA3 46%, #D3287C 100%); }
+      .tab .bg2 { position: absolute; inset: 0; background: linear-gradient(180deg, #FFF0BC 0%, #F8CB5C 46%, #E2951A 100%); clip-path: inset(0 100% 0 0); }
+      .tab .hl { position: absolute; left: 8px; right: 8px; top: 2px; height: 42%; border-radius: 999px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, .55), rgba(255, 255, 255, 0)); }
+      .tab .win { position: relative; overflow: hidden; }
+      .tab .tx { position: absolute; left: 0; top: 0; width: 100%; text-align: center; font-weight: 800; font-stretch: 78%;
+        letter-spacing: .1em; white-space: nowrap; color: #fff; text-shadow: 0 1px 0 rgba(120, 10, 60, .55); }
+      .tab .tx.b { color: #3A1E00; text-shadow: 0 1px 0 rgba(255, 245, 210, .6); }
+      .col { position: absolute; text-align: center; }
+      .disc { position: relative; margin: 0 auto; border-radius: 50%; }
+      .disc > div { position: absolute; inset: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+      .disc .red { background: radial-gradient(circle at 36% 28%, #FF96A0 0%, #F03E54 40%, #B3112B 100%);
+        box-shadow: inset 0 2px 0 rgba(255, 255, 255, .5), inset 0 -4px 7px rgba(70, 0, 14, .5), 0 0 0 2px rgba(20, 6, 34, .92), 0 4px 10px rgba(0, 0, 0, .55); }
+      .disc .grn { background: radial-gradient(circle at 36% 28%, #A8FFC9 0%, #36DA78 42%, #12884A 100%);
+        box-shadow: inset 0 2px 0 rgba(255, 255, 255, .55), inset 0 -4px 7px rgba(0, 50, 20, .5), 0 0 0 2px rgba(20, 6, 34, .92);
+        clip-path: circle(0% at 50% 50%); }
+      .disc svg { display: block; }
+      .lab { font-weight: 800; font-stretch: 78%; letter-spacing: .07em; white-space: nowrap; line-height: 1;
+        color: #fff; text-shadow: 0 2px 4px rgba(0, 0, 0, .55); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.4" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="s1" class="clip shot" style="z-index:4" src="assets/shots/v56-gp-truck-crash-h.mp4" muted playsinline data-start="0" data-duration="2.15" data-media-start="0.25" data-track-index="0"></video>
+        <video id="s2" class="clip shot" style="z-index:3" src="assets/shots/v10-cash-table-h.mp4" muted playsinline data-start="2.0833" data-duration="1.2667" data-media-start="0" data-track-index="1"></video>
+        <video id="s3" class="clip shot" style="z-index:2" src="assets/shots/v17-deluxo-sunset-h.mp4" muted playsinline data-start="3.2833" data-duration="1.5667" data-media-start="0" data-track-index="2"></video>
+        <video id="s4" class="clip shot" style="z-index:1" src="assets/shots/v36-hills-city-view-h.mp4" muted playsinline data-start="4.7833" data-duration="1.6167" data-media-start="0.2" data-track-index="3"></video>
+      </div></div>
+      <canvas id="gl" data-layout-allow-occlusion width="1920" height="1080"></canvas>
+      <div id="ui" class="clip" data-start="0" data-duration="6.4" data-track-index="5" data-layout-allow-overlap>
+        <div id="card"></div>
+      </div>
+      <canvas id="gl2" data-layout-allow-occlusion width="1920" height="1080"></canvas>
+    </div>
+    <script>
+      const CONFIG = {
+        title: "HEIST RATING",              // pink tab on the card's top-left edge
+        payoff: "PERFECT RUN",              // the tab rolls to this (gold) when the last star lands
+        conditions: [                       // one star per condition, left to right. icons: eye, bell, crosshair, watch, shield, car, mask, cash
+          { label: "STEALTH", icon: "eye" },
+          { label: "NO ALARM", icon: "bell" },
+          { label: "HEADSHOTS", icon: "crosshair" },
+          { label: "UNDER 6:00", icon: "watch" },
+          { label: "NO DAMAGE", icon: "shield" }
+        ],
+        colors: { neon: "#FF4FA3", lacquer: "#2B1650", pearl: "#FFFFFF", gold: "#FFC94A" },
+        card: { cx: 1536, cy: 196, w: 656, h: 248, r: 26 },             // docked centre + size, canvas px (right edge 56 px in, top 72)
+        layout: { pitch: 118, starR: 46, starY: -46, disc: 52, discY: 46, labY: 80, lab: 17, tabH: 38, tabFont: 20, tabX: 24 },
+        fly: { z: 480, zBig: 640, from: [-70, 60], fromBig: [-280, 80], scale: 1.25, scaleBig: 1.5 },    // star flight: start depth, start offset (px, y up), start scale
+        timing: { drop: 0.15, fills: [0.95, 1.5, 2.15, 2.7, 3.35], out: 5.7, end: 6.4 }   // last fill = the payoff (lands on the cut to v17)
+      };
+
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const C = CONFIG, T = C.timing, L = C.layout, K = C.card, $ = (s) => document.querySelector(s), W = 1920, H = 1080;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x)), seg = (t, a, d) => clamp((t - a) / d, 0, 1), lerp = (a, b, k) => a + (b - a) * k;
+        const E = (n) => gsap.parseEase(n);
+        const eIn2 = E("power2.in"), eOut2 = E("power2.out"), eOut3 = E("power3.out"), eIO = E("power2.inOut"), eBack = E("back.out(2.4)"), eBackIn = E("back.in(1.6)"), eRoll = E("back.out(1.7)");
+        const N = C.conditions.length, F = T.fills.slice(0, N), PAY = F[N - 1];
+        const sx = (i) => (i - (N - 1) / 2) * L.pitch;     // column centre x, card-local px
+
+        // ---------- DOM: tab, icon discs, labels (card-local px, y down; follows the GL card transform) ----------
+        const ICON = {
+          eye: '<path d="M1.8 12c2.7-4.6 6.1-6.9 10.2-6.9s7.5 2.3 10.2 6.9c-2.7 4.6-6.1 6.9-10.2 6.9S4.5 16.6 1.8 12z" fill="#fff"/><circle cx="12" cy="12" r="3.9" fill="#C21430"/><circle cx="13.3" cy="10.7" r="1.2" fill="#fff"/>',
+          bell: '<path d="M12 2.6c.9 0 1.6.7 1.6 1.6v.6c2.9.8 4.7 3.3 4.7 6.4v3.5l1.9 2.4H3.8l1.9-2.4v-3.5c0-3.1 1.8-5.6 4.7-6.4v-.6c0-.9.7-1.6 1.6-1.6zM9.4 18.4h5.2a2.6 2.6 0 0 1-5.2 0z" fill="#fff"/>',
+          crosshair: '<circle cx="12" cy="12" r="7" fill="none" stroke="#fff" stroke-width="2.6"/><path d="M12 1.6v5.2M12 17.2v5.2M1.6 12h5.2M17.2 12h5.2" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><circle cx="12" cy="12" r="2.1" fill="#fff"/>',
+          watch: '<circle cx="12" cy="13.4" r="7.6" fill="none" stroke="#fff" stroke-width="2.6"/><rect x="9.6" y="1.6" width="4.8" height="2.8" rx="1" fill="#fff"/><path d="M12 13.4V9.2M12 13.4l2.8 2" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>',
+          shield: '<path d="M12 2.4l7.8 2.9v5.9c0 5-3.3 8.8-7.8 10.4-4.5-1.6-7.8-5.4-7.8-10.4V5.3z" fill="#fff"/><path d="M12 6.2v11.6" stroke="#C21430" stroke-width="2.2" stroke-linecap="round"/>',
+          car: '<path d="M4 15.6v-3.4l1.9-4.6c.3-.8 1-1.2 1.8-1.2h8.6c.8 0 1.5.4 1.8 1.2l1.9 4.6v3.4H4zM7.4 8.4l-1.3 3.4h11.8l-1.3-3.4H7.4z" fill="#fff"/><circle cx="7.6" cy="16.8" r="2" fill="#fff"/><circle cx="16.4" cy="16.8" r="2" fill="#fff"/>',
+          mask: '<path d="M2.6 8.2c3-1.6 6.1-2.1 9.4-2.1s6.4.5 9.4 2.1c0 5.6-2.8 9-6.2 9-1.6 0-2.4-1.5-3.2-1.5s-1.6 1.5-3.2 1.5c-3.4 0-6.2-3.4-6.2-9z" fill="#fff"/><ellipse cx="8.2" cy="11" rx="2.2" ry="1.5" fill="#C21430"/><ellipse cx="15.8" cy="11" rx="2.2" ry="1.5" fill="#C21430"/>',
+          cash: '<rect x="2.4" y="6.4" width="19.2" height="11.2" rx="1.6" fill="#fff"/><circle cx="12" cy="12" r="2.9" fill="#C21430"/>'
+        };
+        const card = $("#card"); card.style.width = K.w + "px"; card.style.height = K.h + "px";
+        const tab = document.createElement("div"); tab.className = "tab";
+        tab.innerHTML = '<div class="bg"></div><div class="bg2"></div><div class="hl"></div><div class="win" data-layout-allow-overflow><span class="tx a" data-layout-allow-occlusion></span><span class="tx b" data-layout-allow-occlusion></span></div>';
+        card.appendChild(tab);
+        const tabA = tab.querySelector(".tx.a"), tabB = tab.querySelector(".tx.b"), tabBg2 = tab.querySelector(".bg2"), tabWin = tab.querySelector(".win");
+        tabA.textContent = C.title; tabB.textContent = C.payoff;
+        [tabA, tabB].forEach((s) => { s.style.fontSize = L.tabFont + "px"; s.style.lineHeight = L.tabH + "px"; s.style.height = L.tabH + "px"; });
+        tab.style.left = L.tabX + "px"; tab.style.top = (-L.tabH / 2) + "px"; tab.style.height = L.tabH + "px"; tabWin.style.height = L.tabH + "px";
+        const cols = C.conditions.map((c, i) => {
+          const el = document.createElement("div"); el.className = "col";
+          const w = L.pitch; el.style.width = w + "px"; el.style.left = (K.w / 2 + sx(i) - w / 2) + "px"; el.style.top = (K.h / 2 + L.discY - L.disc / 2) + "px";
+          const g = Math.round(L.disc * 0.54);
+          el.innerHTML = '<div class="disc" style="width:' + L.disc + 'px;height:' + L.disc + 'px"><div class="red"><svg width="' + g + '" height="' + g + '" viewBox="0 0 24 24">' + (ICON[c.icon] || ICON.cash) + '</svg></div>' +
+            '<div class="grn"><svg width="' + g + '" height="' + g + '" viewBox="0 0 24 24"><path class="tick" d="M5.6 12.6l4.3 4.3 8.6-9.4" pathLength="1" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="1" stroke-dashoffset="1"/></svg></div></div>' +
+            '<div class="lab" data-layout-allow-occlusion></div>';
+          const lab = el.querySelector(".lab"); lab.textContent = c.label; lab.style.fontSize = L.lab + "px";
+          lab.style.marginTop = (L.labY - L.discY - L.disc / 2) + "px";
+          card.appendChild(el);
+          return { el, disc: el.querySelector(".disc"), grn: el.querySelector(".grn"), tick: el.querySelector(".tick"), lab };
+        });
+
+        // ---------- renderers: z = 0 maps 1:1 to canvas px. Two GL layers sandwich the DOM icons and labels: the card (#gl)
+        // is under them, the stars (#gl2) are over them, so a star in flight never passes under a label. ----------
+        function mkRenderer(canvas) {
+          const r = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+          r.setPixelRatio(1); r.setSize(W, H, false); r.setClearColor(0x000000, 0);
+          r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.12; return r;
+        }
+        const renderer = mkRenderer($("#gl")), renderer2 = mkRenderer($("#gl2"));
+        const scene = new THREE.Scene(), sceneS = new THREE.Scene();
+        const FOV = 22, DIST = (H / 2) / Math.tan((FOV / 2) * Math.PI / 180);
+        const camera = new THREE.PerspectiveCamera(FOV, W / H, 10, DIST * 3);
+        camera.position.set(0, 0, DIST); camera.lookAt(0, 0, 0);
+        const wx = (x) => x - W / 2, wy = (y) => H / 2 - y;
+
+        // studio env: cool-white softbox overhead, a pink neon strip left, warm strip right, dark floor
+        const envScene = new THREE.Scene();
+        envScene.add(new THREE.Mesh(new THREE.SphereGeometry(50, 48, 24), new THREE.ShaderMaterial({
+          side: THREE.BackSide, depthWrite: false,
+          vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 top = vec3(0.72,0.68,0.80), hor = vec3(0.17,0.11,0.21), low = vec3(0.018,0.012,0.024);" +
+            " vec3 c = y > 0.0 ? mix(hor, top, smoothstep(0.1, 0.9, y)) : mix(hor, low, smoothstep(0.0, 0.35, -y)); gl_FragColor = vec4(c, 1.0); }"
+        })));
+        const panel = (w, h, x, y, z, c) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); envScene.add(m); };
+        panel(40, 10, -4, 30, 26, new THREE.Color(4.4, 4.2, 4.6));
+        panel(5, 34, -30, 4, 22, new THREE.Color(3.4, 0.8, 2.0));
+        panel(34, 6, 6, -6, 34, new THREE.Color(1.3, 0.8, 1.5));
+        panel(14, 26, 32, 8, 10, new THREE.Color(2.4, 2.0, 1.6));
+        panel(56, 30, 2, 10, 44, new THREE.Color(0.8, 0.7, 0.9));
+        scene.environment = new THREE.PMREMGenerator(renderer).fromScene(envScene, 0.0, 0.1, 200).texture;
+        sceneS.environment = new THREE.PMREMGenerator(renderer2).fromScene(envScene, 0.0, 0.1, 200).texture;
+        const keys = [scene, sceneS].map((sc) => { const k = new THREE.DirectionalLight(0xfff4f0, 1.6); k.position.set(-0.6, 0.9, 1.0); sc.add(k);
+          sc.add(new THREE.HemisphereLight(0xf6eeff, 0x1a0c26, 0.55)); return k; });
+        const rakes = [0, 1].map(() => new THREE.PointLight(0xfff1d6, 0, 260, 0));
+
+        // ---------- geometry helpers ----------
+        const V2 = (x, y) => new THREE.Vector2(x, y);
+        function clean(pts) { const out = []; for (const p of pts) if (!out.length || p.distanceTo(out[out.length - 1]) > 0.35) out.push(p);
+          while (out.length > 3 && out[0].distanceTo(out[out.length - 1]) <= 0.35) out.pop(); return out; }
+        function starPts(R) {      // our star: 5 points, inner ratio 0.49, rounded tips and valleys; CCW, y up
+          const V = []; for (let k = 0; k < 10; k++) { const a = Math.PI / 2 + k * Math.PI / 5, r = k % 2 ? R * 0.49 : R; V.push(V2(Math.cos(a) * r, Math.sin(a) * r)); }
+          const s = new THREE.Shape(), n = V.length, m0 = V[n - 1].clone().add(V[0]).multiplyScalar(0.5); s.moveTo(m0.x, m0.y);
+          for (let k = 0; k < n; k++) {
+            const P = V[(k - 1 + n) % n], Q = V[k], Nx = V[(k + 1) % n], r = k % 2 ? R * 0.07 : R * 0.12;
+            const a = Q.clone().add(P.clone().sub(Q).normalize().multiplyScalar(r)), b = Q.clone().add(Nx.clone().sub(Q).normalize().multiplyScalar(r));
+            s.lineTo(a.x, a.y); s.quadraticCurveTo(Q.x, Q.y, b.x, b.y);
+          }
+          s.closePath(); return clean(s.getPoints(6));
+        }
+        function offsetPts(P, d) {  // miter offset of a CCW polygon (d > 0 grows it)
+          const n = P.length; return P.map((p, i) => {
+            const a = P[(i - 1 + n) % n], b = P[(i + 1) % n], e1 = p.clone().sub(a).normalize(), e2 = b.clone().sub(p).normalize();
+            const n1 = V2(e1.y, -e1.x), n2 = V2(e2.y, -e2.x), m = n1.clone().add(n2); if (m.lengthSq() < 1e-8) m.copy(n1); m.normalize();
+            return p.clone().add(m.multiplyScalar(d / Math.max(0.45, m.dot(n1))));
+          });
+        }
+        function starGeo(R) {        // raised 10-facet star on a side wall with a rounded bevel; flat facet normals
+          const P = starPts(R), n = P.length, D = R * 0.22, B = R * 0.07, BZ = R * 0.07, HZ = BZ + R * 0.30, NB = 3, pos = [];
+          const rings = []; for (let j = 0; j <= NB; j++) { const th = j / NB * Math.PI / 2; rings.push({ p: offsetPts(P, -B * (1 - Math.cos(th))), z: BZ * Math.sin(th) }); }
+          const tri = (a, b, c) => pos.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
+          const strip = (lo, zl, hi, zh) => { for (let i = 0; i < n; i++) { const j = (i + 1) % n;
+            tri([hi[i].x, hi[i].y, zh], [lo[i].x, lo[i].y, zl], [lo[j].x, lo[j].y, zl]); tri([hi[i].x, hi[i].y, zh], [lo[j].x, lo[j].y, zl], [hi[j].x, hi[j].y, zh]); } };
+          strip(P, -D, P, 0);
+          for (let j = 1; j <= NB; j++) strip(rings[j - 1].p, rings[j - 1].z, rings[j].p, rings[j].z);
+          const tp = rings[NB].p; for (let i = 0; i < n; i++) { const j = (i + 1) % n; tri([0, 0, HZ], [tp[i].x, tp[i].y, BZ], [tp[j].x, tp[j].y, BZ]); }
+          for (let i = 0; i < n; i++) { const j = (i + 1) % n; tri([0, 0, -D], [P[j].x, P[j].y, -D], [P[i].x, P[i].y, -D]); }
+          const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals(); return g;
+        }
+        function rrect(w, h, r, P) {
+          const s = P || new THREE.Shape(), x = w / 2, y = h / 2;
+          s.moveTo(-x + r, -y); s.lineTo(x - r, -y); s.absarc(x - r, -y + r, r, -Math.PI / 2, 0, false); s.lineTo(x, y - r);
+          s.absarc(x - r, y - r, r, 0, Math.PI / 2, false); s.lineTo(-x + r, y); s.absarc(-x + r, y - r, r, Math.PI / 2, Math.PI, false);
+          s.lineTo(-x, -y + r); s.absarc(-x + r, -y + r, r, Math.PI, Math.PI * 1.5, false); return s;
+        }
+        class RRCurve extends THREE.Curve {   // rounded-rect perimeter by arc length, clockwise from the top-left
+          constructor(w, h, r, z) { super(); this.w = w; this.h = h; this.r = r; this.z = z; }
+          getPoint(u, out) {
+            out = out || new THREE.Vector3(); const { w, h, r, z } = this, x = w / 2, y = h / 2, sX = w - 2 * r, sY = h - 2 * r, A = Math.PI * r / 2;
+            let s = (((u % 1) + 1) % 1) * (2 * sX + 2 * sY + 4 * A);
+            if (s < sX) return out.set(-x + r + s, y, z); s -= sX;
+            if (s < A) { const t = Math.PI / 2 - s / r; return out.set(x - r + r * Math.cos(t), y - r + r * Math.sin(t), z); } s -= A;
+            if (s < sY) return out.set(x, y - r - s, z); s -= sY;
+            if (s < A) { const t = -s / r; return out.set(x - r + r * Math.cos(t), -y + r + r * Math.sin(t), z); } s -= A;
+            if (s < sX) return out.set(x - r - s, -y, z); s -= sX;
+            if (s < A) { const t = -Math.PI / 2 - s / r; return out.set(-x + r + r * Math.cos(t), -y + r + r * Math.sin(t), z); } s -= A;
+            if (s < sY) return out.set(-x, -y + r + s, z); s -= sY;
+            const t = Math.PI - s / r; return out.set(-x + r + r * Math.cos(t), y - r + r * Math.sin(t), z);
+          }
+        }
+        const VS = "varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }";
+        const SDF = "float sdRR(vec2 p, vec2 b, float r){ vec2 q = abs(p) - b + r; return length(max(q,0.0)) + min(max(q.x,q.y),0.0) - r; }";
+        const hexC = (h) => new THREE.Color(h);
+
+        // ---------- the card: plum lacquer slab with five star sockets cut through it ----------
+        const R = L.starR, SY = -L.starY;                      // GL y of the star row (card-local)
+        const LC = document.createElement("canvas"); LC.width = LC.height = 256; { const g = LC.getContext("2d"), lg = g.createLinearGradient(0, 0, 256, 256);
+          const c = hexC(C.colors.lacquer); const hx = (k) => "#" + c.clone().multiplyScalar(k).getHexString();
+          lg.addColorStop(0, hx(1.55)); lg.addColorStop(0.42, hx(0.95)); lg.addColorStop(1, hx(0.38)); g.fillStyle = lg; g.fillRect(0, 0, 256, 256); }
+        const lacTex = new THREE.CanvasTexture(LC); lacTex.colorSpace = THREE.SRGBColorSpace; lacTex.repeat.set(1 / K.w, 1 / K.h); lacTex.offset.set(0.5, 0.5);
+        const lacMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: lacTex, metalness: 0.0, roughness: 0.42, clearcoat: 1, clearcoatRoughness: 0.07, envMapIntensity: 0.32 });
+        const lacSide = new THREE.MeshPhysicalMaterial({ color: hexC(C.colors.lacquer).multiplyScalar(1.9), metalness: 0.45, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 0.9 });
+        const slabShape = rrect(K.w, K.h, K.r);
+        const STAR = starPts(R), HOLE = offsetPts(STAR, 5);
+        for (let i = 0; i < N; i++) slabShape.holes.push(new THREE.Path(HOLE.map((p) => V2(p.x + sx(i), p.y + SY)).reverse()));
+        const slabGeo = new THREE.ExtrudeGeometry(slabShape, { depth: 10, bevelEnabled: true, bevelThickness: 4, bevelSize: 3.5, bevelOffset: -3.5, bevelSegments: 4, curveSegments: 14 });
+        slabGeo.translate(0, 0, -14);                          // front face at z = 0, back at -18
+        const slab = new THREE.Mesh(slabGeo, [lacMat, lacSide]);
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0x0a0514, roughness: 0.7, metalness: 0.1 });
+        const floor = new THREE.Mesh(new THREE.ShapeGeometry(rrect(K.w - 10, K.h - 10, K.r - 4), 12), floorMat); floor.position.z = -14;
+        const ghostMat = new THREE.MeshPhysicalMaterial({ color: 0x4b3474, metalness: 0.55, roughness: 0.34, clearcoat: 0.6, envMapIntensity: 0.7 });
+        const ghostGeo = new THREE.ExtrudeGeometry(new THREE.Shape(offsetPts(STAR, -2)), { depth: 1.5, bevelEnabled: true, bevelThickness: 1, bevelSize: 1, bevelOffset: -1, bevelSegments: 2 });
+        ghostGeo.translate(0, 0, -13.5);
+        const cardG = new THREE.Group(); cardG.add(slab); cardG.add(floor);
+        for (let i = 0; i < N; i++) { const g = new THREE.Mesh(ghostGeo, ghostMat); g.position.set(sx(i), SY, 0); cardG.add(g); }
+
+        // neon tube round the card edge: white-hot core, pink at grazing angles, a travelling pulse for the payoff
+        const tubeMat = new THREE.ShaderMaterial({ toneMapped: false,
+          uniforms: { uCol: { value: hexC(C.colors.neon) }, uOff: { value: hexC("#4A2440") }, uOn: { value: 0 }, uP: { value: -1 }, uPA: { value: 0 }, uPCol: { value: hexC("#FFF1C4") } },
+          vertexShader: "varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ vUv = uv; vec4 mv = modelViewMatrix * vec4(position,1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }",
+          fragmentShader: "uniform vec3 uCol; uniform vec3 uOff; uniform float uOn; uniform float uP; uniform float uPA; uniform vec3 uPCol; varying vec2 vUv; varying vec3 vN; varying vec3 vV;" +
+            " void main(){ float f = clamp(dot(normalize(vN), normalize(vV)), 0.0, 1.0); float core = pow(f, 2.5);" +
+            " vec3 lit = mix(uCol, vec3(1.0, 0.92, 0.97), core * 0.8); vec3 off = uOff * (0.55 + 0.6 * core);" +
+            " float d1 = abs(fract(vUv.x - uP + 0.5) - 0.5), d2 = abs(fract(vUv.x + uP - 0.5) - 0.5); float pu = uPA * (exp(-pow(d1 / 0.045, 2.0)) + exp(-pow(d2 / 0.045, 2.0)));" +
+            " vec3 c = mix(off, lit, uOn); c = mix(c, uPCol, clamp(pu, 0.0, 1.0)); gl_FragColor = vec4(c, 1.0); }" });
+        const tube = new THREE.Mesh(new THREE.TubeGeometry(new RRCurve(K.w, K.h, K.r, -2.5), 420, 3.4, 12, true), tubeMat);
+        cardG.add(tube);
+        // halo outside the edge (behind the slab) + light spill on the lacquer just inside it
+        const haloMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, toneMapped: false,
+          uniforms: { uHalf: { value: new THREE.Vector2(K.w / 2, K.h / 2) }, uR: { value: K.r }, uCol: { value: hexC(C.colors.neon) }, uA: { value: 0 } },
+          vertexShader: VS, fragmentShader: "uniform vec2 uHalf; uniform float uR; uniform vec3 uCol; uniform float uA; varying vec2 vP; " + SDF +
+            " void main(){ float d = max(sdRR(vP, uHalf, uR), 0.0); float a = uA * (0.62 * exp(-pow(d / 9.0, 2.0)) + 0.30 * exp(-d / 34.0)); gl_FragColor = vec4(uCol, clamp(a, 0.0, 1.0)); }" });
+        const halo = new THREE.Mesh(new THREE.PlaneGeometry(K.w + 240, K.h + 240), haloMat); halo.position.z = -21; cardG.add(halo);
+        const spillMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, toneMapped: false,
+          uniforms: { uHalf: { value: new THREE.Vector2(K.w / 2, K.h / 2) }, uR: { value: K.r }, uCol: { value: hexC(C.colors.neon) }, uA: { value: 0 } },
+          vertexShader: VS, fragmentShader: "uniform vec2 uHalf; uniform float uR; uniform vec3 uCol; uniform float uA; varying vec2 vP; " + SDF +
+            " void main(){ float d = sdRR(vP, uHalf, uR); if (d > 0.0) discard; float a = uA * 0.26 * exp(d / 16.0); gl_FragColor = vec4(uCol, clamp(a, 0.0, 1.0)); }" });
+        const spill = new THREE.Mesh(new THREE.PlaneGeometry(K.w, K.h), spillMat); spill.position.z = 0.4; spill.renderOrder = 2; cardG.add(spill);
+        // warm glow that lands on the lacquer under the star row at the payoff
+        const rowMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, toneMapped: false,
+          uniforms: { uA: { value: 0 }, uHW: { value: (N - 1) / 2 * L.pitch + R }, uY: { value: SY }, uR: { value: R } },
+          vertexShader: VS, fragmentShader: "uniform float uA; uniform float uHW; uniform float uY; uniform float uR; varying vec2 vP;" +
+            " void main(){ float dx = max(abs(vP.x) - uHW + uR, 0.0); float dy = vP.y - uY; float a = uA * exp(-(dx*dx) / (2.0*uR*uR*0.6) - (dy*dy) / (2.0*uR*uR*0.9)); gl_FragColor = vec4(1.0, 0.78, 0.36, clamp(a, 0.0, 1.0)); }" });
+        const rowGlow = new THREE.Mesh(new THREE.PlaneGeometry(K.w, K.h), rowMat); rowGlow.position.z = 0.6; rowGlow.renderOrder = 3; cardG.add(rowGlow);
+        // soft shadow that lands on the footage
+        const SHC = document.createElement("canvas"); SHC.width = 512; SHC.height = Math.round(512 * (K.h + 120) / (K.w + 120)); { const x = SHC.getContext("2d"), k = 512 / (K.w + 120);
+          x.filter = "blur(" + Math.round(16 * k) + "px)"; x.fillStyle = "#000"; x.beginPath(); x.roundRect(60 * k, 60 * k, K.w * k, K.h * k, K.r * k); x.fill(); }
+        const shTex = new THREE.CanvasTexture(SHC); shTex.colorSpace = THREE.SRGBColorSpace;
+        const shadow = new THREE.Mesh(new THREE.PlaneGeometry(K.w + 120, K.h + 120), new THREE.MeshBasicMaterial({ map: shTex, transparent: true, opacity: 0.5, depthWrite: false, color: 0x08020c }));
+        shadow.position.set(10, -16, -60); shadow.renderOrder = -1; cardG.add(shadow);
+        cardG.add(rakes[0]); scene.add(cardG);
+        const starG = new THREE.Group(); starG.add(rakes[1]); sceneS.add(starG);
+        starG.add(new THREE.Mesh(slabGeo, new THREE.MeshBasicMaterial({ colorWrite: false })));   // the slab as a depth-only occluder, so the stars still sit IN their sockets
+
+        // ---------- the stars ----------
+        const sGeo = starGeo(R), PEARL = hexC(C.colors.pearl), GOLD = hexC(C.colors.gold);
+        const bloomMat0 = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: false, toneMapped: false,
+          uniforms: { uA: { value: 0 }, uS: { value: R * 0.62 }, uCol: { value: new THREE.Vector3(1.0, 0.9, 0.96) } },
+          vertexShader: VS, fragmentShader: "uniform float uA; uniform float uS; uniform vec3 uCol; varying vec2 vP; void main(){ float r = length(vP); float a = uA * exp(-(r*r) / (2.0*uS*uS)); gl_FragColor = vec4(uCol, clamp(a, 0.0, 1.0)); }" });
+        const stars = [];
+        for (let i = 0; i < N; i++) {
+          const mat = new THREE.MeshPhysicalMaterial({ color: PEARL.clone(), emissive: new THREE.Color(0x2a2236), metalness: 0.12, roughness: 0.24, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 1.05 });
+          const m = new THREE.Mesh(sGeo, mat), g = new THREE.Group(); g.add(m); g.visible = false; starG.add(g);
+          const bm = bloomMat0.clone(); bm.uniforms.uCol.value = i === N - 1 ? new THREE.Vector3(1.0, 0.93, 0.78) : new THREE.Vector3(1.0, 0.9, 0.96);
+          const bl = new THREE.Mesh(new THREE.PlaneGeometry(R * 4.4, R * 4.4), bm); bl.position.set(sx(i), SY + R * 0.08, 26); bl.renderOrder = 20; bl.visible = false; starG.add(bl);
+          stars.push({ g, m, mat, bl, bm });
+        }
+
+        // ---------- motion: everything is a pure function of t ----------
+        const DROP = 450;
+        function cardState(t) {
+          const td = t - T.drop; let y = K.cy, rz = 0, s = 1;
+          if (td < 0) return { y: K.cy - DROP, rz: 0, s: 1, vis: false };
+          const u = seg(td, 0, 0.3);
+          if (u < 1) { y -= DROP * (1 - eIn2(u)); rz = -3.2 * (1 - u); }
+          else { const k = td - 0.3; y += 14 * Math.exp(-8 * k) * Math.sin(2 * Math.PI * 2.2 * k); rz = 2.0 * Math.exp(-4.6 * k) * Math.sin(2 * Math.PI * 1.35 * k + 0.3) - 0.6 * Math.exp(-14 * k); }
+          for (let i = 0; i < N - 1; i++) { const k = t - F[i]; if (k >= 0) y += 3.5 * Math.exp(-10 * k) * Math.sin(2 * Math.PI * 3 * k); }
+          const kp = t - PAY; if (kp >= 0) { s += 0.05 * Math.exp(-4.8 * kp) * Math.sin(2 * Math.PI * 1.7 * kp + 0.25); y += 5 * Math.exp(-9 * kp) * Math.sin(2 * Math.PI * 2.6 * kp); }
+          const uo = seg(t, T.out, 0.34); if (uo > 0) { const e = eBackIn(uo); y -= DROP * e; rz += 2.6 * e; }
+          return { y, rz, s, vis: uo < 1 };
+        }
+        function neonOn(t) {
+          const k = t - (T.drop + 0.3); if (k < 0) return 0;
+          const seq = [1, 1, 0.12, 0.12, 1, 0.5, 0.5, 1], f = Math.floor(k * 30 + 1e-6); return f < seq.length ? seq[f] : 1;
+        }
+        const flash = (k, hold, fall) => k < 0 ? 0 : k < 1 / 30 ? k * 30 : k < 1 / 30 + hold ? 1 : Math.exp(-(k - 1 / 30 - hold) / fall);
+
+        function renderAt(t) {
+          const st = cardState(t);
+          // GL card + DOM card share one 2D transform (translate, rotate, scale in the z = 0 plane)
+          [cardG, starG].forEach((g) => { g.visible = st.vis; g.position.set(wx(K.cx), wy(st.y), 0); g.rotation.z = -st.rz * Math.PI / 180; g.scale.setScalar(st.s); });
+          card.style.visibility = st.vis ? "visible" : "hidden";
+          card.style.transform = "translate(" + (K.cx - K.w / 2).toFixed(2) + "px," + (st.y - K.h / 2).toFixed(2) + "px) rotate(" + st.rz.toFixed(3) + "deg) scale(" + st.s.toFixed(4) + ")";
+
+          // neon
+          const on = neonOn(t), kp = t - PAY;
+          tubeMat.uniforms.uOn.value = on;
+          const pu = seg(t, PAY + 0.02, 0.7);
+          tubeMat.uniforms.uP.value = lerp(0.0, 0.5, eOut2(pu)); tubeMat.uniforms.uPA.value = pu > 0 && pu < 1 ? Math.sin(Math.PI * pu) * 1.1 : 0;
+          const haloKick = kp >= 0 ? 0.9 * flash(kp, 0.1, 0.35) : 0;
+          haloMat.uniforms.uA.value = on * (1 + haloKick); spillMat.uniforms.uA.value = on * (1 + haloKick * 0.8);
+
+          // stars
+          let keyKick = 0;
+          stars.forEach((S, i) => {
+            const tf = F[i], big = i === N - 1, fly = big ? 0.34 : 0.24, t0 = tf - fly;
+            if (t < t0) { S.g.visible = false; S.bl.visible = false; return; }
+            S.g.visible = true;
+            let z = 0, xl = 0, yl = 0, ry = 0, rx = 0, sxy = 1, sz = 1;
+            if (t < tf) {
+              // flies in from the camera along a path that stays on screen (parallax-compensated), spinning, and slams into the socket
+              const u = seg(t, t0, fly), e = eIn2(u), FL = C.fly, fr = big ? FL.fromBig : FL.from;
+              z = (big ? FL.zBig : FL.z) * (1 - e);
+              const f = (DIST - z) / DIST, Xs = wx(K.cx) + sx(i), Ys = wy(st.y) + SY;
+              xl = (Xs + fr[0] * (1 - e)) * f - wx(K.cx) - sx(i); yl = (Ys + fr[1] * (1 - e)) * f - wy(st.y) - SY;
+              const sc = lerp(big ? FL.scaleBig : FL.scale, 1, e); sxy = sc; sz = sc;
+              ry = -(big ? 2.5 : 2) * Math.PI * (1 - eOut2(u)); rx = 0.3 * (1 - u);
+            } else {
+              const k = t - tf, sq = Math.exp(-11 * k) * Math.cos(2 * Math.PI * 2.3 * k);
+              sz = 1 - (big ? 0.5 : 0.45) * Math.max(0, sq); sxy = 1 + (big ? 0.14 : 0.1) * sq;
+              const idle = seg(t, tf + 0.35, 0.6); ry = 0.075 * Math.sin(2 * Math.PI * 0.55 * (t - tf) + i * 1.3) * idle; rx = 0.05 * Math.sin(2 * Math.PI * 0.4 * (t - tf) + i * 0.7) * idle;
+              keyKick += (big ? 0.2 : 0.5) * Math.exp(-Math.pow((k - 0.05) / 0.09, 2));
+            }
+            S.g.position.set(sx(i) + xl, SY + yl, z); S.g.rotation.set(rx, ry, 0); S.g.scale.set(sxy, sxy, sz);
+            // pearl -> gold wave at the payoff
+            const gk = eIO(seg(t, PAY + 0.04 + 0.055 * i, 0.16));
+            S.mat.color.copy(PEARL).lerp(GOLD, gk); S.mat.metalness = lerp(0.12, 1, gk); S.mat.roughness = lerp(0.24, 0.2, gk); S.mat.envMapIntensity = lerp(1.05, 1.45, gk); S.mat.emissiveIntensity = 1 - gk;
+            // a bloom on the star itself as it lands (3-frame peak)
+            const kb = t - tf, ba = kb < 0 ? 0 : flash(kb, 2 / 30, big ? 0.16 : 0.1) * (big ? 0.85 : 0.6);
+            S.bl.visible = ba > 0.003; S.bm.uniforms.uA.value = ba; S.bm.uniforms.uS.value = R * (big ? 0.8 : 0.6);
+          });
+          // payoff light: a point light rakes across the row, the key kicks, warm glow lands under the row
+          const ru = seg(t, PAY + 0.06, 0.62);
+          rakes.forEach((rk) => { rk.position.set(lerp(sx(0) - 170, sx(N - 1) + 170, eIO(ru)), SY + 34, 64); rk.intensity = ru > 0 && ru < 1 ? 7 * Math.sin(Math.PI * ru) : 0; });
+          keys.forEach((k) => (k.intensity = 1.6 + keyKick + (kp >= 0 ? 1.1 * flash(kp, 0.1, 0.3) : 0)));
+          rowMat.uniforms.uA.value = kp >= 0 ? 0.5 * flash(kp - 0.04, 0.1, 0.4) + 0.12 * seg(kp, 0.1, 0.4) : 0;
+
+          // DOM: tab pops in, discs + labels pop in after the landing, ticks before each star
+          const tt = t - (T.drop + 0.3);
+          const ts = tt < 0 ? 0 : eBack(seg(tt, 0, 0.3));
+          tab.style.opacity = tt < 0 ? 0 : seg(tt, 0, 0.05); tab.style.transform = "scale(" + Math.max(0.001, 0.55 + 0.45 * ts).toFixed(4) + "," + Math.max(0.001, 0.7 + 0.3 * ts).toFixed(4) + ")";
+          const rp = seg(t, PAY + 0.06, 0.32), re = eRoll(rp);
+          tabA.style.transform = "translateY(" + (-re * 100).toFixed(2) + "%)"; tabB.style.transform = "translateY(" + ((1 - re) * 100).toFixed(2) + "%)";
+          tabA.style.visibility = rp < 1 ? "visible" : "hidden"; tabB.style.visibility = rp > 0 ? "visible" : "hidden";
+          tabBg2.style.clipPath = "inset(0 " + ((1 - eIO(seg(t, PAY + 0.04, 0.3))) * 100).toFixed(2) + "% 0 0)";
+          cols.forEach((c, i) => {
+            const k = t - (T.drop + 0.38 + 0.045 * i), e = k < 0 ? 0 : eBack(seg(k, 0, 0.3));
+            c.disc.style.opacity = k < 0 ? 0 : seg(k, 0, 0.05); c.lab.style.opacity = k < 0.04 ? 0 : seg(k, 0.04, 0.06);
+            const kt = t - (F[i] - 0.3);
+            const punch = kt < 0 ? 0 : 0.22 * Math.exp(-8 * kt) * Math.sin(2 * Math.PI * 2.2 * kt);
+            c.disc.style.transform = "scale(" + Math.max(0.001, (0.35 + 0.65 * e) * (1 + punch)).toFixed(4) + ")";
+            c.lab.style.transform = "translateY(" + ((1 - e) * 10).toFixed(2) + "px)";
+            c.grn.style.clipPath = "circle(" + (kt < 0 ? 0 : 72 * eOut3(seg(kt, 0, 0.16))).toFixed(2) + "% at 50% 50%)";
+            c.tick.style.strokeDashoffset = (1 - eOut2(seg(kt, 0.05, 0.18))).toFixed(4);
+            c.lab.style.color = kt < 0 ? "rgba(255,255,255,0.62)" : "#FFFFFF";
+          });
+
+          renderer.render(scene, camera); renderer2.render(sceneS, camera);
+        }
+        window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+
+        const FACES = ["800 20px Archivo", "800 100px Archivo"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const meas = (el) => { const m = document.createElement("span"); m.className = el.className; m.textContent = el.textContent;
+            m.style.cssText = "position:absolute;visibility:hidden;width:auto;font-size:" + el.style.fontSize + ";line-height:" + el.style.lineHeight; tab.appendChild(m); const w = m.offsetWidth; m.remove(); return w; };
+          const pad = Math.round(L.tabH * 0.5), tw = Math.ceil(Math.max(meas(tabA), meas(tabB)));
+          tabWin.style.width = (tw + 2 * pad) + "px"; tab.style.width = (tw + 2 * pad) + "px";
+          const tl = gsap.timeline({ paused: true });
+          renderAt(0);
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          if (plate) {
+            Look.impact(tl, PAY, { shake: "#shake", amp: 6, dur: 0.3, flash: 0, host: "#root", zoom: 1.015 });
+            Look.push(tl, "#push", 0, T.end, { from: 1.0, to: 1.04 });
+          }
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

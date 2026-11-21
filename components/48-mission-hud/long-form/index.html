@@ -1,0 +1,501 @@
+<!doctype html>
+<!-- 48 Mission HUD, variant A (16:9, 1920x1080, 30 fps): "TARGETS LEFT 3 -> 2".
+     The creators' recreated mission HUD: targets-left counter top-right, battery bottom-left, plus-crosshair centre,
+     objective line bottom-centre. The count is a real 3D drum of extruded numerals; the battery is a 3D enamel cell
+     pack. Lock-on -> the car blows up in the footage -> a comet flies to the counter -> the drum rolls 3 -> 2.
+     Variable bg: "plate" / "none". -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Barlow Condensed", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      #shake { z-index: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #gl, #hud { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; }
+      #scrim { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; z-index: 1; }
+      #gl { z-index: 3; }
+      #hud { z-index: 4; }
+      #ov { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
+      .hud { position: absolute; font-family: "Barlow Condensed", sans-serif; font-weight: 800; text-transform: uppercase; white-space: nowrap;
+        color: #D2F6FF; paint-order: stroke fill; -webkit-text-stroke: 6px #050D13;
+        text-shadow: 0 2px 0 rgba(2,6,9,.55), 0 5px 16px rgba(0,0,0,.5); font-variant-numeric: tabular-nums; }
+      #ctrLabel { font-size: 64px; line-height: 1; letter-spacing: .035em; }
+      #batLabel { font-size: 44px; line-height: 1.2; letter-spacing: .06em; color: #EAF8FC; -webkit-text-stroke-width: 5px; overflow: hidden; padding: 0 12px; margin-left: -12px; }
+      #batIn { display: inline-block; }
+      #batWin { display: inline-block; position: relative; overflow: hidden; vertical-align: top; height: 1.2em; padding: 0 .14em; margin: 0 -.14em 0 .16em; }
+      #batWin span { display: block; height: 1.2em; color: #8FE9FF; }
+      #obj { position: absolute; left: 0; width: 1920px; text-align: center; font-size: 64px; line-height: 1.12; font-weight: 700;
+        text-transform: none; letter-spacing: .012em; color: #FFFFFF; -webkit-text-stroke: 6px #04080B; }
+      #obj .m { display: inline-block; overflow: hidden; vertical-align: top; padding: .06em .1em .24em; margin: -.06em -.1em -.24em; }
+      #obj .w { display: inline-block; will-change: transform; }
+      #obj .k { color: #FF4652; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="4.85" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="s0" class="clip shot" style="z-index:3" src="assets/shots/v45-beach-aerial-h.mp4" muted playsinline data-start="0" data-duration="0.9" data-media-start="0" data-track-index="0"></video>
+        <video id="s1" class="clip shot" style="z-index:2" src="assets/shots/v21-race-topdown-h.mp4" muted playsinline data-start="0.8333" data-duration="1.7167" data-media-start="0" data-track-index="1"></video>
+        <video id="s2" class="clip shot" style="z-index:1" src="assets/shots/v47-gp-chiliad-aerial-h.mp4" muted playsinline data-start="2.4833" data-duration="2.3667" data-media-start="0" data-track-index="2"></video>
+      </div></div>
+      <canvas id="scrim" data-layout-allow-occlusion width="1920" height="1080"></canvas>
+      <canvas id="gl" data-layout-allow-occlusion width="1920" height="1080"></canvas>
+      <canvas id="hud" data-layout-allow-occlusion width="1920" height="1080"></canvas>
+      <div id="ov">
+        <div class="hud" id="ctrLabel">Targets left</div>
+        <div class="hud" id="batLabel" data-layout-allow-overflow><span id="batIn">Battery<span id="batWin"><span id="batA">80%</span><span id="batB">60%</span></span></span></div>
+        <div class="hud" id="obj"></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        label: "Targets left",
+        count: 3,                               // targets left before the hit; the hit makes it count - 1 (single digit)
+        objective: ["Take out the ", "*targets", " before the battery dies."],   // "*" marks the red keyword
+        battery: { from: 4, to: 3, cells: 5 },  // lit cells before / after the drain (readout = cells x 20%)
+        colors: { idle: "#3DFF6A", lock: "#FF3B45", ink: "#050D13", comet: "#7FEBFF" },
+        // layout (1920x1080 canvas px)
+        counter: { mode: "row", right: 1856, top: 54, cap: 120, gap: 26, label: 64, yaw: -0.16, pitch: 0, glow: 1.5 },   // row: label left of the numeral, baselines shared
+        crosshair: { x: 960, y: 540 }, hudScale: 1,
+        batteryBox: { left: 64, bottom: 1016, w: 248, h: 112, label: 44 },
+        objectiveTop: 916,
+        cometCtrl: [1150, 60],
+        scrims: { counter: [1632, 122, 360, 0.38, 0.42], objective: [960, 950, 700, 0.17, 0.62], battery: [220, 905, 270, 0.64, 0.46] },   // x, y, radius, y-squash, alpha
+        // the target: the lime car in v21 (shot time -> source px, measured from the shot)
+        target: { shot: "s1", start: 0.8333, map: [0, 0, 1],   // canvas = map[0..1] + source px x map[2]
+          track: [[0,912,449],[0.067,892,434],[0.133,877,424],[0.2,869,417],[0.267,874,406],[0.333,889,403],[0.4,913,415],[0.467,938,428],
+                  [0.533,963,449],[0.6,991,471],[0.667,998,481],[0.733,988,493],[0.8,960,506],[0.867,934,537],[0.933,896,546],[1.0,884,540]] },
+        timing: { cross: 0.10, ctr: 0.16, bat: 0.30, obj: 0.44, acq: 1.06, lock: 1.42, fire: 1.56, hit: 1.833, comet: 1.87, flip: 2.12,
+                  drain: 3.35, out: 4.2, end: 4.85 }
+      };
+
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const C = CONFIG, T = C.timing, $ = (s) => document.querySelector(s), W = 1920, H = 1080;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x)), seg = (t, a, d) => clamp((t - a) / d, 0, 1), lerp = (a, b, k) => a + (b - a) * k;
+        const E = (n) => gsap.parseEase(n);
+        const eO3 = E("power3.out"), eI3 = E("power3.in"), eIO = E("power2.inOut"), eBk = E("back.out(2.2)"), eBk3 = E("back.out(3)"), eBkI = E("back.in(1.8)"), eExpo = E("expo.out");
+        const wx = (x) => x - W / 2, wy = (y) => H / 2 - y;
+        const spring = (t, t0, amp, f, d) => t < t0 ? 0 : amp * Math.exp(-d * (t - t0)) * Math.sin(2 * Math.PI * f * (t - t0));
+        const pulse = (t, t0, hold, decay) => t < t0 ? 0 : (t < t0 + hold ? 1 : Math.exp(-(t - t0 - hold) / decay));
+        const PUSH = { o: [W / 2, H * 0.45], to: 1.04 }, K = C.hudScale;
+        const pushS = (t) => 1 + (PUSH.to - 1) * clamp(t / T.end, 0, 1);
+
+        // ---------- renderer: z = 0 maps 1:1 to canvas px ----------
+        const renderer = new THREE.WebGLRenderer({ canvas: $("#gl"), alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+        renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 0);
+        renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.12;
+        renderer.localClippingEnabled = true;
+        const scene = new THREE.Scene();
+        const FOV = 22, DIST = (H / 2) / Math.tan((FOV / 2) * Math.PI / 180);
+        const camera = new THREE.PerspectiveCamera(FOV, W / H, 10, DIST * 3);
+        camera.position.set(0, 0, DIST); camera.lookAt(0, 0, 0);
+
+        // cool studio: a white softbox overhead, a cyan strip left, a cool bounce low, dark floor
+        const envScene = new THREE.Scene();
+        envScene.add(new THREE.Mesh(new THREE.SphereGeometry(50, 48, 24), new THREE.ShaderMaterial({
+          side: THREE.BackSide, depthWrite: false,
+          vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 top = vec3(0.72,0.78,0.84), hor = vec3(0.10,0.13,0.17), low = vec3(0.012,0.014,0.018);" +
+            " vec3 c = y > 0.0 ? mix(hor, top, smoothstep(0.1, 0.9, y)) : mix(hor, low, smoothstep(0.0, 0.35, -y)); gl_FragColor = vec4(c, 1.0); }"
+        })));
+        const panel = (w, h, x, y, z, c) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); envScene.add(m); };
+        panel(40, 10, -4, 30, 26, new THREE.Color(4.0, 4.1, 4.3));
+        panel(5, 34, -30, 4, 22, new THREE.Color(1.2, 2.6, 3.4));
+        panel(34, 6, 6, -6, 34, new THREE.Color(0.9, 1.3, 1.6));
+        panel(14, 26, 32, 8, 10, new THREE.Color(2.0, 2.1, 2.3));
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        scene.environment = pmrem.fromScene(envScene, 0.0, 0.1, 200).texture;
+        const key = new THREE.DirectionalLight(0xf2f8ff, 1.3); scene.add(key); scene.add(key.target);
+        scene.add(new THREE.HemisphereLight(0xeaf6ff, 0x0a1218, 0.55));
+
+        const rampTexOf = (stops) => { const c = document.createElement("canvas"); c.width = 4; c.height = 256; const g = c.getContext("2d"), lg = g.createLinearGradient(0, 0, 0, 256);
+          stops.forEach((s) => lg.addColorStop(s[0], s[1])); g.fillStyle = lg; g.fillRect(0, 0, 4, 256);
+          const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; return t; };
+
+        // ================= the counter: a drum of extruded numerals =================
+        const F = window.NUM_GLYPHS, CAP = C.counter.cap, NS = CAP / F.cap, MIN_SEG = 0.5, CURVE_SEG = 8;
+        function glyphShapes(d, ox, oy, s) {
+          const sp = new THREE.ShapePath(); const re = /([MLQCZ])([^MLQCZ]*)/g; let m;
+          while ((m = re.exec(d))) {
+            const n = m[2].trim() ? m[2].trim().split(/[\s,]+/).map(Number) : [];
+            const P = []; for (let i = 0; i < n.length; i += 2) P.push(ox + n[i] * s, oy - n[i + 1] * s);
+            if (m[1] === "M") sp.moveTo(P[0], P[1]);
+            else if (m[1] === "L") sp.lineTo(P[0], P[1]);
+            else if (m[1] === "Q") sp.quadraticCurveTo(P[0], P[1], P[2], P[3]);
+            else if (m[1] === "C") sp.bezierCurveTo(P[0], P[1], P[2], P[3], P[4], P[5]);
+          }
+          const clean = (pts) => { const out = []; for (const p of pts) if (!out.length || p.distanceTo(out[out.length - 1]) > MIN_SEG) out.push(p);
+            while (out.length > 3 && out[0].distanceTo(out[out.length - 1]) <= MIN_SEG) out.pop(); return out; };
+          return sp.toShapes(false).map((sh) => { const s2 = new THREE.Shape(clean(sh.getPoints(CURVE_SEG)));
+            sh.holes.forEach((h) => s2.holes.push(new THREE.Path(clean(h.getPoints(CURVE_SEG))))); return s2; });
+        }
+        const faceRamp = rampTexOf([[0, "#FFFFFF"], [0.22, "#E8FCFF"], [0.55, "#86E3FF"], [0.85, "#2AA9E2"], [1, "#1A86C4"]]);
+        faceRamp.repeat.set(1, 1 / (CAP + 8)); faceRamp.offset.set(0, (CAP / 2 + 4) / (CAP + 8));
+        const faceMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: faceRamp, emissive: 0xffffff, emissiveMap: faceRamp, emissiveIntensity: 0.42,
+          metalness: 0.05, roughness: 0.26, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 0.9 });
+        const sideMat = new THREE.MeshPhysicalMaterial({ color: new THREE.Color("#0E1D27"), metalness: 0.75, roughness: 0.3, clearcoat: 0.7, clearcoatRoughness: 0.1, envMapIntensity: 1.25 });
+        const clipTop = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0), clipBot = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+        [faceMat, sideMat].forEach((m) => (m.clippingPlanes = [clipTop, clipBot]));
+        const SC = CAP / 104, DEPTH = 17 * SC, R = CAP * 0.78, STEP = 80 * Math.PI / 180;
+        function digitMesh(ch) {   // centred on its ink box, front face at local z = 0
+          const g = F.g[ch], inkW = (g[3] - g[2]) * NS;
+          const shapes = glyphShapes(g[1], -inkW / 2 - g[2] * NS, -CAP / 2, NS);
+          const geo = new THREE.ExtrudeGeometry(shapes, { depth: DEPTH, bevelEnabled: true, bevelThickness: 4.2 * SC, bevelSize: 2.8 * SC, bevelOffset: -2.8 * SC, bevelSegments: 5, curveSegments: 1 });
+          geo.translate(0, 0, -DEPTH - 4.2 * SC); geo.computeVertexNormals();
+          const grp = new THREE.Group(); grp.add(new THREE.Mesh(geo, [faceMat, sideMat])); grp.userData = { inkW, shapes }; return grp;
+        }
+        const sA = String(C.count), sB = String(C.count - 1);
+        const colW = Math.max(...["0","1","2","3","4","5","6","7","8","9"].map((c) => (F.g[c][3] - F.g[c][2]) * NS));
+        const CX = C.counter.mode === "stack" ? C.counter.cx : C.counter.right - colW / 2, CY = C.counter.top + CAP / 2;     // column centre (canvas px)
+        const dOld = digitMesh(sA[0]), dNew = digitMesh(sB[0]);
+        const drum = new THREE.Group(); drum.add(dOld); drum.add(dNew);
+        const place = (d, phi) => { d.position.set(0, R * Math.sin(phi), R * Math.cos(phi) - R); d.rotation.x = -phi; };
+        const ctr = new THREE.Group(); ctr.add(drum); scene.add(ctr);
+        ctr.position.set(wx(CX), wy(CY), 0);
+        // specular band across the new face (soft gaussian, clipped to the glyph by its own shape geometry)
+        const bandMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: false, toneMapped: false,
+          uniforms: { uPos: { value: -1e4 }, uAmp: { value: 0 }, uW: { value: 15 * SC } },
+          vertexShader: "varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "uniform float uPos; uniform float uAmp; uniform float uW; varying vec2 vP; void main(){ float d = dot(vP, normalize(vec2(0.55, 0.84))); float a = uAmp * exp(-pow((d - uPos) / uW, 2.0)); gl_FragColor = vec4(1.0, 1.0, 1.0, a); }" });
+        const band = new THREE.Mesh(new THREE.ShapeGeometry(dNew.userData.shapes, 8), bandMat); band.position.z = 0.6; band.renderOrder = 6; dNew.add(band);
+        // local bloom behind the numeral (normal blending: survives the transparent render)
+        const glowMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: true, toneMapped: false,
+          uniforms: { uA: { value: 0 }, uC: { value: new THREE.Color("#46D8FF") } },
+          vertexShader: "varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "uniform float uA; uniform vec3 uC; varying vec2 vP; void main(){ float r = length(vP / vec2(1.0, 1.15)); float a = uA * exp(-pow(r / 72.0, 2.0)); gl_FragColor = vec4(mix(uC, vec3(1.0), 0.35 * a), a); }" });
+        const glow = new THREE.Mesh(new THREE.PlaneGeometry(440, 440), glowMat); glow.position.z = -40 * SC; glow.scale.setScalar(C.counter.glow); glow.renderOrder = -2; ctr.add(glow);
+        // soft contact shadow of the digits on the footage (one per digit, weighted by how face-on it is)
+        function digitShadow(ch) {
+          const g = F.g[ch], inkW = (g[3] - g[2]) * NS, pad = 30 * SC, cw = inkW + pad * 2, chh = CAP + pad * 2;
+          const SCV = document.createElement("canvas"); SCV.width = Math.ceil(cw * 2); SCV.height = Math.ceil(chh * 2); const x = SCV.getContext("2d");
+          x.filter = "blur(" + Math.round(9 * SC) + "px)"; x.fillStyle = "#000"; x.translate(pad * 2 - g[2] * NS * 2, pad * 2 + CAP * 2); x.scale(NS * 2, NS * 2);
+          x.fill(new Path2D(g[1])); const tex = new THREE.CanvasTexture(SCV); tex.colorSpace = THREE.SRGBColorSpace;
+          // no hard clip plane on the shadow: a soft vertical window (feathered well outside the drum window) only hides the
+          // shadows of digits that have rolled out, so the settled shadow fades out instead of ending in a straight line
+          const m = new THREE.Mesh(new THREE.PlaneGeometry(cw, chh), new THREE.ShaderMaterial({ transparent: true, depthWrite: false,
+            uniforms: { map: { value: tex }, uOp: { value: 0 }, uLo: { value: -1e5 }, uHi: { value: 1e5 }, uM: { value: 14 * SC }, uS: { value: 38 * SC } },
+            vertexShader: "varying vec2 vUv; varying float vY; void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vY = w.y; gl_Position = projectionMatrix * viewMatrix * w; }",
+            fragmentShader: "uniform sampler2D map; uniform float uOp; uniform float uLo; uniform float uHi; uniform float uM; uniform float uS; varying vec2 vUv; varying float vY;" +
+              " void main(){ float win = smoothstep(uLo - uM - uS, uLo - uM, vY) * (1.0 - smoothstep(uHi + uM, uHi + uM + uS, vY)); gl_FragColor = vec4(0.0, 0.0, 0.0, texture2D(map, vUv).a * uOp * win); }" }));
+          m.renderOrder = -1; return m;
+        }
+        const shOld = digitShadow(sA[0]), shNew = digitShadow(sB[0]); [shOld, shNew].forEach((s) => { s.position.set(6 * SC, -8 * SC, -36 * SC); ctr.add(s); });
+
+        // ================= the battery: enamel shell + ink outline + glowing cells =================
+        const BB = C.batteryBox, BW = BB.w, BHt = BB.h;
+        function rr(w, h, r, P) { const x = w / 2, y = h / 2, p = P || new THREE.Shape();
+          p.moveTo(-x + r, -y); p.lineTo(x - r, -y); p.quadraticCurveTo(x, -y, x, -y + r); p.lineTo(x, y - r); p.quadraticCurveTo(x, y, x - r, y);
+          p.lineTo(-x + r, y); p.quadraticCurveTo(-x, y, -x, y - r); p.lineTo(-x, -y + r); p.quadraticCurveTo(-x, -y, -x + r, -y); p.closePath(); return p; }
+        const shellRamp = rampTexOf([[0, "#FFFFFF"], [0.45, "#E9F0F4"], [1, "#AFC0CB"]]); shellRamp.repeat.set(1, 1 / BHt); shellRamp.offset.set(0, 0.5);
+        const shellFace = new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: shellRamp, metalness: 0.0, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.06, envMapIntensity: 0.8 });
+        const shellSide = new THREE.MeshPhysicalMaterial({ color: new THREE.Color("#9FB0BA"), metalness: 0.2, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 1.0 });
+        const inkMat = new THREE.MeshStandardMaterial({ color: 0x050a0e, roughness: 0.55, metalness: 0.2 });
+        const floorMat = new THREE.MeshPhysicalMaterial({ color: new THREE.Color("#0B151C"), metalness: 0.3, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 0.6 });
+        const WALL = 12, NUBW = 15, NUBH = 46;
+        const shellShape = rr(BW, BHt, 24); shellShape.holes.push(rr(BW - WALL * 2, BHt - WALL * 2, 13, new THREE.Path()));
+        const shellGeo = new THREE.ExtrudeGeometry(shellShape, { depth: 14, bevelEnabled: true, bevelThickness: 4, bevelSize: 3, bevelOffset: -3, bevelSegments: 5, curveSegments: 14 });
+        shellGeo.translate(0, 0, -18);
+        const nubGeo = new THREE.ExtrudeGeometry(rr(NUBW + 8, NUBH, 6), { depth: 10, bevelEnabled: true, bevelThickness: 3, bevelSize: 2.5, bevelOffset: -2.5, bevelSegments: 4, curveSegments: 10 });
+        nubGeo.translate(BW / 2 + NUBW / 2 - 4, 0, -15);
+        const inkGeoA = new THREE.ExtrudeGeometry(rr(BW + 14, BHt + 14, 31), { depth: 4, bevelEnabled: false, curveSegments: 14 }); inkGeoA.translate(0, 0, -24);
+        const inkGeoB = new THREE.ExtrudeGeometry(rr(NUBW + 16, NUBH + 14, 10), { depth: 4, bevelEnabled: false, curveSegments: 10 }); inkGeoB.translate(BW / 2 + NUBW / 2, 0, -24);
+        const floorGeo = new THREE.ExtrudeGeometry(rr(BW - WALL * 2 + 2, BHt - WALL * 2 + 2, 14), { depth: 3, bevelEnabled: false, curveSegments: 14 }); floorGeo.translate(0, 0, -16);
+        const bat = new THREE.Group();
+        bat.add(new THREE.Mesh(inkGeoA, inkMat)); bat.add(new THREE.Mesh(inkGeoB, inkMat)); bat.add(new THREE.Mesh(floorGeo, floorMat));
+        bat.add(new THREE.Mesh(shellGeo, [shellFace, shellSide])); bat.add(new THREE.Mesh(nubGeo, [shellFace, shellSide]));
+        const NC = C.battery.cells, CIN = 7, cellAreaW = BW - WALL * 2 - CIN * 2, cellH = BHt - WALL * 2 - CIN * 2, CG = 6, cellW = (cellAreaW - CG * (NC - 1)) / NC;
+        const cellRamp = rampTexOf([[0, "#EAFDFF"], [0.16, "#8AE9FF"], [0.6, "#2CC2F2"], [1, "#0D86C2"]]);
+        cellRamp.repeat.set(1, 1 / cellH); cellRamp.offset.set(0, 0.5);
+        const cellGeo = new THREE.ExtrudeGeometry(rr(cellW, cellH, 5), { depth: 5, bevelEnabled: true, bevelThickness: 1.6, bevelSize: 1.4, bevelOffset: -1.4, bevelSegments: 3, curveSegments: 6 });
+        cellGeo.translate(0, 0, -12);
+        const cells = [];
+        for (let i = 0; i < NC; i++) {
+          const m = new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: cellRamp, emissive: 0xffffff, emissiveMap: cellRamp, emissiveIntensity: 0.9, metalness: 0, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 0.7 });
+          const mesh = new THREE.Mesh(cellGeo, m); mesh.position.x = -cellAreaW / 2 + cellW / 2 + i * (cellW + CG); bat.add(mesh); cells.push(mesh);
+        }
+        const offCol = new THREE.Color("#1B3440"), onCol = new THREE.Color("#ffffff");
+        // glass sheen across the battery (soft band, clipped to the inner window)
+        const gbandMat = bandMat.clone(); gbandMat.uniforms.uW.value = 26;
+        const gband = new THREE.Mesh(new THREE.ShapeGeometry(rr(BW - WALL * 2, BHt - WALL * 2, 13), 8), gbandMat); gband.position.z = -2; gband.renderOrder = 6; bat.add(gband);
+        // soft shadow on the footage
+        { const SC = document.createElement("canvas"); SC.width = 400; SC.height = 220; const x = SC.getContext("2d"); x.filter = "blur(14px)"; x.fillStyle = "#000";
+          x.beginPath(); x.roundRect(50, 50, 300, 120, 34); x.fill(); const tex = new THREE.CanvasTexture(SC); tex.colorSpace = THREE.SRGBColorSpace;
+          const m = new THREE.Mesh(new THREE.PlaneGeometry(400, 220), new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.5, depthWrite: false, color: 0x02070a }));
+          m.position.set(14, -10, -60); m.renderOrder = -1; bat.add(m); }
+        const batOuter = new THREE.Group(); batOuter.add(bat); scene.add(batOuter);
+        const BX = BB.left + 7 + BW / 2, BY = BB.bottom - 7 - BHt / 2;
+        batOuter.position.set(wx(BX), wy(BY), 0);
+
+        // ================= DOM: labels, objective =================
+        const lab = $("#ctrLabel"); lab.textContent = C.label;
+        const batL = $("#batLabel"); batL.style.left = BB.left + "px";
+        const obj = $("#obj"); obj.style.top = C.objectiveTop + "px";
+        const words = []; let skipSp = false;
+        C.objective.forEach((part) => { const kw = part[0] === "*"; const txt = kw ? part.slice(1) : part;
+          txt.split(/(\s+)/).forEach((tok) => { if (!tok) return; if (/^\s+$/.test(tok)) { if (!skipSp) obj.appendChild(document.createTextNode(" ")); skipSp = false; return; }
+            if (tok === "|") { if (obj.lastChild && obj.lastChild.nodeType === 3) obj.removeChild(obj.lastChild); obj.appendChild(document.createElement("br")); skipSp = true; return; }
+            const m = document.createElement("span"); m.className = "m"; const w = document.createElement("span"); w.className = "w" + (kw ? " k" : ""); w.textContent = tok; m.appendChild(w); obj.appendChild(m); words.push(w); }); });
+
+        // label metrics, measured once fonts are in
+        let labBase = 0;
+        function layoutText() {
+          // baseline of the label = numeral baseline (CY + CAP/2); Barlow Condensed ascent box: measure the cap from a probe
+          const fs = C.counter.label, probe = document.createElement("canvas").getContext("2d"); probe.font = "800 " + fs + "px 'Barlow Condensed'";
+          const mm = probe.measureText("TARGETS"); const asc = mm.actualBoundingBoxAscent;
+          const lineTop = (fs - (mm.fontBoundingBoxAscent + mm.fontBoundingBoxDescent)) / 2 + mm.fontBoundingBoxAscent;   // baseline inside a line-height:1 box
+          labBase = lineTop;
+          const lw = lab.getBoundingClientRect().width;
+          if (C.counter.mode === "stack") { lab.style.left = (CX - lw / 2) + "px"; lab.style.top = (C.counter.top - C.counter.gap - lineTop) + "px"; }
+          else { lab.style.left = (C.counter.right - colW - C.counter.gap - lw) + "px"; lab.style.top = (CY + CAP / 2 - lineTop) + "px"; }
+          const fsb = BB.label; probe.font = "800 " + fsb + "px 'Barlow Condensed'"; const mb = probe.measureText("BATTERY");
+          const bl = (fsb * 1.2 - (mb.fontBoundingBoxAscent + mb.fontBoundingBoxDescent)) / 2 + mb.fontBoundingBoxAscent;
+          $("#batA").textContent = (C.battery.from * 20) + "%"; $("#batB").textContent = (C.battery.to * 20) + "%";
+          batL.style.top = (BY - BHt / 2 - 7 - 16 - bl) + "px";
+        }
+
+        // ================= 2D HUD: crosshair, lock brackets, hit marker, comet =================
+        const hud = $("#hud").getContext("2d");
+        const scr = $("#scrim").getContext("2d");
+        const hex = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+        const mix = (a, b, k) => a.map((v, i) => Math.round(v + (b[i] - v) * k));
+        const rgba = (c, a) => "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + a.toFixed(3) + ")";
+        const IDLE = hex(C.colors.idle), LOCK = hex(C.colors.lock), WHITE = [255, 255, 255], INK = [3, 8, 6];
+        function glowStroke(drawPath, col, a, th) {   // dark outline, coloured glow core, hot inner line
+          hud.lineCap = "round"; hud.lineJoin = "round";
+          hud.strokeStyle = rgba(INK, 0.82 * a); hud.lineWidth = th + 6; drawPath(); hud.stroke();
+          hud.shadowColor = rgba(col, 0.75 * a); hud.shadowBlur = 16;
+          hud.strokeStyle = rgba(col, a); hud.lineWidth = th; drawPath(); hud.stroke();
+          hud.shadowBlur = 0;
+          hud.strokeStyle = rgba(mix(col, WHITE, 0.6), 0.9 * a); hud.lineWidth = Math.max(1.5, th * 0.34); drawPath(); hud.stroke();
+        }
+        function crosshair(cx, cy, s, rot, col, a) {
+          if (a <= 0.002 || s <= 0.01) return;
+          const g = 12, L = 33, th = 7; s *= K;
+          hud.save(); hud.translate(cx, cy); hud.rotate(rot); hud.scale(s, s);
+          glowStroke(() => { hud.beginPath(); for (let k = 0; k < 4; k++) { const an = k * Math.PI / 2, c = Math.cos(an), sn = Math.sin(an); hud.moveTo(c * g, sn * g); hud.lineTo(c * (g + L), sn * (g + L)); } }, col, a, th);
+          hud.fillStyle = rgba(INK, 0.82 * a); hud.beginPath(); hud.arc(0, 0, 7.5, 0, Math.PI * 2); hud.fill();
+          hud.shadowColor = rgba(col, 0.75 * a); hud.shadowBlur = 14; hud.fillStyle = rgba(col, a); hud.beginPath(); hud.arc(0, 0, 4.6, 0, Math.PI * 2); hud.fill(); hud.shadowBlur = 0;
+          hud.fillStyle = rgba(mix(col, WHITE, 0.7), a); hud.beginPath(); hud.arc(-0.8, -0.8, 1.8, 0, Math.PI * 2); hud.fill();
+          hud.restore();
+        }
+        function brackets(cx, cy, S, rot, col, a) {
+          if (a <= 0.002) return;
+          const h = S / 2, L = Math.max(16, S * 0.27);
+          hud.save(); hud.translate(cx, cy); hud.rotate(rot);
+          const thB = 6 * Math.sqrt(K);
+          glowStroke(() => { hud.beginPath(); for (const sx of [-1, 1]) for (const sy of [-1, 1]) { hud.moveTo(sx * h, sy * (h - L)); hud.lineTo(sx * h, sy * h); hud.lineTo(sx * (h - L), sy * h); } }, col, a, thB);
+          hud.restore();
+        }
+        function hitMarker(cx, cy, r0, r1, col, a) {
+          if (a <= 0.002) return;
+          hud.save(); hud.translate(cx, cy);
+          glowStroke(() => { hud.beginPath(); for (let k = 0; k < 4; k++) { const an = Math.PI / 4 + k * Math.PI / 2, c = Math.cos(an), s = Math.sin(an); hud.moveTo(c * r0, s * r0); hud.lineTo(c * r1, s * r1); } }, col, a, 7 * Math.sqrt(K));
+          hud.restore();
+        }
+        const trk = C.target.track;
+        function carAt(t) {   // canvas px of the target at composition time t (follows the footage push)
+          const m = clamp(t - C.target.start, trk[0][0], trk[trk.length - 1][0]);
+          let i = 0; while (i < trk.length - 2 && trk[i + 1][0] < m) i++;
+          const a = trk[i], b = trk[i + 1], k = clamp((m - a[0]) / (b[0] - a[0]), 0, 1), u = k * k * (3 - 2 * k) * 0.5 + k * 0.5;
+          const MP = C.target.map, x = MP[0] + MP[2] * lerp(a[1], b[1], u), y = MP[1] + MP[2] * lerp(a[2], b[2], u), s = plate ? pushS(t) : 1;
+          return [PUSH.o[0] + (x - PUSH.o[0]) * s, PUSH.o[1] + (y - PUSH.o[1]) * s];
+        }
+        const HITP = carAt(T.hit - 0.03);
+        const COMET1 = [CX, CY];
+        const bez = (u, P0, P1, P2) => { const a = (1 - u) * (1 - u), b = 2 * u * (1 - u), c = u * u; return [a * P0[0] + b * P1[0] + c * P2[0], a * P0[1] + b * P1[1] + c * P2[1]]; };
+        const CTRL = C.cometCtrl;
+        const CDUR = T.flip - T.comet;
+        const cometU = (t) => { const u = seg(t, T.comet, CDUR); return E("power2.in")(u) * 0.75 + u * 0.25; };
+
+        // ================= render: everything is a pure function of t =================
+        function renderAt(t) {
+          const out = T.out;
+          // ---------- counter (3D) ----------
+          // entrance: the drum spins in from below (two digit steps) and lands on the count with a spring
+          const ti = t - T.ctr, ui = seg(ti, 0, 0.42);
+          let drumA = ti < 0 ? -2.2 * STEP : -2.2 * STEP * (1 - E("back.out(1.4)")(ui));
+          // payoff: roll one step (old rolls up and away, new rolls in from below)
+          const uf = seg(t, T.flip, 0.26);
+          let phiOld = drumA, phiNew = drumA - STEP;
+          if (t >= T.flip) { const r = STEP * E("back.out(1.5)")(uf); phiOld = r; phiNew = r - STEP; }
+          // exit: roll the new one up and out
+          const uo = seg(t, out + 0.1, 0.26); if (uo > 0) { phiNew += 1.15 * STEP * eI3(uo); phiOld = 9; }
+          place(dOld, phiOld); place(dNew, phiNew);
+          dOld.visible = (t < T.flip ? Math.abs(phiOld) < STEP * 0.95 : phiOld < STEP * 0.7); dNew.visible = Math.abs(phiNew) < STEP * 0.95 && t >= T.ctr;
+          if (t < T.flip) dNew.visible = false;
+          if (t < T.ctr) dOld.visible = false;
+          // punch on the payoff + a settle on the entrance
+          const dp = t - T.flip - 0.02, ps = dp < 0 ? 1 : dp < 0.06 ? 1 + 0.32 * eO3(dp / 0.06) : 1 + 0.32 * Math.exp(-9 * (dp - 0.06)) * Math.cos(2 * Math.PI * 1.6 * (dp - 0.06));
+          ctr.scale.setScalar(ps);
+          const sway = 0.12 * Math.sin(2 * Math.PI * 0.35 * t);
+          ctr.rotation.y = C.counter.yaw + spring(t, T.flip, 0.22, 1.6, 4.5) + 0.04 * Math.sin(2 * Math.PI * 0.3 * t) + spring(ti, 0.25, 0.18, 1.4, 5);
+          ctr.rotation.x = C.counter.pitch + 0.05 * sway;
+          // clip window follows the punch
+          const half = (CAP / 2 + 6) * ps, cyW = wy(CY);
+          // the window clips only while a digit is actually leaving (top) or entering (bottom); a landed digit's overshoot,
+          // punch and tilt are never cut flat (releasing is pop-free: at release nothing lies outside the window)
+          const needTop = (t >= T.flip && dOld.visible) || uo > 0, needBot = t < T.flip ? drumA < 0 : (dNew.visible && phiNew < 0);
+          clipTop.constant = needTop ? cyW + half : 1e5; clipBot.constant = needBot ? -(cyW - half) : 1e5;
+          // light: face fires white-hot, then cools; key rakes across
+          const hot = t >= T.flip + 0.1 ? pulse(t, T.flip + 0.1, 0.1, 0.22) : 0;
+          const bootHot = ti >= 0 ? 0.7 * pulse(ti, 0.3, 0.06, 0.18) : 0;
+          faceMat.emissiveIntensity = 0.42 + 4.2 * hot + bootHot;
+          const ks = eIO(seg(t, T.flip, 0.7));
+          key.position.set(lerp(-1.1, 1.0, ks), 0.9, 1.0);
+          key.intensity = 1.3 + 2.0 * Math.exp(-Math.pow((t - T.flip - 0.16) / 0.14, 2));
+          const bu = seg(t, T.flip + 0.14, 0.28);
+          bandMat.uniforms.uPos.value = bu <= 0 || bu >= 1 ? -1e4 : lerp(-0.7 * CAP, 0.7 * CAP, eIO(bu));
+          bandMat.uniforms.uAmp.value = 0.75 * Math.sin(Math.PI * bu);
+          glowMat.uniforms.uA.value = 0.85 * (t >= T.flip + 0.08 ? pulse(t, T.flip + 0.08, 0.1, 0.32) : 0);
+          ctr.visible = t >= T.ctr && uo < 1;
+          const fo = (phi) => Math.max(0, Math.cos(Math.min(Math.PI / 2, Math.abs(phi) * 1.6)));
+          shOld.material.uniforms.uOp.value = 0.55 * fo(phiOld) * (dOld.visible ? 1 : 0); shNew.material.uniforms.uOp.value = 0.55 * fo(phiNew) * (dNew.visible ? 1 : 0);
+          [shOld, shNew].forEach((s) => { s.material.uniforms.uLo.value = cyW - half; s.material.uniforms.uHi.value = cyW + half; });
+          shOld.position.y = -8 * SC + R * Math.sin(phiOld) * 0.6; shNew.position.y = -8 * SC + R * Math.sin(phiNew) * 0.6;
+
+          // ---------- battery (3D) ----------
+          const tb = t - T.bat, ub = seg(tb, 0, 0.42);
+          const bo = seg(t, out + 0.14, 0.3), boE = eI3(bo);
+          batOuter.visible = tb >= 0 && bo < 1;
+          batOuter.position.x = wx(BX) - 330 * (1 - eO3(ub)) - 420 * boE;
+          bat.rotation.y = 0.32 - 1.35 * (1 - E("back.out(1.5)")(ub)) - 1.2 * boE + 0.03 * Math.sin(2 * Math.PI * 0.27 * t + 1);
+          bat.rotation.x = -0.2 + 0.02 * Math.sin(2 * Math.PI * 0.21 * t);
+          const bs = 1 + spring(tb, 0.3, 0.05, 2.2, 6);
+          bat.scale.setScalar(bs);
+          const lit = (i) => {
+            // boot: cells fill left to right; drain: the last lit cell flickers out; exit: cells go out right to left
+            const on0 = tb >= 0.36 + i * 0.07;
+            let on = on0 && i < C.battery.from;
+            if (i === C.battery.to && i < C.battery.from) { const td = t - T.drain; if (td >= 0) on = (td < 0.07) ? false : (td < 0.14) ? true : (td < 0.2) ? false : (td < 0.25) ? true : false; }
+            if (t >= out + (NC - 1 - i) * 0.03) on = false;
+            return on;
+          };
+          cells.forEach((c, i) => { const on = lit(i), m = c.material;
+            const boot = on ? Math.exp(-Math.max(0, tb - 0.36 - i * 0.07) / 0.12) : 0;
+            m.color.copy(on ? onCol : offCol); m.emissiveIntensity = on ? 0.62 + 1.6 * boot : 0; });
+          const gb = Math.max(seg(tb, 0.75, 0.5) * (tb < 1.25 ? 1 : 0), seg(t, T.drain + 0.28, 0.5) * (t < T.drain + 0.78 ? 1 : 0));
+          gbandMat.uniforms.uPos.value = gb <= 0 || gb >= 1 ? -1e4 : lerp(-200, 200, eIO(gb));
+          gbandMat.uniforms.uAmp.value = 0.32 * Math.sin(Math.PI * gb);
+
+          renderer.render(scene, camera);
+
+          // ---------- DOM ----------
+          // counter label: wipes in from the numeral side, wipes back out on the exit
+          const li = eO3(seg(t, T.ctr + 0.12, 0.34)), lo = eI3(seg(t, out + 0.16, 0.24));
+          lab.style.clipPath = "inset(-20px " + (-20) + "px -20px " + (100 * (1 - li) + 100 * lo).toFixed(2) + "%)";
+          const kick = dp < 0 ? 0 : -12 * K * Math.sin(Math.min(Math.PI, dp / 0.24 * Math.PI)) * Math.exp(-3 * dp);
+          lab.style.transform = "translateX(" + (40 * (1 - li) + 30 * lo + (C.counter.mode === "stack" ? 0 : kick)).toFixed(1) + "px) translateY(" + (C.counter.mode === "stack" ? -0.5 * kick : 0).toFixed(1) + "px) scale(" + (1 + 0.06 * spring(t, T.flip + 0.02, 1, 2.2, 7)).toFixed(4) + ")";
+          lab.style.transformOrigin = "100% 70%";
+          lab.style.color = "rgb(" + mix([210, 246, 255], [255, 255, 255], hot).join(",") + ")";
+          lab.style.visibility = li > 0 && lo < 1 ? "visible" : "hidden";
+          // battery label: rises from a clip line
+          const bi = eO3(seg(t, T.bat + 0.3, 0.34)), bl2 = eI3(seg(t, out + 0.05, 0.22));
+          $("#batIn").style.transform = "translateY(" + (110 * (1 - bi) + 110 * bl2).toFixed(2) + "%)";
+          batL.style.visibility = bi > 0 && bl2 < 1 ? "visible" : "hidden";
+          const rd = E("back.out(1.6)")(seg(t, T.drain + 0.27, 0.3));
+          $("#batA").style.transform = "translateY(" + (-100 * rd).toFixed(2) + "%)"; $("#batB").style.transform = "translateY(" + (-100 * rd).toFixed(2) + "%)";
+          $("#batA").style.visibility = rd < 0.999 ? "visible" : "hidden"; $("#batB").style.visibility = rd > 0.001 ? "visible" : "hidden";
+          // objective: masked word rise, masked drop on the exit
+          words.forEach((w, i) => { const wi = eExpo(seg(t, T.obj + i * 0.035, 0.5)), wo = eI3(seg(t, out + i * 0.02, 0.22));
+            w.style.transform = "translateY(" + (115 * (1 - wi) + 115 * wo).toFixed(2) + "%)"; });
+          obj.style.visibility = t >= T.obj && t < out + words.length * 0.02 + 0.23 ? "visible" : "hidden";
+
+          // ---------- 2D HUD ----------
+          hud.clearRect(0, 0, W, H);
+          const swx = K * (5 * Math.sin(2 * Math.PI * t / 1.8) + 2 * Math.sin(2 * Math.PI * t / 0.9 + 1.3)), swy = K * 3.5 * Math.sin(2 * Math.PI * t / 2.3 + 0.7);
+          const wA = eIO(seg(t, T.acq, T.lock - T.acq)) * (1 - eIO(seg(t, T.hit + 0.3, 0.45)));
+          const tgt = carAt(Math.min(t, T.hit - 0.03));
+          const X = lerp(C.crosshair.x + swx, tgt[0], wA), Y = lerp(C.crosshair.y + swy, tgt[1], wA);
+          // crosshair: boots with a spin + scale, recoils on fire, idles green, goes red while locked
+          const tc = t - T.cross, uc = seg(tc, 0, 0.36);
+          const lockK = seg(t, T.lock, 0.05) * (1 - seg(t, T.hit + 0.35, 0.12));
+          let col = mix(IDLE, LOCK, lockK);
+          const recoil = spring(t, T.fire, 0.28, 3.2, 9) + (t >= T.fire ? 0.22 * Math.exp(-14 * (t - T.fire)) : 0);
+          const xs = (tc < 0 ? 0 : 2.4 - 1.4 * eBk(uc)) * (1 + recoil) * (1 - eI3(seg(t, out + 0.08, 0.2)));
+          crosshair(X, Y, xs, (1 - eO3(uc)) * Math.PI / 4, col, tc < 0 ? 0 : Math.min(1, tc / 0.05));
+          // lock brackets ride the car: acquire (big, rotated, white-green) -> close -> snap red -> fire kick -> burst on the hit
+          const ta = t - T.acq;
+          if (ta >= 0 && t < T.hit + 0.1) {
+            const P = tgt;
+            const ua = eO3(seg(ta, 0, 0.36));
+            let S = K * lerp(300, 150, ua), rot = (1 - ua) * Math.PI / 4;
+            const ul = seg(t, T.lock, 0.14); if (t >= T.lock) S = K * lerp(150, 116, eBk3(ul));
+            if (t >= T.fire) S *= 1 - 0.1 * Math.exp(-10 * (t - T.fire)) * Math.sin(Math.min(Math.PI, (t - T.fire) * 20));
+            let a = Math.min(1, ta / 0.05);
+            if (t >= T.hit) S *= 1 - 0.7 * eI3(seg(t, T.hit, 0.1));
+            const bc = t < T.lock ? mix(IDLE, WHITE, 0.25 + 0.25 * Math.sin(ta * 40)) : mix(WHITE, LOCK, seg(t, T.lock, 0.06));
+            brackets(P[0], P[1], S, rot, bc, a);
+          }
+          // hit marker: white for 2 frames, then red; springs out, holds, collapses into its centre
+          const th = t - T.hit;
+          if (th >= 0 && th < 0.27) {
+            const sc = (th < 0.12 ? lerp(1.4, 1, eBk3(seg(th, 0, 0.12))) : 1) * (1 - eI3(seg(th, 0.16, 0.1)));
+            hitMarker(X, Y, K * 21 * sc, K * 40 * sc, mix(WHITE, LOCK, seg(th, 0.066, 0.034)), sc > 0.03 ? 1 : 0);
+          }
+          // comet: from the wreck to the counter; lands on the drum roll
+          if (t >= T.comet && t < T.flip + 0.06) {
+            const u1 = cometU(Math.min(t, T.flip)), u0 = Math.max(0, u1 - 0.32), fade = 1 - seg(t, T.flip, 0.06), N = 26;
+            const CM = hex(C.colors.comet);
+            hud.lineCap = "round";
+            for (let pass = 0; pass < 2; pass++) {
+              hud.shadowColor = rgba(CM, pass ? 0 : 0.9); hud.shadowBlur = pass ? 0 : 20;
+              for (let i = 1; i <= N; i++) {
+                const k = i / N, p0 = bez(lerp(u0, u1, (i - 1) / N), HITP, CTRL, COMET1), p1 = bez(lerp(u0, u1, k), HITP, CTRL, COMET1);
+                hud.beginPath(); hud.moveTo(p0[0], p0[1]); hud.lineTo(p1[0], p1[1]);
+                if (!pass) { hud.strokeStyle = rgba(CM, 0.45 * k * k * fade); hud.lineWidth = K * 26 * (0.2 + 0.8 * k); }
+                else { hud.strokeStyle = rgba(mix(CM, WHITE, 0.75), 0.95 * k * k * fade); hud.lineWidth = K * 8 * (0.15 + 0.85 * k); }
+                hud.stroke();
+              }
+            }
+            hud.shadowBlur = 0;
+            const hp = bez(u1, HITP, CTRL, COMET1), rg = hud.createRadialGradient(hp[0], hp[1], 0, hp[0], hp[1], 26 * K);
+            rg.addColorStop(0, rgba(WHITE, fade)); rg.addColorStop(0.35, rgba(CM, 0.8 * fade)); rg.addColorStop(1, rgba(CM, 0));
+            hud.fillStyle = rg; hud.beginPath(); hud.arc(hp[0], hp[1], 26 * K, 0, Math.PI * 2); hud.fill();
+          }
+
+          // ---------- legibility scrims (soft, local; no box edges) ----------
+          scr.clearRect(0, 0, W, H);
+          const blob = (sp, a) => { if (a <= 0) return; scr.save(); scr.translate(sp[0], sp[1]); scr.scale(1, sp[3]); const g = scr.createRadialGradient(0, 0, 0, 0, 0, sp[2]);
+            g.addColorStop(0, "rgba(3,7,10," + (sp[4] * a).toFixed(3) + ")"); g.addColorStop(0.58, "rgba(3,7,10," + (sp[4] * 0.52 * a).toFixed(3) + ")"); g.addColorStop(1, "rgba(3,7,10,0)");
+            scr.fillStyle = g; scr.beginPath(); scr.arc(0, 0, sp[2], 0, Math.PI * 2); scr.fill(); scr.restore(); };
+          blob(C.scrims.objective, (t >= T.obj ? eO3(seg(t, T.obj, 0.4)) : 0) * (1 - eI3(seg(t, out, 0.3))));
+          blob(C.scrims.counter, (t >= T.ctr ? eO3(seg(t, T.ctr, 0.4)) : 0) * (1 - eI3(seg(t, out + 0.1, 0.3))));
+          blob(C.scrims.battery, (t >= T.bat ? eO3(seg(t, T.bat, 0.4)) : 0) * (1 - eI3(seg(t, out + 0.1, 0.3))));
+        }
+        window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+
+        const FACES = ["800 64px 'Barlow Condensed'", "700 64px 'Barlow Condensed'", "900 100px 'Barlow Condensed'"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          layoutText();
+          const tl = gsap.timeline({ paused: true });
+          renderAt(0);
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          if (plate) {
+            Look.impact(tl, T.hit, { shake: "#shake", amp: 7, dur: 0.3, flash: 0, host: "#root", zoom: 1.02 });
+            Look.push(tl, "#push", 0, T.end, { from: 1.0, to: PUSH.to, origin: "50% 45%" });
+          }
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

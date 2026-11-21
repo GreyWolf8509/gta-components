@@ -1,0 +1,283 @@
+<!doctype html>
+<!-- 40 Footage card, variant B "Inset for Shorts" (9:16, 1080x1920, 30 fps, 6.1 s).
+     A reference clip inset in a white-bordered card with a credit tag, as a physical object: an extruded white porcelain
+     bezel (real Three.js geometry, perspective camera) that slides in at a tilt and swings flat on a spring; the hinged
+     black credit tag drops on landing, slaps onto the bezel and bounces, and its yellow lamp chip switches on.
+     The picture and the tag type are DOM layers mapped onto the projected 3D faces (homography), so they stay sharp.
+     Variable: bg "plate" (sample GTA V footage, racked out of focus under the card) / "none" (transparent overlay: the
+     frame, tag and shadow only; the window is a clean hole for your own clip). See gta/DESIGN.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/card3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #bgw, #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #card { position: absolute; inset: 0; opacity: 0; }
+      .q { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+      #pic { overflow: hidden; background: #0b0c0f; }
+      .cv { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #seat { position: absolute; pointer-events: none; }
+      #picIn { position: absolute; inset: 0; }
+      #glint { position: absolute; top: -40%; height: 180%; width: 30%; pointer-events: none; mix-blend-mode: screen;
+        background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.10) 38%, rgba(255,255,255,.2) 50%, rgba(255,255,255,.10) 62%, rgba(255,255,255,0) 100%); }
+      #tagShadow { pointer-events: none; }
+      #tagFace { pointer-events: none; }
+      #chipGlow { position: absolute; border-radius: 22%; }
+      #spill { position: absolute; pointer-events: none; mix-blend-mode: plus-lighter; }
+      #chipIco { position: absolute; }
+      #cred { position: absolute; white-space: nowrap; line-height: 1; font-family: "Inter"; color: #FFFFFF; font-feature-settings: "tnum" 1; }
+      #cred b { font-weight: 800; letter-spacing: 0.01em; }
+      #cred i { font-style: normal; font-weight: 600; color: rgba(255,255,255,.74); letter-spacing: 0.01em; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.1" data-width="1080" data-height="1920">
+      <div id="bgw"><div id="shake"><div id="push">
+        <video id="bg1" class="clip shot" src="assets/shots/v58-gp-franklin-window-v.mp4" muted playsinline data-start="0" data-duration="6.1" data-media-start="0.3" data-track-index="0"></video>
+      </div></div></div>
+      <div id="card">
+        <div id="cshadow" class="q"></div>
+        <div id="pic" class="q">
+          <div id="picIn">
+            <video id="c1" class="clip cv" style="object-position: 72% 50%" src="assets/shots/v44-bridge-skyline-h.mp4" muted playsinline data-start="0.3" data-duration="1.7" data-media-start="0" data-track-index="1"></video>
+            <video id="c2" class="clip cv" style="object-position: 62% 50%" src="assets/shots/v36-hills-city-view-h.mp4" muted playsinline data-start="2.0" data-duration="1.9" data-media-start="0" data-track-index="1"></video>
+            <video id="c3" class="clip cv" style="object-position: 42% 50%" src="assets/shots/v37-tower-looking-up-h.mp4" muted playsinline data-start="3.9" data-duration="1.9" data-media-start="0" data-track-index="1"></video>
+          </div>
+          <div id="glint"></div>
+          <div id="seat"></div>
+        </div>
+        <div id="tagShadow" class="q"></div>
+        <div id="tagFace" class="q">
+          <div id="spill"></div>
+          <div id="chipGlow"></div>
+          <svg id="chipIco" viewBox="0 0 24 24"><path id="chipTri" d="M8.2 5.6 L18.6 12 L8.2 18.4 Z" fill="#1A1405" stroke="#1A1405" stroke-width="2.2" stroke-linejoin="round"/></svg>
+          <div id="cred"><b></b><i></i></div>
+        </div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        title: "LOS SANTOS",                 // the credit's title (bold)
+        meta: "  ·  GTA V (2013)",           // the credit's source + year (lighter)
+        clips: ["assets/shots/v44-bridge-skyline-h.mp4", "assets/shots/v36-hills-city-view-h.mp4", "assets/shots/v37-tower-looking-up-h.mp4"], // swap in the <video> tags
+        center: [508, 820],                  // card centre: near the Shorts safe-area axis (x 72-936), clear of the right-hand buttons
+        window: { w: 768, h: 768, r: 8 },    // the picture window (square, like the Shorts film band; -h footage cropped at 0.71x)
+        bezel: 30, bevel: 9,                 // white border width and its rounded bevel, px
+        tag: { h: 128, left: 40, font: 54, metaFont: 36, chip: 82, lines: 2 },  // the hanging credit tag (lines: 1 or 2)
+        rest: { ry: 6, rx: 2.5, rz: -1, drift: 2 },            // the held 3D pose (deg) and its drift over the hold
+        motion: { enterX: 1250, exitX: -1350, punchZ: 60 },  // slide-in / swing-out travel; payoff push toward camera (px)
+        colors: { bezelTop: "#E8EBEF", bezelBot: "#A6ADB9", lip: "#2A2D33", tagTop: "#262930", tagBot: "#060708",
+                  chipOn: "#FFD23C", chipOnBot: "#F2AE14", chipOff: "#5A4818", chipOffBot: "#3A2E0E" },
+        rack: { blur: 9, brightness: 0.7, contrast: 1.12, saturate: 1.0 },   // the plate under the card (bg:plate only)
+        timing: { in: 0.30, drop: 0.95, out: 5.30, end: 6.1 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, $ = (s) => document.querySelector(s), C = CONFIG.colors;
+        if (!plate) document.querySelectorAll("video").forEach((v) => (v.style.display = "none"));
+        const CW = 1080, CH = 1920;
+        const Wv = CONFIG.window.w, Hv = CONFIG.window.h, ri = CONFIG.window.r, B = CONFIG.bezel;
+        const OW = Wv + 2 * B, OH = Hv + 2 * B, R = ri + B - 6;
+        const deg = Math.PI / 180, clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+        const spring = (z, f) => (p) => (p <= 0 ? 0 : p >= 1 ? 1 : 1 - Math.exp(-z * p) * Math.cos(6.2832 * f * p) * (1 - p));
+        const eIO = gsap.parseEase("power2.inOut"), eIn3 = gsap.parseEase("power3.in"), eO2 = gsap.parseEase("power2.out");
+
+        const pic = $("#pic"), seat = $("#seat"), cshadow = $("#cshadow"), tagFace = $("#tagFace"), tagShadow = $("#tagShadow");
+        const PM = 8; // the picture runs 8 px under the lip on every side
+        Object.assign(pic.style, { width: (Wv + 2 * PM) + "px", height: (Hv + 2 * PM) + "px", background: plate ? "#0b0c0f" : "transparent" });
+        Object.assign(seat.style, { left: PM + "px", top: PM + "px", width: Wv + "px", height: Hv + "px", borderRadius: ri + "px",
+          boxShadow: "inset 0 0 0 1.5px rgba(0,0,0,.6), inset 0 12px 24px -8px rgba(0,0,0,.55), inset 0 -8px 20px -10px rgba(0,0,0,.4)" });
+        const glint = $("#glint");
+        if (!plate) { seat.style.display = "none"; glint.style.display = "none"; }
+        Object.assign(cshadow.style, { width: OW + "px", height: OH + "px", borderRadius: R + "px",
+          boxShadow: "0 4px 10px rgba(0,0,0,.42), 0 30px 60px rgba(0,0,0,.55), 0 64px 120px -16px rgba(0,0,0,.45)" });
+
+        const FACES = ["800 " + CONFIG.tag.font + "px Inter", "600 " + CONFIG.tag.metaFont + "px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f, CONFIG.title + CONFIG.meta))).then(() => document.fonts.ready).then(() => {
+          // ---------- the credit tag: measure the type, then size the plate around it ----------
+          const cred = $("#cred"), fs = CONFIG.tag.font, mf = CONFIG.tag.metaFont, TH = CONFIG.tag.h, two = CONFIG.tag.lines === 2;
+          const bEl = cred.querySelector("b"), iEl = cred.querySelector("i");
+          bEl.textContent = CONFIG.title; iEl.textContent = two ? CONFIG.meta.replace(/^[\s·\u2014-]+/, "") : CONFIG.meta;
+          cred.style.fontSize = fs + "px"; iEl.style.fontSize = mf + "px";
+          const GAP = Math.round(mf * 0.3);
+          if (two) { bEl.style.display = "block"; iEl.style.display = "block"; iEl.style.marginTop = GAP + "px"; }
+          const credW = Math.ceil(cred.offsetWidth);
+          const CHIP = CONFIG.tag.chip, CP = (TH - CHIP) / 2, TX = CP + CHIP + Math.round(CHIP * 0.34), TW = TX + credW + 34;
+          Object.assign(tagFace.style, { width: TW + "px", height: TH + "px" });
+          Object.assign(tagShadow.style, { width: TW + "px", height: TH + "px", borderRadius: Math.round(TH * 0.18) + "px", boxShadow: "0 5px 10px rgba(0,0,0,.42), 0 14px 26px rgba(0,0,0,.30)" });
+          cred.style.left = TX + "px";   // caps optically centred on the plate (line-height 1 boxes)
+          cred.style.top = (two ? TH / 2 - (fs + GAP + mf) / 2 - 0.5 : TH / 2 - fs * 0.5 - 0.5) + "px";
+          Object.assign($("#chipGlow").style, { left: CP + "px", top: CP + "px", width: CHIP + "px", height: CHIP + "px" });
+          const ic = Math.round(CHIP * 0.18); Object.assign($("#chipIco").style, { left: (CP + ic) + "px", top: (CP + ic) + "px", width: (CHIP - 2 * ic) + "px", height: (CHIP - 2 * ic) + "px" });
+          Object.assign($("#spill").style, { left: "0px", top: "0px", width: TW + "px", height: TH + "px", borderRadius: "14px",
+            background: "radial-gradient(" + Math.round(CHIP * 1.9) + "px " + Math.round(TH * 0.7) + "px at " + (CP + CHIP / 2) + "px " + (TH / 2) + "px, rgba(255,205,70,.34), rgba(255,170,30,.10) 55%, rgba(255,170,30,0) 100%)", opacity: 0 });
+
+          // ---------- the physical card: real geometry ----------
+          const G = Card3D({ W: CW, H: CH, D: 2400, exposure: 1.0, env: { front: 0.55, top: 1.0 } });
+          const card = G.card;
+          const bezelM = G.mat("lacquer", { color: "#ffffff", toneMapped: false, specGain: 0.9, params: { roughness: 0.3, clearcoatRoughness: 0.05 },
+            grad: { top: -OH / 2, bottom: OH / 2, colTop: C.bezelTop, colBot: C.bezelBot } });
+          const lipM = G.mat("metal", { color: C.lip, specGain: 0.6, params: { roughness: 0.38, clearcoat: 0.3 } });
+          const tagM = G.mat("lacquer", { color: "#16181d", specGain: 1.4, specFace: 0.1, params: { roughness: 0.2, envMapIntensity: 0.55 },
+            grad: { top: 0, bottom: TH, colTop: C.tagTop, colBot: C.tagBot, local: true } });
+          const chipM = G.mat("lacquer", { color: C.chipOn, toneMapped: false, specGain: 0.8, glowColor: "#FFC23A",
+            grad: { top: CP, bottom: CP + CHIP, colTop: C.chipOff, colBot: C.chipOffBot, local: true } });
+          // bezel: outer frame, window hole 6 px larger than the picture; 8 px + 2 bevels thick, rounded bevels
+          G.add(card, [-OW / 2, -OH / 2, OW, OH, R], [[-Wv / 2 - 6, -Hv / 2 - 6, Wv + 12, Hv + 12, ri + 6]], { mat: bezelM, z: 0, depth: 8, bt: CONFIG.bevel, bs: CONFIG.bevel, bseg: 8, crease: 55 });
+          // graphite lip: recessed 7 px, a 6 px ring between the bezel's inner edge and the picture
+          G.add(card, [-Wv / 2 - 12, -Hv / 2 - 12, Wv + 24, Hv + 24, ri + 12], [[-Wv / 2, -Hv / 2, Wv, Hv, ri]], { mat: lipM, z: -7, depth: 2, bt: 2, bs: 2, bseg: 3 });
+          // the hinged credit tag on the bottom-left edge, in front of the bezel
+          const hinge = new THREE.Group(); card.add(hinge);
+          hinge.position.set(-OW / 2 + CONFIG.tag.left, -(OH / 2 - 16), 1.5);
+          const tagMesh = G.add(hinge, [0, 0, TW, TH, Math.round(TH * 0.18)], null, { mat: tagM, z: 12, depth: 4, bt: 4, bs: 4.5, bseg: 5 });
+          const chipMesh = G.add(hinge, [CP, CP, CHIP, CHIP, Math.round(CHIP * 0.22)], null, { mat: chipM, z: 17, depth: 2, bt: 2.5, bs: 3, bseg: 4 });
+          G.canvas.id = "card3d";
+          $("#card").insertBefore(G.canvas, tagShadow);
+
+          // ---------- poses as pure functions of time ----------
+          const SLAP = T.drop + 0.2;
+          const eO4 = gsap.parseEase("power4.out"), eO3 = gsap.parseEase("power3.out"), eBk = gsap.parseEase("back.out(1.6)");
+          const RP = CONFIG.rest, MO = CONFIG.motion;
+          function pose(t) {
+            const P = { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0 };
+            // entrance: slides in from the right fast and decelerates; the tilt swings into the held pose with overshoot
+            const pT = clamp((t - T.in) / 0.72, 0, 1), pR = clamp((t - T.in) / 0.85, 0, 1), b = eBk(pR);
+            P.x = MO.enterX * (1 - eO4(pT)); P.y = 34 * (1 - eO4(pT)); P.z = -260 * (1 - eO3(pR));
+            P.ry = -40 + (RP.ry + 40) * b; P.rz = 7 + (RP.rz - 7) * b; P.rx = RP.rx * eO3(pR); P.sw = 1 - b;
+            // held 3D pose drifts through the hold so the bevel light keeps moving; the bed counter-pushes
+            const d = eIO(clamp((t - (T.in + 0.9)) / (T.out - T.in - 0.9), 0, 1));
+            P.ry += -RP.drift * d; P.rx += -0.6 * RP.drift * d; P.z += 18 * d;
+            // the payoff: the tag slaps on, the card pops toward camera (2 frames up, spring back) and tips 5 deg
+            [[SLAP, 1.0], [SLAP + 0.14, 0.18]].forEach(([ts, g]) => {
+              if (t > ts) {
+                const u = t - ts, k = u < 0.06 ? Math.sin((u / 0.06) * Math.PI / 2) : Math.exp(-(u - 0.06) * 8) * Math.cos(6.2832 * 1.5 * (u - 0.06));
+                P.z += MO.punchZ * g * k; P.rx += 5 * g * Math.exp(-6 * u) * Math.sin(6.2832 * 2.0 * u); P.y += 4 * g * Math.exp(-7 * u) * Math.sin(6.2832 * 2.0 * u);
+              }
+            });
+            // exit: swing out to the left, away from camera (the tag rides with it)
+            if (t > T.out) {
+              const e = eIn3(clamp((t - T.out) / 0.4, 0, 1));
+              P.x += MO.exitX * e; P.ry += 40 * e; P.z += -240 * e; P.rz += -6 * e; P.y += -20 * e;
+            }
+            return P;
+          }
+          function tagAngle(t) {
+            if (t < T.drop) return null;
+            const u = t - T.drop;
+            let th = 0;
+            if (u < 0.2) th = -88 * (1 - (u / 0.2) * (u / 0.2));                                 // free fall on the hinge
+            else if (u < 0.34) { const v = (u - 0.2) / 0.14; th = -10.8 * 4 * v * (1 - v); }   // first bounce
+            else if (u < 0.39) { const v = (u - 0.34) / 0.05; th = -1.4 * 4 * v * (1 - v); }   // second bounce
+            return th;
+          }
+          const cOffT = new THREE.Color(C.chipOff), cOffB = new THREE.Color(C.chipOffBot), cOnT = new THREE.Color(C.chipOn), cOnB = new THREE.Color(C.chipOnBot);
+          const picIn = $("#picIn");
+          const chipG = $("#chipGlow"), spill = $("#spill"), cardEl = $("#card");
+          function chipK(t) {   // lamp level: 0 off, 1 on; 1-frame attack, 3-frame peak (glow), settles hot
+            if (t < SLAP) return { on: 0, glow: 0 };
+            const u = t - SLAP;
+            const glow = u < 1 / 30 ? 1.25 * u * 30 : u < 4 / 30 ? 1.25 : 0.32 + (1.25 - 0.32) * Math.exp(-(u - 4 / 30) * 5);
+            return { on: 1, glow };
+          }
+          function place(t) {
+            const P = pose(t);
+            card.position.set(CONFIG.center[0] - CW / 2 + P.x, CH / 2 - (CONFIG.center[1] + P.y), P.z);
+            card.rotation.set(P.rx * deg, P.ry * deg, P.rz * deg, "YXZ");
+            const th = tagAngle(t);
+            hinge.visible = th !== null; hinge.rotation.x = (th || 0) * deg;
+            G.update();
+            return P;
+          }
+          let lastCx = null;
+          function renderAt(t) {
+            // parent opacity (not visibility): the framework sets visibility on its own <video> tags, which would
+            // override a hidden parent; transforms are always set so no frame can show an unpinned picture
+            const vis = t >= T.in - 1e-4 && t < T.out + 0.4;
+            cardEl.style.opacity = vis ? "1" : "0";
+            t = clamp(t, T.in, T.out + 0.4);
+            // motion blur from the card's screen velocity (one frame back)
+            place(Math.max(T.in, t - 1 / 30));
+            const p0 = G.project(card, 0, 0, 0);
+            const P = place(t);
+            const p1 = G.project(card, 0, 0, 0);
+            const v = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
+            const bl = clamp(v * 0.085, 0, t > T.out ? 8 : 13);
+            cardEl.style.filter = bl > 0.35 ? "blur(" + bl.toFixed(2) + "px)" : "none";
+            // DOM layers pinned to the 3D faces
+            // glass glint: a soft band crosses the picture while the card swings flat (off-picture at rest)
+            glint.style.left = (-45 + 150 * P.sw).toFixed(2) + "%"; glint.style.transform = "rotate(16deg)";
+            pic.style.transform = G.quadCSS(card, -Wv / 2 - PM, -Hv / 2 - PM, Wv + 2 * PM, Hv + 2 * PM, -11);
+            cshadow.style.transform = G.quadCSS(card, -OW / 2, -OH / 2, OW, OH, -20);
+            const th = tagAngle(t);
+            if (th !== null && th > -82) {
+              tagFace.style.visibility = "visible";
+              tagFace.style.transform = G.quadCSS(hinge, 0, 0, TW, TH, 12);
+              tagShadow.style.visibility = "visible";
+              tagShadow.style.transform = G.quadCSS(hinge, 0, 0, TW, TH, 0);
+              tagShadow.style.opacity = clamp(1 + th / 30, 0, 1).toFixed(3);
+            } else { tagFace.style.visibility = "hidden"; tagShadow.style.visibility = "hidden"; }
+            // the lamp chip
+            const L = chipK(t);
+            chipM.userData.G.uColTop.value.copy(L.on ? cOnT : cOffT); chipM.userData.G.uColBot.value.copy(L.on ? cOnB : cOffB);
+            chipM.userData.G.uGlow.value = L.glow * 0.55;
+            $("#chipTri").setAttribute("fill", L.on ? "#1A1405" : "#2A2208"); $("#chipTri").setAttribute("stroke", L.on ? "#1A1405" : "#2A2208");
+            chipG.style.boxShadow = L.on ? "0 0 " + (8 + 14 * L.glow).toFixed(1) + "px rgba(255,205,60," + (0.35 + 0.45 * Math.min(1, L.glow)).toFixed(2) + "), 0 0 " + (20 + 30 * L.glow).toFixed(1) + "px rgba(255,170,30," + (0.18 + 0.3 * Math.min(1, L.glow)).toFixed(2) + ")" : "none";
+            // the picture powers on with the lamp: standby grade -> a 3-frame exposure pop -> full colour
+            if (plate) {
+              let br = 0.9, sa = 0.72;
+              if (t >= SLAP) { const u = t - SLAP, q = u < 1 / 30 ? u * 30 : u < 4 / 30 ? 1 : Math.exp(-(u - 4 / 30) * 7);
+                br = 1 + 0.2 * q; sa = 1 + 0.14 * q; if (u < 1 / 30) { br = 0.9 + (1.2 - 0.9) * u * 30; sa = 0.72 + (1.14 - 0.72) * u * 30; } }
+              picIn.style.filter = Math.abs(br - 1) < 0.002 && Math.abs(sa - 1) < 0.002 ? "none" : "brightness(" + br.toFixed(3) + ") saturate(" + sa.toFixed(3) + ")";
+            }
+            spill.style.opacity = L.on ? Math.min(1, 0.35 + 0.65 * L.glow).toFixed(3) : "0";
+            // specular: a soft diagonal band as it swings in; on the slap a hot band sweeps the bezel left -> right in
+            // 0.3 s, at full strength from the colour-on frame (3+ frames held); a slow soft band during the hold
+            const diag = Math.hypot(OW, OH) * 0.6, U = G.U;
+            const s1 = clamp((t - (T.in + 0.32)) / 0.7, 0, 1), u2 = t - SLAP, s3 = clamp((t - 2.3) / 2.6, 0, 1);
+            if (u2 >= 0 && u2 < 0.38) {
+              U.uSpecDir.value.set(0.985, 0.17); U.uSpecW.value = 80;
+              U.uSpecX.value = -OW / 2 - 60 + (OW + 120) * eIO(clamp(u2 / 0.3, 0, 1));
+              U.uSpecAmp.value = 1.25 * (u2 < 1 / 30 ? u2 * 30 : u2 < 0.3 ? 1 : 1 - (u2 - 0.3) / 0.08);
+            } else if (t >= T.in + 0.32 && s1 < 1) { U.uSpecDir.value.set(0.86, 0.5); U.uSpecX.value = -diag + 2 * diag * eIO(s1); U.uSpecAmp.value = 0.8 * Math.sin(Math.PI * s1); U.uSpecW.value = 120; }
+            else if (t >= 2.3 && s3 < 1) { U.uSpecDir.value.set(0.86, 0.5); U.uSpecX.value = -diag + 2 * diag * eIO(s3); U.uSpecAmp.value = 0.32 * Math.sin(Math.PI * s3); U.uSpecW.value = 150; }
+            else { U.uSpecAmp.value = 0; U.uSpecX.value = -1e5; }
+            G.render();
+          }
+
+          // ---------- timeline ----------
+          const tl = gsap.timeline({ paused: true });
+          if (plate) {
+            // the gameplay racks out of focus and dims under the card, then racks back on the exit
+            const K = CONFIG.rack, bgw = $("#bgw");
+            Look.drive(tl, 0, T.end, (p) => {
+              const t = p * T.end;
+              const k = eIO(clamp((t - (T.in + 0.2)) / 0.6, 0, 1)) * (1 - eIO(clamp((t - T.out) / 0.45, 0, 1)));
+              bgw.style.filter = k > 0.002 ? "blur(" + (K.blur * k).toFixed(2) + "px) brightness(" + (1 + (K.brightness - 1) * k).toFixed(3) + ") contrast(" + (1 + (K.contrast - 1) * k).toFixed(3) + ") saturate(" + (1 + (K.saturate - 1) * k).toFixed(3) + ")" : "none";
+            });
+            Look.push(tl, "#push", 0, T.end, { from: 1.1, to: 1.05 });   // the bed counter-pulls while the card drifts in
+          }
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          renderAt(0);
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,91 @@
+<!doctype html>
+<!-- Price tag, variant A "Pinned price" (16:9, 1920x1080, 30 fps). A real 3D hang tag in the creators' price-pill language
+     (smoked acrylic pill, glowing mint edge, heavy condensed white figures) pinned to a tracked car, swinging on its cord.
+     Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). See gta/DESIGN.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs-74.js"></script>
+    <script src="media/p3core.js"></script>
+    <script src="media/tag3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .plate #push { background: #0E0F13; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="4.1" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <!-- each incoming shot starts 2 frames early UNDER the outgoing one, so a cut never shows an unpainted frame -->
+        <video id="shotTail" class="clip shot" src="assets/shots/v17-deluxo-sunset-h.mp4" muted playsinline data-start="3.6333" data-duration="0.4667" data-media-start="0" data-track-index="2"></video>
+        <video id="shotClose" class="clip shot" src="assets/shots/v31-red-car-sunset-h.mp4" muted playsinline data-start="1.9667" data-duration="1.7333" data-media-start="0" data-track-index="1"></video>
+        <video id="shotCar" class="clip shot" src="assets/shots/v57-gp-red-car-highway-h.mp4" muted playsinline data-start="0" data-duration="2.0333" data-media-start="0" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="4.1" data-track-index="3"></div>
+    </div>
+    <script>
+      const CONFIG = {
+        price: "$263",                         // any "$" + digits; digits roll up and lock
+        tag: { w: 372, h: 140, tabW: 66, tabH: 46, tabR: 16, fillet: 10, hole: 9, holeAbove: 22, depth: 13, bevel: 5, pinR: 8 },
+        figH: 84, figDy: 0, tracking: -0.01,   // figure height on the pill (tag px), vertical nudge, tracking (em)
+        turns: 2,                              // full odometer turns before the first digit lands
+        cord: 54, cordR: 2.9,                  // pin -> grommet length, cord radius (px)
+        colors: {
+          faceTop: "#4C555C", faceMid: "#2F363B", faceBot: "#1A1F23", back: "#262C31", digitBot: "#E2E8ED",
+          mint: "#5DFFA0", mintHot: "#E9FFF3", rimBody: "#0E2C1F", cord: "#F2EDE3", lip: "#A9B3BA", pin: "#F2B947"
+        },
+        light: { rimBase: 1.1, rimPeak: 3.0, rimHold: 1.9, head: 2.0, flash: 0.32, digitBase: 0.28, env: 0.85,
+                 spec: 0.35, specAt: 0.17, specDur: 0.3, bloom: 0.3, bloomPeak: 0.5 },   // rim glows ~40% from the entrance, ignites to full on the lock
+        phys: {
+          swingPeriod: 0.95, swingDamp: 0.11, twistPeriod: 0.9, twistDamp: 0.2, leff: 170, accelGain: 0.6,
+          swing0: 0.32, twist0: 1.1, twistRest: 0.17, pitch0: 0.28,
+          kicks: [{ t: 2.0333, swing: 0.8, twist: 1.5 }],
+          dropG: 26000, dropDx: 70, dropSpin: 2.6
+        },
+        timing: { in: 0.14, unfurl: 0.2, roll: 0.16, landGap: 0.34, lock: 2.0333, out: 3.42, gone: 3.7, end: 4.1 },
+        // tracked pin points (30 fps from each shot's in-point), light matched to each shot
+        anchors: [
+          { t0: 0, t1: 2.0333, dx: 0, dy: 0, key: "#FFF3E4", keyI: 2.3, keyPos: [-600, 900, 800], sky: "#DCEBFF", ground: "#4A3C2C",
+            pts: [[1037,712],[1035,712],[1029,709],[1028,706],[1029,703],[1035,703],[1040,703],[1049,707],[1059,708],[1064,707],[1071,706],[1076,708],[1077,710],[1078,714],[1073,712],[1069,711],[1061,707],[1057,707],[1049,706],[1036,704],[1021,703],[1014,702],[996,702],[976,701],[966,700],[947,701],[927,704],[909,703],[901,702],[885,700],[871,699],[864,699],[854,698],[847,695],[841,694],[837,695],[835,697],[833,698],[834,696],[835,695],[839,693],[844,695],[845,696],[845,697],[841,699],[839,700],[835,700],[833,700],[833,702],[834,702],[839,705],[847,705],[850,704],[862,702],[868,702],[883,703],[902,703],[914,703],[941,707],[973,714],[988,719]] },
+          { t0: 2.0333, t1: 3.7, dx: 0, dy: 0, cord: 86, key: "#FFB88A", keyI: 2.5, keyPos: [-700, 700, 700], sky: "#FFC9A6", ground: "#3A1E1A",
+            pts: [[809,297],[813,295],[812,293],[816,291],[821,288],[826,286],[832,284],[833,282],[835,280],[839,278],[839,276],[839,274],[840,272],[841,270],[841,268],[834,266],[834,264],[833,262],[833,260],[834,258],[842,256],[828,253],[829,251],[833,249],[828,247],[830,245],[830,242],[830,240],[830,238],[831,235],[825,232],[826,230],[830,228],[827,225],[826,222],[826,220],[825,217],[827,215],[826,212],[827,210],[820,207],[827,205],[828,202],[828,200],[818,197],[833,195],[835,193],[834,190],[828,188],[834,185]] },
+          { t0: 3.7, t1: 4.2, dx: 0, dy: 0, key: "#FFB88A", keyI: 2.5, keyPos: [-700, 700, 700], sky: "#FFC9A6", ground: "#3A1E1A", pts: [[960, 300]] }
+        ]
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const FACES = ["900 100px Inter", "900 100px Archivo"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const tl = gsap.timeline({ paused: true });
+          if (plate) document.getElementById("root").classList.add("plate");
+          const stage = P3.Stage(1920, 1080, { warm: 0.45, inkPx: 2.2, inkAlpha: 0.85, inkColor: "#07090B", shadow: 0.5, shadowOff: [12, 22] });
+          $("#ov").appendChild(stage.canvas);
+          const tag = Tag3D({ stage, config: CONFIG, timing: T, glyphs: window.PRICE_GLYPHS_74, anchors: CONFIG.anchors });
+          Look.drive(tl, 0, T.end, (p) => tag.renderAt(p * T.end));
+          tag.renderAt(0);
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

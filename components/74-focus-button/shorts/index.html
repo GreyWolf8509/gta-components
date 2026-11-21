@@ -1,0 +1,296 @@
+<!doctype html>
+<!-- GTA-niche 74 Focus button, variant B (9:16 Shorts, 1080x1920, 30 fps, 4.9 s, phone-first: coins 380 px, FOCUS button 640 px = 59% of frame width). Two coins, EAGLE EYE and DEAD EYE (RDR2 oxblood), slide
+     in, merge into one FOCUS button (GTA VI pink) that presses on the cue: the ability-handoff object of a GTA VI vs RDR2 comparison.
+     The coins and the button are real Three.js geometry (lathed discs with a bevelled rim and a machined face groove, clearcoat,
+     PMREM environment, key + hemisphere + rim, ACES) in a gunmetal bezel; the labels are crisp DOM (Oswald) pinned to the
+     projected faces. Rendered from timeline time through a GSAP proxy and hf-seek. Full-kind component over the official GTA VI
+     clip (media/clips/, cover-cropped so the driver stays top-right). CONFIG holds the labels, colours and the four beats (t1 coins in, t2 merge, t3 press, t4 release)
+     so the object can be ported into the film kit (films/gta6-rdr2-gta5, type "focus"). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Footage kept (full-kind)"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <style>
+      @font-face { font-family: "Oswald"; font-style: normal; font-weight: 200 700; font-display: block; src: url("media/fonts/Oswald-wght.ttf") format("truetype"); }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #000; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: "Oswald", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 80% 50%; }
+      #ov { position: absolute; inset: 0; }
+      #gl { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; display: block; }
+      #labs { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+      #glow, #spark { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; opacity: 0; }
+      #glow i, #spark i { position: absolute; left: 0; top: 0; display: block; border-radius: 50%; transform: translate(-50%, -50%); }
+      #glow i { filter: blur(22px); }
+      #spark i { filter: blur(6px); mix-blend-mode: screen; }
+      .lab { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; will-change: transform; }
+      .lab span { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); white-space: nowrap; text-align: center;
+        color: #FFFFFF; text-transform: uppercase; line-height: 0.98; font-family: "Oswald", sans-serif;
+        text-shadow: 0 -1px 0 rgba(0,0,0,.42), 0 1px 0 rgba(255,255,255,.22); }
+      .lab.coin span { font-weight: 600; letter-spacing: 0.08em; }
+      .lab.btn span { font-weight: 700; letter-spacing: 0.08em; padding-left: 0.08em; color: #1A1430; text-shadow: 0 1px 0 rgba(255,255,255,.30), 0 -1px 0 rgba(0,0,0,.25); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="4.70" data-width="1080" data-height="1920">
+      <div id="shake">
+        <div id="push">
+          <video id="shotA" class="clip shot" src="media/clips/gta6-t2-008_4.30_4.72.mp4" muted playsinline data-start="0" data-duration="4.70" data-track-index="0"></video>
+        </div>
+        <div id="ov" class="clip" data-start="0" data-duration="4.70" data-track-index="1">
+          <div id="glow"><i></i></div>
+          <canvas id="gl" width="1080" height="1920"></canvas>
+          <div id="spark"><i></i></div>
+          <div id="labs">
+            <div class="lab coin" id="labA"><span></span></div>
+            <div class="lab coin" id="labB"><span></span></div>
+            <div class="lab btn" id="labF"><span></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        labels: { a: "EAGLE EYE", b: "DEAD EYE", f: "FOCUS" },           // two abilities -> one button (two-word labels break after the first word)
+        colors: { a: "#8A1622", b: "#8A1622", f: "#D4286A", bezel: "#141833", ring: "#FF7FB4", glow: "#FF4F9A" }, // RDR2 oxblood (lit for ACES), GTA VI pink, gunmetal bezel
+        beats: { t1: 0.10, t2: 1.8, t3: 2.85, t4: 4.15, exit: 4.40, end: 4.70 },   // coins in, merge, press, release, exit, end
+        pos: { x: 504, y: 1130 },                                         // safe-zone centre x, lower-middle: the driver's face stays clear above
+        size: { coinR: 190, coinH: 48, coinGap: 224, enterX: 1150, btnR: 320, capH: 64, bezelH: 36, bezelW: 40, lift: 34, travel: 50, elev: 50, fov: 14 },
+        type: { coin: 60, btn: 128 },                                     // px, Oswald, phone-first
+        canvas: { w: 1080, h: 1920 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none"; // full-kind: the footage is the plate either way
+        const B = CONFIG.beats, SZ = CONFIG.size, W = CONFIG.canvas.w, H = CONFIG.canvas.h, D = B.end;
+        const $ = (s) => document.querySelector(s);
+        const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), lerp = (a, b, p) => a + (b - a) * p;
+        const EASES = {}, E = (n) => EASES[n] || (EASES[n] = gsap.parseEase(n));
+        const seg = (t, at, dur, ease) => t <= at ? 0 : t >= at + dur ? 1 : E(ease || "none")((t - at) / dur);
+        const F = 1 / 30;
+        const FACES = ["600 100px Oswald", "700 100px Oswald"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(build);
+
+        function build() {
+          // ---------- labels ----------
+          const two = (s) => { const w = s.trim().split(/\s+/); return w.length > 1 ? w[0] + "<br>" + w.slice(1).join(" ") : s; };
+          $("#labA span").innerHTML = two(CONFIG.labels.a); $("#labB span").innerHTML = two(CONFIG.labels.b); $("#labF span").textContent = CONFIG.labels.f;
+          document.querySelectorAll(".lab.coin span").forEach((n) => (n.style.fontSize = CONFIG.type.coin + "px"));
+          $("#labF span").style.fontSize = CONFIG.type.btn + "px";
+          const labA = $("#labA"), labB = $("#labB"), labF = $("#labF"), labs = $("#labs");
+
+          // ---------- renderer, camera (long lens, elevated, shifted so the button centre lands at CONFIG.pos; no keystone) ----------
+          const canvas = $("#gl");
+          const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+          renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 0);
+          renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.92;
+          renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+          const scene = new THREE.Scene();
+          const EL = SZ.elev * Math.PI / 180, SE = Math.sin(EL), CE = Math.cos(EL);
+          const L = (H / 2) / Math.tan(SZ.fov / 2 * Math.PI / 180);
+          const camera = new THREE.PerspectiveCamera(SZ.fov, W / H, 50, 40000);
+          camera.position.set(0, L * SE, L * CE); camera.lookAt(0, 0, 0);
+          camera.setViewOffset(W, H, W / 2 - CONFIG.pos.x, H / 2 - CONFIG.pos.y, W, H);
+          camera.updateMatrixWorld(); camera.updateProjectionMatrix();
+
+          // ---------- environment: a studio dome, an overhead softbox (lit lip along every bevel), a key strip front-left ----------
+          const envScene = new THREE.Scene();
+          envScene.add(new THREE.Mesh(new THREE.SphereGeometry(100, 48, 24), new THREE.ShaderMaterial({
+            side: THREE.BackSide, depthWrite: false,
+            vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+            fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 top = vec3(0.34,0.35,0.40); vec3 hor = vec3(0.18,0.18,0.21); vec3 low = vec3(0.03,0.03,0.04);" +
+              " vec3 c = y > 0.0 ? mix(hor, top, pow(clamp(y,0.0,1.0),0.7)) : mix(hor*0.5, low, clamp(-y*2.5,0.0,1.0)); gl_FragColor = vec4(c,1.0); }"
+          })));
+          const hdr = (v) => new THREE.MeshBasicMaterial({ color: new THREE.Color(v, v, v * 0.96), side: THREE.DoubleSide });
+          const soft = new THREE.Mesh(new THREE.PlaneGeometry(200, 22), hdr(2.2)); soft.position.set(-20, 74, -68); soft.lookAt(0, 0, 0); envScene.add(soft);
+          const strip = new THREE.Mesh(new THREE.PlaneGeometry(12, 90), hdr(1.8)); strip.position.set(-78, 34, 40); strip.lookAt(0, 0, 0); envScene.add(strip);
+          const pmrem = new THREE.PMREMGenerator(renderer);
+          scene.environment = pmrem.fromScene(envScene, 0.02, 0.1, 400).texture;
+          scene.add(new THREE.HemisphereLight(0xeef2ff, 0x2a2426, 0.34));
+          const key = new THREE.DirectionalLight(0xfff4e8, 1.7); key.position.set(-620, 900, 560); scene.add(key);
+          key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -0.0004; key.shadow.normalBias = 2.5;
+          Object.assign(key.shadow.camera, { left: -1400, right: 1400, top: 1400, bottom: -1400, near: 100, far: 3000 }); key.shadow.camera.updateProjectionMatrix();
+          const ground = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), new THREE.ShadowMaterial({ opacity: 0.42, transparent: true, depthWrite: false }));
+          ground.rotation.x = -Math.PI / 2; ground.position.y = 0.2; ground.receiveShadow = true; ground.renderOrder = -2; scene.add(ground);
+          const fill = new THREE.DirectionalLight(0xdfe7ff, 0.3); fill.position.set(700, 200, 900); scene.add(fill);
+          const rim = new THREE.DirectionalLight(0xe8f0ff, 1.3); rim.position.set(120, 420, -800); scene.add(rim);
+
+          // ---------- materials: clearcoat plastic with an injected world-space specular band (face-weighted, soft) and a glow pulse ----------
+          function shaded(hex, o) {
+            const U = { x: { value: -99999 }, w: { value: 40 }, amp: { value: 0 }, glow: { value: 0 }, held: { value: 0 } };
+            const mat = new THREE.MeshPhysicalMaterial(Object.assign({ color: new THREE.Color(hex), roughness: 0.34, metalness: 0,
+              clearcoat: 0.9, clearcoatRoughness: 0.08, envMapIntensity: 0.7 }, o || {}));
+            mat.onBeforeCompile = (sh) => {
+              Object.assign(sh.uniforms, { uSwX: U.x, uSwW: U.w, uSwA: U.amp, uGlow: U.glow, uHeld: U.held });
+              sh.vertexShader = "varying vec3 vSwP; varying vec3 vWN;\n" + sh.vertexShader.replace("#include <worldpos_vertex>",
+                "#include <worldpos_vertex>\n  vSwP = (modelMatrix * vec4(transformed, 1.0)).xyz; vWN = normalize(mat3(modelMatrix) * objectNormal);");
+              sh.fragmentShader = "varying vec3 vSwP; varying vec3 vWN; uniform float uSwX, uSwW, uSwA, uGlow, uHeld;\n" + sh.fragmentShader.replace("#include <color_fragment>",
+                "#include <color_fragment>\n  diffuseColor.rgb *= mix(0.5, 1.0, smoothstep(0.05, 0.55, vWN.y)) * (1.0 - 0.22 * uHeld);").replace("#include <emissivemap_fragment>",
+                "#include <emissivemap_fragment>\n  { float d = (vSwP.x + 0.45 * vSwP.z - uSwX) / uSwW; float b = exp(-d * d * 1.6) * pow(max(vWN.y, 0.0), 1.5);\n" +
+                "    totalEmissiveRadiance += vec3(1.0, 0.98, 0.96) * b * uSwA * 1.1 + diffuseColor.rgb * uGlow * 0.9; }");
+            };
+            mat.customProgramCacheKey = () => "focus-sw";
+            mat.U = U; return mat;
+          }
+          const matA = shaded(CONFIG.colors.a), matB = shaded(CONFIG.colors.b), matF = shaded(CONFIG.colors.f);
+          const matBez = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(CONFIG.colors.bezel), roughness: 0.36, metalness: 0.6, clearcoat: 0.4, clearcoatRoughness: 0.2, envMapIntensity: 1.1 });
+          const matRing = new THREE.MeshBasicMaterial({ color: new THREE.Color(CONFIG.colors.ring), transparent: true, opacity: 0 }); // the lit ring: the pressed state
+
+          // ---------- geometry: lathed discs (flat back, wall, quarter-round bevel, machined groove on the face) ----------
+          function discGeo(R, Hh, bv) {
+            const p = [new THREE.Vector2(0, 0), new THREE.Vector2(R, 0), new THREE.Vector2(R, Hh - bv)];
+            for (let i = 1; i <= 7; i++) { const a = i / 7 * Math.PI / 2; p.push(new THREE.Vector2(R - bv + bv * Math.cos(a), Hh - bv + bv * Math.sin(a))); }
+            const g = R * 0.80, gw = 5, gd = 2.4;
+            p.push(new THREE.Vector2(g + gw + 2, Hh), new THREE.Vector2(g + gw * 0.5, Hh - gd), new THREE.Vector2(g - gw * 0.5, Hh - gd), new THREE.Vector2(g - gw - 2, Hh));
+            p.push(new THREE.Vector2(0, Hh));
+            return new THREE.LatheGeometry(p, 96);
+          }
+          function bezelGeo(R, Hh, Ww) {
+            const r0 = R + 4, r1 = R + 4 + Ww, ch = 8;
+            const p = [new THREE.Vector2(r0, 0.5), new THREE.Vector2(r1, 0.5), new THREE.Vector2(r1, Hh - ch), new THREE.Vector2(r1 - ch, Hh),
+              new THREE.Vector2(r0 + 3, Hh), new THREE.Vector2(r0, Hh - 3), new THREE.Vector2(r0, 0.5)];
+            return new THREE.LatheGeometry(p, 96);
+          }
+          // contact shadow: a radial alpha disc on the plane
+          const shTex = (() => { const c = document.createElement("canvas"); c.width = c.height = 256; const x = c.getContext("2d");
+            const g = x.createRadialGradient(128, 128, 0, 128, 128, 128); g.addColorStop(0, "rgba(0,0,0,0.78)"); g.addColorStop(0.55, "rgba(0,0,0,0.5)"); g.addColorStop(1, "rgba(0,0,0,0)");
+            x.fillStyle = g; x.fillRect(0, 0, 256, 256); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+          function shadow(R) {
+            const m = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial({ map: shTex, transparent: true, depthWrite: false, color: 0x000000 }));
+            m.rotation.x = -Math.PI / 2; m.position.y = 0.6; m.scale.set(R * 1.22, R * 1.1, 1); m.renderOrder = -1; return m;
+          }
+
+          const gCoin = discGeo(SZ.coinR, SZ.coinH, SZ.coinH * 0.42), gCap = discGeo(SZ.btnR, SZ.capH, SZ.capH * 0.42);
+          const coinA = new THREE.Group(), coinB = new THREE.Group(), btn = new THREE.Group();
+          const meshA = new THREE.Mesh(gCoin, matA), meshB = new THREE.Mesh(gCoin, matB);
+          coinA.add(meshA); coinA.add(shadow(SZ.coinR)); coinB.add(meshB); coinB.add(shadow(SZ.coinR));
+          const cap = new THREE.Mesh(gCap, matF); cap.position.y = SZ.lift; cap.castShadow = true;
+          meshA.castShadow = meshB.castShadow = true; coinB.position.y = 4;
+          const capPivot = new THREE.Group(); capPivot.add(cap);
+          const bezel = new THREE.Mesh(bezelGeo(SZ.btnR, SZ.bezelH, SZ.bezelW), matBez); bezel.receiveShadow = true;
+          const ring = new THREE.Mesh(new THREE.LatheGeometry([new THREE.Vector2(SZ.btnR + 1, SZ.bezelH - 3), new THREE.Vector2(SZ.btnR + 4 + SZ.bezelW * 0.62, SZ.bezelH + 0.4), new THREE.Vector2(SZ.btnR + 2.5, SZ.bezelH + 0.4)], 96), matRing);
+          btn.add(ring);
+          const btnShadow = shadow(SZ.btnR + SZ.bezelW); btn.add(btnShadow); btn.add(bezel); btn.add(capPivot);
+          scene.add(coinA); scene.add(coinB); scene.add(btn);
+
+          // ---------- projection: a 2D affine for a DOM label lying on obj's plane y (u = local +x, v = local +z, toward the camera) ----------
+          const V3 = new THREE.Vector3();
+          function proj(obj, x, y, z) { V3.set(x, y, z); obj.localToWorld(V3); V3.project(camera); return [(V3.x + 1) / 2 * W, (1 - V3.y) / 2 * H]; }
+          function pin(el, obj, y, vis, k2) {
+            if (!vis) { el.style.opacity = "0"; return; }
+            const k = 20 / (k2 || 1), c = proj(obj, 0, y, 0), u = proj(obj, k, y, 0), v = proj(obj, 0, y, k);
+            el.style.opacity = "1";
+            el.style.transform = "matrix(" + ((u[0] - c[0]) / k).toFixed(5) + "," + ((u[1] - c[1]) / k).toFixed(5) + "," + ((v[0] - c[0]) / k).toFixed(5) + "," +
+              ((v[1] - c[1]) / k).toFixed(5) + "," + c[0].toFixed(2) + "," + c[1].toFixed(2) + ")";
+          }
+
+          // ---------- poses, pure functions of time ----------
+          const MERGE = 0.30, POP = B.t2 + MERGE, FUSE0 = POP + 2 * F, FUSE = 0.22, RISE = FUSE0 + FUSE; // contact, squash, fuse into one, then the cap rises
+          const CONTACT = SZ.coinR + 1, KX = SZ.btnR / SZ.coinR, KY = SZ.capH / SZ.coinH, ANT = B.t2 - 0.22;
+          const C_OX = new THREE.Color(CONFIG.colors.a), C_PINK = new THREE.Color(CONFIG.colors.f);
+          function coinPose(t, side, ts) {
+            const G = SZ.coinGap; let x = side * G, y = 0, sx = 1, sy = 1, sz = 1, rz = 0, mix = 0, swx = -99999, swa = 0, glow = 0;
+            const vis = t >= ts && t < RISE;
+            if (t < ts + 0.45) {                                   // entrance: slide from off-frame, speed stretch, bank that settles
+              const p = seg(t, ts, 0.45, "back.out(1.2)"), q = seg(t, ts, 0.45, "power1.out");
+              x = lerp(side * SZ.enterX, side * G, p); sx = 1 + 0.30 * Math.pow(1 - q, 2.2); rz = side * -0.42 * (1 - seg(t, ts, 0.45, "back.out(2.2)"));
+            }
+            if (t >= ts + 0.40 && t < ts + 0.70) { swx = x + lerp(-SZ.coinR - 60, SZ.coinR + 60, seg(t, ts + 0.40, 0.30, "power1.inOut")); swa = 0.4; } // the settle sheen lights the disc
+            if (t >= ANT && t < B.t2) { x = side * (G + 14 * seg(t, ANT, 0.22, "power2.out")); glow = 0.22 * seg(t, ANT, 0.22, "power1.in"); } // anticipation: pull apart, charge
+            if (t >= B.t2) {                                       // merge: accelerate into contact, squash, then the two fuse into one disc the size and colour of the cap
+              const p = seg(t, B.t2, MERGE, "power2.in"); x = lerp(side * (G + 14), side * CONTACT, p); sx = 1 + 0.14 * p * p * p; glow = 0.22 * (1 - p);
+              if (t >= POP) { sx = 1.12; sy = 0.80; sz = 1.12; }
+              if (t >= FUSE0) {
+                const q = seg(t, FUSE0, FUSE, "power2.inOut"), r = seg(t, FUSE0, FUSE, "back.out(1.4)");
+                x = lerp(side * CONTACT, 0, q); sx = lerp(1.12, KX, r); sz = lerp(1.12, KX, r); sy = lerp(0.80, KY, r);
+                y = side > 0 ? lerp(4, 0.6, q) : 0; mix = seg(t, FUSE0, FUSE, "power2.in"); glow = 0.3 * mix;
+              }
+            } else if (side > 0) y = 4;
+            return { x, y, sx, sy, sz, rz, mix, swx, swa, glow, vis };
+          }
+          function btnPose(t) {
+            if (t < RISE) return { vis: false };
+            let vis = t < B.exit + 0.26, sc = 1, scy = 1;
+            let capY = lerp(0, SZ.lift, seg(t, RISE, 0.26, "back.out(2.2)")), bezY = lerp(-SZ.bezelH - 1, 0, seg(t, RISE, 0.2, "power3.out"));
+            let sqy = 1, sxz = 1, press = 0, labK = lerp(0.72, 1, seg(t, RISE, 0.2, "back.out(2)"));
+            if (t >= B.t3) {                                       // the press: travel down into the bezel in 0.08 s, 2-frame squash, then held
+              press = seg(t, B.t3, 0.08, "power2.in"); capY = SZ.lift - SZ.travel * press;
+              const sq = t - (B.t3 + 0.08);
+              if (sq >= 0 && sq < 2 * F) { sqy = 0.86; sxz = 1.03; } else if (sq >= 2 * F) { const r = seg(t, B.t3 + 0.08 + 2 * F, 0.12, "power2.out"); sqy = lerp(0.86, 1, r); sxz = lerp(1.03, 1, r); }
+            }
+            if (t >= B.t4) { press = 1 - seg(t, B.t4, 0.24, "back.out(3)"); capY = SZ.lift - SZ.travel * press; }   // release: springs back up
+            // exit: the whole button collapses into its centre, label on the cap until it is gone; cut on the zero frame
+            let ex = 0;
+            if (t >= B.exit) { ex = seg(t, B.exit, 0.2, "power3.in"); sc = 1 - ex; vis = t < B.exit + 0.2; }
+            // light: a soft clipped specular crosses the dome on the press (quieter on release); a 3-frame localised glow at the press and the rise;
+            // the bezel ring and the under-glow light while the button is held down (the pressed state), the face darkens 22%
+            let swx = -99999, swa = 0;
+            const R = SZ.btnR + 60;
+            if (t >= B.t3 + 0.03 && t < B.t3 + 0.03 + 0.2) { swx = lerp(-R, R, seg(t, B.t3 + 0.03, 0.2, "power1.inOut")); swa = 0.5; }
+            if (t >= B.t4 && t < B.t4 + 0.26) { swx = lerp(R, -R, seg(t, B.t4, 0.26, "power1.inOut")); swa = 0.3; }
+            const pulse = (at, amp) => { const d = t - at; return d < 0 ? 0 : d < 3 * F ? amp : amp * Math.exp(-(d - 3 * F) / 0.11); };
+            const glow = Math.max(pulse(B.t3 + 0.08, 0.5), pulse(RISE, 0.35));
+            const lit = t < B.t3 + 0.08 ? 0 : t < B.t4 ? 1 : 1 - seg(t, B.t4, 0.1);
+            const labVis = capY + SZ.capH * sqy > SZ.bezelH + 2 && sc > 0.02;      // printed on the cap: gone once the cap is inside the bezel
+            return { vis, sc, scy, capY, bezY, sqy, sxz, press, swx, swa, glow, ex, lit, labK, labVis };
+          }
+          const glowEl = $("#glow"), sparkEl = $("#spark");
+          glowEl.firstElementChild.style.width = (SZ.btnR * 2.9) + "px"; glowEl.firstElementChild.style.height = (SZ.btnR * 2.9) + "px";
+          glowEl.firstElementChild.style.background = "radial-gradient(closest-side, " + CONFIG.colors.glow + " 0%, " + CONFIG.colors.glow + "99 40%, " + CONFIG.colors.glow + "00 100%)";
+          sparkEl.firstElementChild.style.width = (SZ.coinR * 2.2) + "px"; sparkEl.firstElementChild.style.height = (SZ.coinR * 2.2) + "px";
+          sparkEl.firstElementChild.style.background = "radial-gradient(closest-side, #FFF3F8 0%, " + CONFIG.colors.ring + "B0 35%, " + CONFIG.colors.ring + "00 100%)";
+
+          function renderAt(t) {
+            t = clamp(t, 0, D);
+            const pa = coinPose(t, -1, B.t1), pb = coinPose(t, 1, B.t1 + 0.28), pf = btnPose(t);
+            for (const [g, p, m] of [[coinA, pa, matA], [coinB, pb, matB]]) {
+              g.visible = p.vis; g.position.x = p.x; g.position.y = p.y; g.rotation.z = p.rz; g.scale.set(p.sx, p.sy, p.sz);
+              m.color.copy(C_OX).lerp(C_PINK, p.mix); m.U.x.value = p.swx; m.U.amp.value = p.swa; m.U.glow.value = p.glow;
+            }
+            btn.visible = pf.vis;
+            if (pf.vis) {
+              btn.scale.set(pf.sc, pf.scy, pf.sc); bezel.position.y = pf.bezY; ring.position.y = pf.bezY;
+              cap.position.y = pf.capY; cap.scale.set(pf.sxz, pf.sqy, pf.sxz);
+              matF.U.x.value = pf.swx; matF.U.amp.value = pf.swa; matF.U.glow.value = pf.glow; matF.U.held.value = pf.lit; matRing.opacity = 0.9 * pf.lit;
+            }
+            key.intensity = 1.7 + 2.6 * (pf.vis ? pf.glow : 0);
+            scene.updateMatrixWorld(true);
+            renderer.render(scene, camera);
+            pin(labA, coinA, SZ.coinH, pa.vis && t < POP); pin(labB, coinB, SZ.coinH, pb.vis && t < POP);   // the coin labels go at the contact
+            pin(labF, cap, SZ.capH * pf.sqy, pf.vis && pf.labVis, pf.labK);
+            pin(glowEl, btn, 0, pf.vis); glowEl.style.opacity = pf.vis ? ((0.85 * pf.lit + 0.5 * pf.glow) * (1 - pf.ex)).toFixed(3) : "0";
+            const spark = t < POP ? 0 : t < POP + 2 * F ? 1 : Math.exp(-(t - POP - 2 * F) / 0.07);   // the contact flash, 2 frames then gone
+            pin(sparkEl, scene, SZ.coinH, spark > 0.01); sparkEl.style.opacity = spark.toFixed(3);
+            labs.style.filter = "none";
+          }
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+
+          // ---------- timeline: the 3D and the labels run from the drive proxy; the kit adds the kicks and the plate push ----------
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, D, (p) => renderAt(p * D));
+          Look.impact(tl, B.t1 + 0.30, { shake: "#shake", amp: 3, dur: 0.18, flash: 0 });
+          Look.impact(tl, B.t1 + 0.58, { shake: "#shake", amp: 3, dur: 0.18, flash: 0 });
+          Look.impact(tl, POP, { shake: "#shake", amp: 5, dur: 0.22, flash: 0 });
+          Look.impact(tl, B.t3 + 0.08, { shake: "#shake", amp: 7, dur: 0.12, flash: 0 });
+          if (plate) Look.push(tl, "#push", 0, D, { from: 1.0, to: 1.04 });
+          tl.set({}, {}, D);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          renderAt(0);
+          tl.seek(0);
+        }
+      })();
+    </script>
+  </body>
+</html>

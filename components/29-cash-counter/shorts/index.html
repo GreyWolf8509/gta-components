@@ -1,0 +1,493 @@
+<!doctype html>
+<!-- GTA-niche 29 Cash counter, variant B "Cash pill" (9:16 Shorts, 1080x1920, 30 fps).
+     Phone-first: the cash pill is a chunky real-3D slab (Three.js, perspective camera): a white enamel bezel standing proud of a
+     pillowed money-green face, on a 60 px deep green body whose bottom wall and end caps show. Digits are a raised odometer in
+     Archivo 900 (masked columns, multi-sample + vertical motion blur), pinned to the face plane with a matching CSS perspective.
+     Each gain pops as a neon "+$" under the slab and shoots up into it. The payoff gain crosses $1,000,000: a new column grows
+     in, the changed columns spin and land on the cut, and a hot light front re-skins the slab from money green to polished gold
+     while the slab turns into the key light (the light sweep stays on the object). The Archivo label rolls to MILLIONAIRE.
+     See ../DECISIONS.md. Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/gloss3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Archivo", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; pointer-events: none; }
+      #stage { position: absolute; left: 0; top: 0; overflow: visible; }
+      .lay { position: absolute; left: 0; top: 0; visibility: hidden; }
+      #aura { position: absolute; mix-blend-mode: screen; opacity: 0; visibility: hidden; }
+      #face, #label { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+      #win { position: absolute; overflow: hidden; }
+      #sheen { position: absolute; inset: 0; }
+      .col, .glyph { position: absolute; top: 0; }
+      .smp { position: absolute; left: 0; top: 0; width: 100%; }
+      .smp span, .glyph span { position: absolute; left: 0; top: 0; width: 100%; text-align: center; white-space: pre; }
+      #label { position: absolute; overflow: hidden; visibility: hidden; }
+      #label .lt { position: absolute; left: 0; top: 0; width: 100%; text-align: center; white-space: nowrap; }
+      #label .lt span { position: absolute; left: 0; top: 0; width: 100%; text-align: center; white-space: nowrap; }
+      #chips { position: absolute; left: 0; width: 100%; overflow: hidden; }
+      #chipsIn { position: absolute; left: 0; width: 100%; }
+      .chip { position: absolute; white-space: nowrap; visibility: hidden; }
+      .chip span { position: absolute; left: 0; top: 0; white-space: nowrap; }
+    </style>
+  </head>
+  <body>
+    <svg id="fxs" width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true"><defs id="fx"></defs></svg>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="7" data-width="1080" data-height="1920">
+      <!-- shots overlap by 2 frames: each incoming clip starts early UNDER the outgoing one (z-index), so a cut never shows a late-painted frame -->
+      <div id="shake"><div id="push">
+        <video id="shotA" class="clip shot" style="z-index:5" src="assets/shots/v30-street-explosion-v.mp4" muted playsinline data-start="0" data-duration="1.6333" data-media-start="0" data-track-index="0"></video>
+        <video id="shotB" class="clip shot" style="z-index:4" src="assets/shots/v28-tennis-mansion-v.mp4" muted playsinline data-start="1.5667" data-duration="2.0333" data-media-start="0.2333" data-track-index="0"></video>
+        <video id="shotC" class="clip shot" style="z-index:3" src="assets/shots/v11-yacht-v.mp4" muted playsinline data-start="3.5333" data-duration="0.6" data-media-start="0.3333" data-track-index="0"></video>
+        <video id="shotD" class="clip shot" style="z-index:2" src="assets/shots/v37-tower-looking-up-v.mp4" muted playsinline data-start="4.0667" data-duration="1.9333" data-media-start="0" data-track-index="0"></video>
+        <video id="shotE" class="clip shot" style="z-index:1" src="assets/shots/v44-bridge-skyline-v.mp4" muted playsinline data-start="5.9333" data-duration="1.0667" data-media-start="0.1333" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="7" data-track-index="1">
+        <div id="aura"></div>
+        <div id="chips"><div id="chipsIn"></div></div>
+        <div id="stage">
+          <div id="pillWrap" class="lay"></div>
+          <div id="face" class="lay"><div id="win"><div id="digits"></div><div id="sheen"></div></div></div>
+          <div id="label"></div>
+        </div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        start: 640000,                          // the balance when the slab lands
+        gains: [                                 // pop = "+$" appears under the slab, merge = it hits the slab (put merges on cuts)
+          { amount: 210000, pop: 0.98, merge: 1.60 },                  // a small gain: absorbed 1 frame before the cut
+          { amount: 150000, pop: 2.30, merge: 3.5667, payoff: true }   // crosses the milestone: new column, gold re-skin, label roll
+        ],
+        milestone: 1000000,
+        label: { idle: "BANK BALANCE", payoff: "MILLIONAIRE" },
+        timing: { in: 0.2, out: 6.3, end: 7.0, lockAfter: 0.5666 },   // the gold lock lands on the cut to the tower (4.133 s)
+        pill: { cx: 510, y: 352, w: 740, h: 236, r: 100, rim: 18, depth: 72, lip: 16 },   // 69% of the frame wide, inside safe x 72-936
+        view: { D: 2000, eyeX: 540, eyeY: 1450, tiltX: -0.05, tiltY: 0 },   // camera distance + a low eye point (the bottom wall shows, the face stays square); held tilt
+        type: { family: "Archivo", weight: 900, stretch: 66, size: 150, labelSize: 62, labelStretch: 86, chipSize: 96, paySize: 128 },
+        colors: {
+          digit: ["#FFFFFF", "#FFFFFF", "#F1FFF5", "#D3F7E0"],   // white enamel numerals: top, upper, lower, baseline
+          digitGold: ["#FFFFFF", "#FFFDF4", "#FFF4D8", "#FFE6B0"],
+          ink: "#022410", inkGold: "#4A2A00",                    // numeral edge on green / on gold
+          body: ["#41E481", "#05692B"],                          // money-green lacquer on the reeded wall: top, bottom
+          face: ["#25C862", "#035A26"],                          // the deeper lacquer face: top, bottom
+          gold: ["#FFD85A", "#B96A02"],                          // gold lacquer: top, bottom
+          rim: "#F4F2EC", rimGold: "#FFF1CC",
+          hot: "#FFF6CF", aura: "#FFC93C", auraGreen: "#38E07B",
+          chip: ["#FFFFFF", "#D9FFC9", "#5CF27A", "#22C55E"], chipInk: "#032612", glow: "#38E07B",
+          label: ["#FFFFFF", "#E6F5EB"], labelGold: ["#FFF3B8", "#F6C453", "#E59A1C"]
+        },
+        shots: ["#shotA", "#shotB", "#shotC", "#shotD", "#shotE"]
+      };
+
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const $ = (s) => document.querySelector(s);
+        const C = CONFIG, T = C.timing, P = C.pill, TY = C.type, K = C.colors, VW = C.view, FR = 1 / 30;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        else $("#root").style.background = "#0E0F13";   // a missed frame can never flash white
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x)), lerp = (a, b, k) => a + (b - a) * k;
+        const E = (n) => gsap.parseEase(n);
+        const hexA = (h, a) => "rgba(" + [1, 3, 5].map((i) => parseInt(h.substr(i, 2), 16)).join(",") + "," + a.toFixed(3) + ")";
+        const mixHex = (a, b, k) => { const p = (h) => [1, 3, 5].map((i) => parseInt(h.substr(i, 2), 16)); const A = p(a), B = p(b);
+          return "rgb(" + A.map((v, i) => Math.round(v + (B[i] - v) * k)).join(",") + ")"; };
+
+        const FACES = [TY.weight + " 100px Archivo", "italic 900 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f, "$0123456789,+ABCDEFGHIJKLMNOPQRSTUVWXYZ"))).then(() => document.fonts.ready).then(build);
+
+        function build() {
+          // ---------- stage: the slab's canvas + DOM layers share one perspective (camera D px away, eye at (eyeX, eyeY)) ----------
+          const BW = 1080, BH = 1000;
+          const PX = P.cx, PY = P.y + P.h / 2;
+          Object.assign($("#stage").style, { width: BW + "px", height: BH + "px", perspective: VW.D + "px", perspectiveOrigin: VW.eyeX + "px " + VW.eyeY + "px" });
+          ["#pillWrap", "#face", "#aura"].forEach((s) => Object.assign($(s).style, { left: "0px", top: "0px", width: BW + "px", height: BH + "px", transformOrigin: PX + "px " + PY + "px" }));
+          const px0 = PX - P.w / 2, py0 = PY - P.h / 2;
+          const aura = $("#aura");
+          const auraBg = (c, a) => "radial-gradient(ellipse " + (P.w * 0.62) + "px " + (P.h * 1.05) + "px at " + PX + "px " + PY + "px, " + hexA(c, a) + " 0%, " + hexA(c, a * 0.35) + " 50%, rgba(0,0,0,0) 100%)";
+
+          // ---------- the slab: real geometry ----------
+          const G = Gloss3D({ W: BW, H: BH, pivot: [PX, PY], persp: { D: VW.D, ox: VW.eyeX, oy: VW.eyeY }, exposure: 1.0, env: { front: 0.6, top: 1.25, back: 1.1 } });
+          const rimM = G.mat("lacquer", { color: K.rim, toneMapped: false, specGain: 0.9, glowColor: K.hot, params: { roughness: 0.2, clearcoat: 1.0, clearcoatRoughness: 0.05 } });
+          const RM = P.rim, LIP = P.lip, DEP = P.depth;
+          const faceM = G.mat("lacquer", { color: K.face[1], toneMapped: false, specGain: 0.8, glowColor: K.hot,
+            grad: { top: P.h / 2 - 24, bottom: -P.h / 2 + 24, colTop: K.face[0], colBot: K.face[1] },
+            reskin: { colTop: K.gold[0], colBot: K.gold[1], frontGain: 1 },
+            params: { roughness: 0.28, clearcoat: 1.0, clearcoatRoughness: 0.05, envMapIntensity: 0.5 } });
+          // the body's wall is a reeded coin edge (grooves every 9 px), the money cue that survives phone size
+          const edgeM = G.mat("lacquer", { color: K.body[1], toneMapped: false, specGain: 0.8, glowColor: K.hot,
+            grad: { top: P.h / 2 - 12, bottom: -P.h / 2 + 12, colTop: K.body[0], colBot: K.body[1] },
+            reskin: { colTop: K.gold[0], colBot: K.gold[1], frontGain: 1 },
+            reed: { hw: P.w / 2, r: P.r, z0: -DEP + 8, z1: -8, period: 9, depth: 0.5 },
+            params: { roughness: 0.34, clearcoat: 0.8, clearcoatRoughness: 0.1, envMapIntensity: 0.8 } });
+          // body: the deep green block (front at z 0, back at -depth); its bottom wall and end caps carry the thickness
+          G.add([px0, py0, P.w, P.h, P.r], null, { mat: edgeM, z: 0, depth: DEP - 16, bt: 8, bs: 8, bseg: 6 });
+          // face plate: pillowed (its rounded edge falls off into the recess under the bezel), front at z 5
+          G.add([px0 + 12, py0 + 12, P.w - 24, P.h - 24, P.r - 12], null, { mat: faceM, z: 5, depth: 4, bt: 8, bs: 12, bseg: 8 });
+          // bezel: a white enamel lip standing proud of the face (front at z = lip), flush with the body's wall
+          G.add([px0 - 1, py0 - 1, P.w + 2, P.h + 2, P.r + 1], [[px0 + RM, py0 + RM, P.w - 2 * RM, P.h - 2 * RM, P.r - RM]], { mat: rimM, z: LIP, depth: 2, bt: 6, bs: 6, bseg: 8 });
+          G.U.uFrontF.value = 50; G.U.uFrontCol.value.set(K.hot);
+          const SH = "drop-shadow(0 6px 8px rgba(0,0,0,.42)) drop-shadow(0 20px 34px rgba(0,0,0,.45))";
+          G.canvas.style.filter = SH;
+          $("#pillWrap").appendChild(G.canvas);
+
+          // ---------- the odometer (DOM, pinned to the face plane at z 5) ----------
+          const win = $("#win"), WI = RM + 6, WX = px0 + WI, WY = py0 + WI, WW = P.w - 2 * WI, WH = P.h - 2 * WI;
+          Object.assign(win.style, { left: WX + "px", top: WY + "px", width: WW + "px", height: WH + "px", borderRadius: (P.r - WI) + "px" });
+          const font = TY.weight + " " + TY.size + "px/1 " + TY.family;
+          const probe = document.createElement("span");
+          probe.style.cssText = "position:absolute;visibility:hidden;white-space:pre;font:" + font + ";font-stretch:" + TY.stretch + "%";
+          document.body.appendChild(probe);
+          const adv = (s) => { probe.textContent = s; return probe.getBoundingClientRect().width; };
+          let colW = 0; for (let d = 0; d < 10; d++) colW = Math.max(colW, adv(String(d)));
+          colW = Math.ceil(colW + 1);
+          const commaW = adv(","), dollarW = adv("$");
+          const cv = document.createElement("canvas").getContext("2d"); cv.font = TY.weight + " " + TY.size + "px " + TY.family;
+          const mm = cv.measureText("0"), fa = mm.fontBoundingBoxAscent, fd = mm.fontBoundingBoxDescent, cap = mm.actualBoundingBoxAscent;
+          const L = Math.round(TY.size * 1.12);
+          const base = (L - (fa + fd)) / 2 + fa, capTop = base - cap;
+          const rowTop = WH / 2 - (capTop + cap / 2) - 1;
+
+          // 7 columns (millions..ones); the millions column and its comma only exist once the milestone is crossed
+          const nd = 7;
+          const VEND = C.start + C.gains.reduce((a, g) => a + g.amount, 0), M0 = Math.floor(VEND / 1e6) % 10;   // the millions digit it lands on
+          const mk = (kind, i, w) => ({ kind, i, w });
+          const itemsAll = [mk("$", -1, dollarW + 6), mk("d", 0, colW), mk(",", -2, commaW + 2)];
+          for (let i = 1; i < nd; i++) { itemsAll.push(mk("d", i, colW)); if (i === 3) itemsAll.push(mk(",", -3, commaW + 2)); }
+          function layoutX(withM) {
+            const its = itemsAll.filter((it) => withM || (it.i !== 0 && it.i !== -2));
+            const tw = its.reduce((s, it) => s + it.w, 0);
+            let x = (WW - tw) / 2 - 3; const out = {};
+            its.forEach((it) => { out[it.kind + it.i] = x; x += it.w; });
+            return out;
+          }
+          const X6 = layoutX(false), X7 = layoutX(true);
+          // the new column + comma sit in the opening slot between "$" and the hundred-thousands column, centred in it
+          const slotC = (k) => lerp(X6["$-1"] + dollarW + 6, X6["d1"], 0.5);
+
+          const faceGrad = (cols) => "repeating-linear-gradient(180deg, " + cols[0] + " 0px, " + cols[0] + " " + (capTop - 2).toFixed(1) + "px, " +
+            cols[1] + " " + (capTop + cap * 0.3).toFixed(1) + "px, " + cols[2] + " " + (capTop + cap * 0.68).toFixed(1) + "px, " +
+            cols[3] + " " + (capTop + cap + 2).toFixed(1) + "px, " + cols[3] + " " + L + "px)";
+          // raised numerals: a solid 6 px extrusion under the ink edge, then a soft contact shadow on the lacquer
+          const extr = (ink) => [1, 2, 3, 4, 5, 6].map((d) => "0 " + d + "px 0 " + ink).join(", ") + ", 0 9px 12px rgba(0,0,0,.32)";
+          const digitsEl = $("#digits"), SVGNS = "http://www.w3.org/2000/svg";
+          const NS = 3, faces = [], outs = [];
+          function layerPair(parent, text) {
+            const o = document.createElement("span"), f = document.createElement("span");
+            o.textContent = text; f.textContent = text;
+            const st = "font:" + font + ";font-stretch:" + TY.stretch + "%;line-height:" + L + "px;";
+            o.style.cssText = st + "color:" + K.ink + ";-webkit-text-stroke:11px " + K.ink + ";text-shadow:" + extr(K.ink) + ";";
+            f.style.cssText = st + "color:transparent;-webkit-text-fill-color:transparent;-webkit-background-clip:text;background-clip:text;background-image:" + faceGrad(K.digit) + ";";
+            parent.appendChild(o); parent.appendChild(f); outs.push(o); faces.push(f);
+          }
+          const cols = [], statics = [];
+          itemsAll.forEach((it) => {
+            if (it.kind === "d") {
+              const c = document.createElement("div"); c.className = "col"; c.style.cssText = "left:0px;width:" + it.w + "px;height:" + WH + "px;transform-origin:50% " + (rowTop + capTop + cap).toFixed(1) + "px";
+              const txt = Array.from({ length: 30 }, (_, r) => (it.i === 0 && r % 10 !== M0) ? " " : String(r % 10)).join("\n");
+              const smps = [];
+              for (let s = 0; s < NS; s++) { const sm = document.createElement("div"); sm.className = "smp"; layerPair(sm, txt); c.appendChild(sm); smps.push(sm); }
+              digitsEl.appendChild(c);
+              const fid = "vb" + it.i, f = document.createElementNS(SVGNS, "filter");
+              f.setAttribute("id", fid); f.setAttribute("x", "-10%"); f.setAttribute("y", "-50%"); f.setAttribute("width", "120%"); f.setAttribute("height", "200%");
+              const gb = document.createElementNS(SVGNS, "feGaussianBlur"); gb.setAttribute("in", "SourceGraphic"); gb.setAttribute("stdDeviation", "0 0");
+              f.appendChild(gb); $("#fx").appendChild(f);
+              cols.push({ el: c, smps, i: it.i, key: "d" + it.i, ev: [], fid, gb });
+            } else {
+              const g = document.createElement("div"); g.className = "glyph"; g.style.cssText = "left:0px;width:" + it.w + "px;height:" + WH + "px;top:" + rowTop.toFixed(1) + "px;transform-origin:50% " + (capTop + cap).toFixed(1) + "px";
+              layerPair(g, it.kind); digitsEl.appendChild(g); statics.push({ el: g, key: it.kind + it.i, i: it.i });
+            }
+          });
+
+          const dig = (v, i) => Math.floor(v / Math.pow(10, nd - 1 - i)) % 10;
+          const W_DET = 6.2832 / 0.2, K_DET = 18, mainEase = (q) => 0.85 * (1 - (1 - q) * (1 - q)) + 0.15 * q;
+          cols.forEach((c) => { c.P0 = dig(C.start, c.i) - (c.i === 0 ? 0 : 10); c.cur = c.P0; });
+          function roll(at, dur, toV, o) {
+            o = o || {};
+            const moves = [];
+            cols.forEach((c) => {
+              const to = dig(toV, c.i), from = ((c.cur % 10) + 10) % 10;
+              let rows = (to - from + 10) % 10;
+              if (o.boot) rows = c.i === 0 ? 0 : 10;
+              else if (rows && o.spin) rows += o.spin;            // only columns that change move; the big one takes an extra turn
+              if (o.skip0 && c.i === 0) return;
+              if (rows) moves.push({ c, rows });
+            });
+            moves.forEach((m, j) => {
+              const rank = o.ltr ? j : (moves.length - 1 - j);    // stagger by rank among the columns that actually move
+              // landAt: cascade right -> left, the leftmost moving column lands last, exactly on landAt
+              const t0 = o.landAt != null ? o.landAt - dur - j * o.step : at + rank * (o.stagger || 0);
+              m.c.ev.push({ t0, dur, from: m.c.cur, to: m.c.cur + m.rows, A: clamp(m.rows * 0.15 / dur / W_DET, 0.06, 0.2) });
+              m.c.cur += m.rows;
+            });
+          }
+          // fast start, arrives still moving, then a mechanical detent: <= 0.08 row past the mark, settled within 4 frames
+          function Pat(c, t) {
+            let p = c.P0;
+            for (let j = 0; j < c.ev.length; j++) {
+              const e = c.ev[j];
+              if (t < e.t0) return p;
+              if (t < e.t0 + e.dur) return e.from + (e.to - e.from) * mainEase((t - e.t0) / e.dur);
+              p = e.to;
+              const u = t - (e.t0 + e.dur), nx = c.ev[j + 1];
+              if (u < 0.25 && (!nx || t < nx.t0)) return e.to + e.A * Math.sin(W_DET * u) * Math.exp(-K_DET * u);
+            }
+            return p;
+          }
+          let V = C.start, PAY = null;
+          roll(T.in + 0.08, 0.42, V, { boot: true, ltr: true, stagger: 0.03 });
+          C.gains.forEach((g) => {
+            const nv = V + g.amount;
+            if (g.payoff) {
+              PAY = g;
+              // the new millions column rolls blank -> 1 while it grows into the opening slot; the changed columns spin and land right -> left
+              const c0 = cols[0], r0 = (dig(nv, 0) - (((c0.cur % 10) + 10) % 10) + 10) % 10;
+              if (r0) { c0.ev.push({ t0: g.merge - 0.002, dur: 0.001, from: c0.cur, to: c0.cur + r0, A: 0 }); c0.cur += r0; }   // no roll: it grows in from its baseline
+              roll(0, 0.44, nv, { spin: 10, skip0: true, landAt: g.merge + T.lockAfter, step: 0.07 });
+            }
+            else roll(g.merge + 0.02, 0.36, nv, { stagger: 0.04 });
+            V = nv;
+          });
+          const TLOCK = PAY ? PAY.merge + T.lockAfter : 1e9, TM = PAY ? PAY.merge : 1e9;
+
+          function setCol(c, t) {
+            const p = Pat(c, t), v = (Pat(c, t + 1 / 120) - Pat(c, t - 1 / 120)) * 60;
+            const idx = (((p % 10) + 10) % 10) + 10, y0 = rowTop - idx * L;
+            const smear = Math.abs(v) * L / 60;
+            const n = smear < 2 ? 1 : 3, spread = Math.min(smear, 0.9 * L);
+            const sd = smear > 6 ? Math.min(6, smear / 6 + 0.5) : 0;
+            if (sd > 0) { c.gb.setAttribute("stdDeviation", "0 " + sd.toFixed(2)); c.el.style.filter = "url(#" + c.fid + ")"; } else c.el.style.filter = "none";
+            c.smps.forEach((sm, j) => {
+              if (j >= n) { sm.style.visibility = "hidden"; return; }
+              const off = n === 1 ? 0 : (j / (n - 1) - 0.5) * spread;
+              sm.style.visibility = "inherit"; sm.style.opacity = (1 / (j + 1)).toFixed(3);
+              sm.style.transform = "translate3d(0," + (y0 + off).toFixed(2) + "px,0)";
+            });
+          }
+
+          // ---------- label: heavy Archivo caps above the slab, on the slab's plane; rolls to the payoff word (overflow window) ----------
+          const lab = $("#label"), LS = TY.labelSize, LH = Math.round(LS * 1.3), LBW = 820, LBX = PX - LBW / 2, LBY = P.y - LH - 10;
+          Object.assign(lab.style, { left: LBX + "px", top: LBY + "px", width: LBW + "px", height: LH + "px", transformOrigin: (PX - LBX) + "px " + (PY - LBY) + "px" });
+          function labelLine(txt, grad, ink) {
+            const d = document.createElement("div"); d.className = "lt"; d.style.height = LH + "px";
+            const st = "font:900 " + LS + "px/" + LH + "px Archivo;font-stretch:" + TY.labelStretch + "%;letter-spacing:0.02em;";
+            const o = document.createElement("span"), f = document.createElement("span");
+            o.textContent = txt; f.textContent = txt;
+            o.style.cssText = st + "color:" + ink + ";-webkit-text-stroke:9px " + ink + ";text-shadow:0 3px 0 " + ink + ", 0 6px 12px rgba(0,0,0,.45);";
+            f.style.cssText = st + "color:transparent;-webkit-text-fill-color:transparent;-webkit-background-clip:text;background-clip:text;background-image:linear-gradient(180deg," + grad.join(",") + ");";
+            d.appendChild(o); d.appendChild(f); lab.appendChild(d); return d;
+          }
+          const lab1 = labelLine(C.label.idle, K.label, "#04140A"), lab2 = labelLine(C.label.payoff, K.labelGold, "#2E1A00");
+
+          // ---------- gain chips ----------
+          const fmt = (v) => "+$" + v.toLocaleString("en-US");
+          const CLIP = P.y + P.h - 22;   // the chips window starts inside the slab's lower edge: a chip rising past it goes INTO the slab
+          Object.assign($("#chips").style, { top: CLIP + "px", height: (1920 - CLIP) + "px" }); $("#chipsIn").style.top = -CLIP + "px";
+          const chips = C.gains.map((g, gi) => {
+            const el = document.createElement("div"); el.className = "chip";
+            const size = g.payoff ? TY.paySize : TY.chipSize, txt = fmt(g.amount);
+            const st = "font:italic 900 " + size + "px/1.2 Inter;letter-spacing:-0.02em;";
+            const glow = document.createElement("span"), out = document.createElement("span"), face = document.createElement("span");
+            [glow, out, face].forEach((s) => { s.textContent = txt; });
+            glow.style.cssText = st + "color:" + K.glow + ";text-shadow:0 0 " + Math.round(size * 0.3) + "px " + hexA(K.glow, 0.95) + ",0 0 " + Math.round(size * 0.75) + "px " + hexA(K.glow, 0.6) + ";";
+            out.style.cssText = st + "color:" + K.chipInk + ";-webkit-text-stroke:" + Math.round(size * 0.1) + "px " + K.chipInk + ";text-shadow:0 " + Math.round(size * 0.06) + "px " + Math.round(size * 0.12) + "px rgba(0,0,0,.45);";
+            face.style.cssText = st + "color:transparent;-webkit-text-fill-color:transparent;-webkit-background-clip:text;background-clip:text;";
+            el.appendChild(glow); el.appendChild(out); el.appendChild(face);
+            $("#chipsIn").appendChild(el);
+            const h = size * 1.2, w = face.getBoundingClientRect().width;
+            face.style.backgroundImage = "linear-gradient(180deg, " + K.chip[0] + " " + (h * 0.22).toFixed(1) + "px, " + K.chip[1] + " " + (h * 0.4).toFixed(1) + "px, " + K.chip[2] + " " + (h * 0.62).toFixed(1) + "px, " + K.chip[3] + " " + (h * 0.8).toFixed(1) + "px)";
+            el.style.width = w + "px"; el.style.height = h + "px";
+            const cx = P.cx + (g.payoff ? 0 : 70), top = P.y + P.h + (g.payoff ? 62 : 56);
+            el.style.left = (cx - w / 2) + "px"; el.style.top = top + "px";
+            el.style.transformOrigin = (w / 2) + "px " + (h * 0.55) + "px";
+            return { el, g, glow, w, h, top, cx };
+          });
+
+          // ---------- pose as a pure function of time ----------
+          const spring = (t, t0, amp, dec, f) => (t < t0 ? 0 : amp * Math.exp(-dec * (t - t0)) * Math.sin(6.2832 * f * (t - t0)));
+          const damp = (t, t0, amp, dec, f) => (t < t0 ? amp : amp * Math.exp(-dec * (t - t0)) * Math.cos(6.2832 * f * (t - t0)));
+          const eBack = E("back.out(1.7)");
+          function poseAt(t) {
+            const p = { dx: 0, dy: 0, sx: 1, sy: 1, rx: VW.tiltX, ry: VW.tiltY, vis: t >= T.in && t < T.out + 0.34 };
+            const ue = t - T.in;
+            // entrance: drops out of the top, tipped face-down (its reeded top wall shows), big, and springs to the held tilt
+            let s = ue < 0.36 ? 0.55 + 0.51 * E("power3.out")(clamp(ue / 0.36, 0, 1)) : 1 + 0.06 * Math.exp(-7 * (ue - 0.36)) * Math.cos(6.2832 * 0.9 * (ue - 0.36));
+            p.sx = p.sy = s;
+            p.rx += ue < 0 ? 1.15 : damp(t, T.in, 1.15, 7, 0.95);     // top toward the camera: the face stays visible to the low eye
+            p.ry += ue < 0 ? -0.12 : damp(t, T.in, -0.12, 6, 0.8);
+            p.dy = ue < 0 ? -150 : -150 * Math.exp(-9 * ue) * Math.cos(6.2832 * 0.6 * ue);
+            // idle drift: the held tilt breathes, so the studio light moves on the enamel and the lacquer
+            const ui = clamp((t - T.in - 0.9) / 0.6, 0, 1);
+            p.ry += ui * 0.05 * Math.sin(6.2832 * 0.22 * (t - T.in)); p.rx += ui * 0.025 * Math.sin(6.2832 * 0.27 * (t - T.in) + 0.7);
+            // gains hit from below: squash, bottom kicked back, hop (the small gain stays small)
+            C.gains.forEach((g) => {
+              const u = t - g.merge; if (u < 0) return;
+              const a = g.payoff ? 1.4 : 0.75;
+              p.sy *= 1 - 0.07 * a * Math.exp(-13 * u) * Math.cos(6.2832 * 2.2 * u);
+              p.sx *= 1 + 0.035 * a * Math.exp(-13 * u) * Math.cos(6.2832 * 2.2 * u);
+              p.rx += spring(t, g.merge, 0.15 * a, 6.5, 1.5);
+              p.dy += -14 * a * Math.exp(-10 * u) * Math.sin(Math.min(Math.PI, 6.2832 * 1.6 * u));
+            });
+            // lock-in: a punch, and the slab turns into the key light while the gold front crosses (a real light move on the bezel)
+            if (t >= TLOCK) {
+              const u = t - TLOCK;
+              const pu = u < 0.06 ? 1 + 0.065 * (u / 0.06) : 1 + 0.065 * Math.exp(-8 * (u - 0.06)) * Math.cos(6.2832 * 1.2 * (u - 0.06));
+              p.sx *= pu; p.sy *= pu;
+              p.ry += -0.13 * Math.sin(Math.PI * clamp(u / 0.8, 0, 1)) * (1 - 0.3 * clamp(u / 0.8, 0, 1));
+              p.rx += spring(t, TLOCK, 0.08, 6, 1.2);
+            }
+            // exit: wind-up, then launch up out of the top of the frame, tipping back (no fade, no see-through frames)
+            const uw = t - T.out;
+            if (uw >= 0) {
+              const kw = uw < 0.1 ? Math.sin(Math.PI * uw / 0.1) : 0;
+              p.dy += 14 * kw; p.sy *= 1 - 0.05 * kw; p.sx *= 1 + 0.03 * kw;
+              const kx = E("power3.in")(clamp((uw - 0.08) / 0.24, 0, 1));
+              p.dy += -760 * kx; p.rx += -0.85 * kx; p.sy *= 1 + 0.1 * kx;
+            }
+            return p;
+          }
+
+          const eIO = E("power2.inOut"), eSpread = E("back.out(1.4)"), eGrow = E("power2.out");
+          const diag = Math.hypot(P.w, P.h) * 0.62, LG = WW * 0.8642 + WH * 0.5025;
+          function renderAt(t) {
+            const p = poseAt(t), vis = p.vis ? "visible" : "hidden";
+            ["#pillWrap", "#face"].forEach((s) => ($(s).style.visibility = vis));
+            G.pose(p);
+            $("#face").style.transform = G.css(p, 5);
+            const ue = t - T.in, ux = t - (T.out + 0.08);
+            // motion blur only while the slab is fast (entrance swing, exit launch); opacity is always 1
+            const bl = ue < 0.16 ? 5 * (1 - clamp(ue / 0.16, 0, 1)) : ux > 0 ? 6 * clamp(ux / 0.14, 0, 1) : 0;
+            $("#face").style.filter = bl > 0.05 ? "blur(" + bl.toFixed(2) + "px)" : "none";
+            G.canvas.style.filter = SH + (bl > 0.05 ? " blur(" + (bl * 0.7).toFixed(2) + "px)" : "");
+
+            // gold re-skin: a hot front sweeps left -> right at the lock
+            const uf = clamp((t - TLOCK) / 0.4, 0, 1), F = G.U.uFrontF.value;
+            const fx = t < TLOCK ? -1e5 : -P.w / 2 - F + (P.w + 3 * F) * E("sine.inOut")(uf);
+            G.U.uFront.value = t >= TLOCK && uf >= 1 ? 1e5 : fx;
+            G.U.uFrontAmp.value = t >= TLOCK && uf < 1 ? 1.3 * Math.sin(Math.PI * Math.min(1, uf * 1.15)) : 0;
+            const gk = t >= TLOCK ? clamp(uf * 1.1, 0, 1) : 0;                  // how gold the slab is (for the DOM parts)
+            rimM.color.set(mixHex(K.rim, K.rimGold, gk));
+            // light on the object: hit glow at each merge, a warm flare at the lock (peak held 3 frames)
+            let hit = 0;
+            C.gains.forEach((g) => { const u = t - g.merge; if (u >= 0) hit = Math.max(hit, (g.payoff ? 0.9 : 0.45) * (u < FR ? u / FR : Math.exp(-(u - FR) * 6))); });
+            const ul = t - TLOCK;
+            const flare = ul < 0 ? 0 : ul < FR ? ul / FR : ul < 4 * FR ? 1 : Math.exp(-(ul - 4 * FR) * 4.5);
+            rimM.userData.G.uGlowCol.value.set(gk > 0 ? K.hot : "#C8FFD8");
+            rimM.userData.G.uGlow.value = 0.25 * hit + 0.5 * flare;
+            faceM.userData.G.uGlowCol.value.set(gk > 0 ? K.hot : "#9BFFC0"); faceM.userData.G.uGlow.value = 0.08 * hit + 0.07 * flare;
+            edgeM.userData.G.uGlowCol.value.set(gk > 0 ? K.hot : "#9BFFC0"); edgeM.userData.G.uGlow.value = 0.05 * hit + 0.05 * flare;
+            // aura: tight to the slab, only around the hits and the lock (never a frame-wide veil)
+            aura.style.background = auraBg(gk > 0.5 ? K.aura : K.auraGreen, 0.75);
+            const ga = gk > 0 ? (0.5 * flare + 0.12 * gk * Math.exp(-Math.max(0, ul - 0.4) * 2)) : 0.3 * hit;
+            aura.style.visibility = ga > 0.004 && p.vis ? "visible" : "hidden";
+            aura.style.opacity = ((plate ? 1 : 0.7) * ga).toFixed(3);
+            aura.style.transform = "translate(" + p.dx.toFixed(2) + "px," + p.dy.toFixed(2) + "px) scale(" + p.sx.toFixed(4) + "," + p.sy.toFixed(4) + ")";
+            // numeral edge: green-black -> warm brown as the slab turns gold
+            const ink = gk > 0 ? mixHex(K.ink, K.inkGold, gk) : K.ink;
+            const fgc = gk > 0 ? faceGrad(K.digit.map((c, i) => mixHex(c, K.digitGold[i], gk))) : faceGrad(K.digit);
+            if (fgc !== renderAt._fg) { faces.forEach((f) => (f.style.backgroundImage = fgc)); renderAt._fg = fgc; }
+            if (ink !== renderAt._ink) { const ts = extr(ink); outs.forEach((o) => { o.style.color = ink; o.style.webkitTextStroke = "11px " + ink; o.style.textShadow = ts; }); renderAt._ink = ink; }
+
+            // specular: soft sweep after landing, hard rake at the lock (geometry + matching band over the numerals)
+            const s1 = clamp((t - (T.in + 0.55)) / 0.75, 0, 1), s2 = clamp((t - (TLOCK + 0.1)) / 0.55, 0, 1);
+            let sx = -1e5, sa = 0, sw = 70;
+            if (t >= TLOCK + 0.1 && s2 < 1) { sx = -diag + 2 * diag * eIO(s2); sa = 1.2 * Math.sin(Math.PI * s2); sw = 62; }
+            else if (t >= T.in + 0.55 && s1 < 1) { sx = -diag + 2 * diag * eIO(s1); sa = 0.85 * Math.sin(Math.PI * s1); sw = 84; }
+            G.U.uSpecX.value = sx; G.U.uSpecAmp.value = sa; G.U.uSpecW.value = sw;
+            if (sa > 0.01) {
+              const at = (d) => (LG / 2 + d).toFixed(1) + "px", a = (0.13 * sa).toFixed(3);
+              $("#sheen").style.background = "linear-gradient(60deg, rgba(255,255,255,0) " + at(sx - sw * 1.5) + ", rgba(255,255,250," + a + ") " + at(sx) + ", rgba(255,255,255,0) " + at(sx + sw * 1.5) + ")";
+            } else $("#sheen").style.background = "none";
+
+            // numerals: spread to make room for the millions column; the "1," grows in its slot as it opens (never crosses the "$")
+            const sk = t < TM ? 0 : t >= TM + 0.45 ? 1 : eSpread(clamp((t - TM) / 0.32, 0, 1));
+            const gr = t < TM ? 0 : E("back.out(1.8)")(clamp((t - TM) / 0.2, 0, 1));
+            cols.forEach((c) => {
+              let x = lerp(X6[c.key] != null ? X6[c.key] : X7[c.key], X7[c.key], sk);
+              if (c.i === 0) {
+                x = lerp(slotC() - colW / 2 - (commaW + 2) / 2, X7["d0"], clamp(sk, 0, 1));
+                c.el.style.visibility = gr > 0 ? "inherit" : "hidden";
+                c.el.style.transform = "scale(" + Math.max(0.001, gr).toFixed(3) + ")";
+              }
+              c.el.style.left = x.toFixed(2) + "px";
+              setCol(c, t);
+            });
+            statics.forEach((g) => {
+              let x = lerp(X6[g.key] != null ? X6[g.key] : X7[g.key], X7[g.key], sk);
+              if (g.i === -2) {
+                x = lerp(slotC() + colW / 2 - (commaW + 2) / 2, X7[",-2"], clamp(sk, 0, 1));
+                const ck = t < TM + 0.04 ? 0 : eGrow(clamp((t - TM - 0.04) / 0.22, 0, 1));
+                g.el.style.visibility = ck > 0 ? "inherit" : "hidden"; g.el.style.transform = "scale(" + Math.max(0.001, ck).toFixed(3) + ")";
+              }
+              g.el.style.left = x.toFixed(2) + "px";
+            });
+
+            // label: rises in after the landing; rolls to the payoff word at the lock; rolls out on exit
+            const lin = clamp((t - (T.in + 0.42)) / 0.3, 0, 1), lsw = clamp((t - (TLOCK + 0.08)) / 0.28, 0, 1), lout = clamp((t - T.out) / 0.14, 0, 1);
+            lab.style.visibility = t >= T.in + 0.42 && t < T.out + 0.14 ? "visible" : "hidden";
+            const ly = LH * (1 - E("expo.out")(lin)) - LH * E("power2.in")(lout);
+            const sw2 = E("expo.inOut")(lsw);
+            lab1.style.transform = "translateY(" + (ly - LH * sw2).toFixed(2) + "px)";
+            lab2.style.transform = "translateY(" + (ly + LH * (1 - sw2)).toFixed(2) + "px)" + (lsw > 0 ? " scale(" + (1 + 0.05 * Math.exp(-7 * Math.max(0, t - TLOCK - 0.36)) * (t > TLOCK + 0.36 ? 1 : 0)).toFixed(3) + ")" : "");
+            lab.style.transform = G.css({ dx: p.dx, dy: p.dy, sx: p.sx, sy: p.sy, rx: p.rx, ry: p.ry * 0.8 }, 6);
+
+            // chips: pop (the payoff chip slams in), hang, then shoot up into the slab
+            chips.forEach((ch) => {
+              const g = ch.g, up = t - g.pop, rise0 = g.merge - (g.payoff ? 0.2 : 0.17);
+              if (up < 0 || t >= g.merge) { ch.el.style.visibility = "hidden"; return; }
+              ch.el.style.visibility = "visible";
+              let s, y;
+              if (g.payoff) { s = up < 0.22 ? 1 + 0.45 * (1 - E("expo.out")(clamp(up / 0.22, 0, 1))) : 1 - 0.04 * Math.exp(-9 * (up - 0.22)) * Math.sin(6.2832 * 1.6 * (up - 0.22)); y = -6 * clamp((t - g.pop - 0.3) / Math.max(0.01, rise0 - g.pop - 0.3), 0, 1); }
+              else { s = up < 0.36 ? 0.35 + 0.65 * E("back.out(2.4)")(clamp(up / 0.36, 0, 1)) : 1; y = up < 0.36 ? 30 * (1 - E("expo.out")(clamp(up / 0.36, 0, 1))) : -8 * clamp((t - g.pop - 0.36) / Math.max(0.01, rise0 - g.pop - 0.36), 0, 1); }
+              let x = 0, sy = 1, blur = up < 0.1 ? (g.payoff ? 10 : 8) * (1 - up / 0.1) : 0, op = Math.min(1, up / (2 * FR));
+              if (t >= rise0) {
+                const ur = clamp((t - rise0) / (g.merge - rise0), 0, 1), kr = E("power3.in")(ur);
+                y = -6 - (ch.top + ch.h - CLIP + 2) * kr; x = (P.cx - ch.cx) * kr; s *= 1 - 0.3 * kr; sy = 1 + 0.35 * kr; blur = 2.5 * kr;
+              }
+              ch.el.style.transform = "translate(" + x.toFixed(2) + "px," + y.toFixed(2) + "px) scale(" + s.toFixed(4) + "," + (s * sy).toFixed(4) + ")";
+              ch.el.style.opacity = op.toFixed(3);
+              ch.el.style.filter = blur > 0.05 ? "blur(" + blur.toFixed(2) + "px)" : "none";
+              ch.glow.style.opacity = (up < 0.1 ? 1 : 0.9).toFixed(3);
+            });
+
+            G.render();
+          }
+
+          // ---------- timeline ----------
+          const tl = gsap.timeline({ paused: true });
+          if (plate) {
+            C.shots.forEach((s) => {
+              const v = $(s), st = parseFloat(v.dataset.start), du = parseFloat(v.dataset.duration);
+              gsap.set(v, { scale: 1, transformOrigin: "50% 50%" });
+              tl.fromTo(v, { scale: 1 }, { scale: 1.04, duration: du, ease: "none", immediateRender: false }, st);
+            });
+            Look.impact(tl, TLOCK, { shake: "#shake", amp: 6, dur: 0.28, zoom: 1.02, flash: 0 });
+            Look.impact(tl, TM, { shake: "#shake", amp: 4, dur: 0.2, zoom: 1.01, flash: 0 });
+          }
+          Look.drive(tl, 0, T.end, (q) => renderAt(q * T.end));
+          tl.set({}, {}, T.end);
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+          document.querySelectorAll("#ov *").forEach((n) => { n.setAttribute("data-layout-allow-overlap", ""); n.setAttribute("data-layout-allow-occlusion", ""); });
+          renderAt(0);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        }
+      })();
+    </script>
+  </body>
+</html>

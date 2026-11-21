@@ -1,0 +1,363 @@
+<!doctype html>
+<!-- 32 Timer badge, variant B (9:16, 1080x1920, 30 fps): "Stopwatch".
+     A real 3D steel stopwatch (lathed case, crown and bow, side pusher, dark dial, sweeping red hand) drops in at
+     top-centre and a chrome-rimmed glass readout unrolls out of it, counting up with hundredths in masked columns.
+     The payoff is the stop: the crown presses, the hand stops with a damped jiggle, the case turns gold under a raking
+     light, the readout locks in gold with a sheen and a NEW RECORD chip rolls out. Variable bg: "plate" / "none". -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      #gl { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; pointer-events: none; }
+      #wshadow { position: absolute; left: 0; top: 0; width: 360px; height: 360px; margin: -180px 0 0 -180px; border-radius: 50%;
+        background: radial-gradient(closest-side, rgba(4,5,8,.6) 0%, rgba(4,5,8,.36) 55%, rgba(4,5,8,.1) 82%, rgba(4,5,8,0) 100%); }
+      /* readout: chrome rim, gold rim, dark glass inner; unrolls out of the watch */
+      #pillBox { position: absolute; left: 0; top: 0; }
+      #pglow { position: absolute; inset: 0; border-radius: 80px; opacity: 0;
+        box-shadow: 0 0 26px 4px rgba(255,200,80,.75), 0 0 70px 14px rgba(255,165,40,.38); }
+      #pill { position: absolute; inset: 0; border-radius: 80px; box-shadow: 0 24px 44px rgba(0,0,0,.55), 0 6px 12px rgba(0,0,0,.45); }
+      .rim { position: absolute; inset: 0; border-radius: 80px; }
+      .rim.chrome { background: linear-gradient(180deg, #FFFFFF 0%, #C9CED6 18%, #7C838F 44%, #3A3E46 54%, #8E95A1 72%, #E9ECF1 92%, #FFFFFF 100%); }
+      .rim.gold { opacity: 0; background: linear-gradient(180deg, #FFF6CC 0%, #FFD86A 20%, #D9971E 46%, #7A4708 55%, #C9820F 72%, #FFD86A 92%, #FFF2B8 100%); }
+      .inner { position: absolute; inset: 6px; border-radius: 76px; overflow: hidden; clip-path: inset(0 round 76px); min-width: 0;
+        background: radial-gradient(120% 80% at 50% -10%, rgba(255,255,255,.13), rgba(255,255,255,0) 58%),
+                    linear-gradient(180deg, #252932 0%, #14171D 46%, #08090C 100%);
+        box-shadow: inset 0 2px 0 rgba(255,255,255,.16), inset 0 -10px 22px rgba(0,0,0,.75), inset 0 0 0 1.5px rgba(0,0,0,.7); }
+      .inner::after { content: ""; position: absolute; left: 6%; right: 6%; top: 4px; height: 38%; border-radius: 70px 70px 40px 40px;
+        background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,0)); }
+      .read { position: absolute; top: 0; display: flex; align-items: flex-end; white-space: nowrap; font-family: "Inter";
+        font-weight: 900; font-feature-settings: "tnum" 1, "case" 1; letter-spacing: -0.02em; color: #FFFFFF; }
+      .grp { display: flex; align-items: flex-end; }
+      .grp.small { color: #FFD23C; }
+      .col { position: relative; display: block; width: 0.67em; height: 1.3em; overflow: hidden; clip-path: inset(0.26em -12% 0.26em -12%); }
+      .col.sep { width: 0.32em; }
+      .strip { position: absolute; left: 0; top: 0; width: 100%; }
+      .col span { display: block; height: 1.3em; line-height: 1.3em; text-align: center; }
+      .strip { top: 0.25em; }
+      .strip span { height: 0.8em; line-height: 0.8em; }
+      #final { visibility: hidden; }
+      #chipWin { position: absolute; left: 0; top: 0; overflow: hidden; padding: 0 30px 30px; }
+      #chip { position: relative; padding: 0 30px; height: 84px; border-radius: 20px; display: flex; align-items: center;
+        font: 900 54px/1 "Inter"; letter-spacing: 0.035em; color: #1C1104; white-space: nowrap; transform-origin: 50% 0%;
+        background: linear-gradient(180deg, #FFF4C4 0%, #FFDB6E 22%, #F6B636 58%, #DB8E12 86%, #B8700A 100%);
+        box-shadow: inset 0 3px 0 rgba(255,255,255,.85), inset 0 -3px 0 rgba(110,58,0,.6), 0 2px 0 #6A3C04, 0 12px 24px rgba(0,0,0,.5); }
+      #wband { position: absolute; top: -20px; bottom: -20px; left: 0; width: 120px; pointer-events: none; opacity: 0;
+        background: linear-gradient(90deg, rgba(255,236,190,0) 0%, rgba(255,236,190,.55) 50%, rgba(255,236,190,0) 100%); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="7" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <video id="shot1" class="clip shot" src="assets/shots/v21-race-topdown-v.mp4" muted playsinline
+               data-start="0" data-duration="1.7" data-media-start="0" data-track-index="0"></video>
+        <video id="shot2" class="clip shot" src="assets/shots/v19-race-car-city-v.mp4" muted playsinline
+               data-start="1.7" data-duration="1.05" data-media-start="0" data-track-index="0"></video>
+        <video id="shot3" class="clip shot" src="assets/shots/v20-neon-stunt-tunnel-v.mp4" muted playsinline
+               data-start="2.75" data-duration="0.6" data-media-start="0" data-track-index="0"></video>
+        <video id="shot4" class="clip shot" src="assets/shots/v17-deluxo-sunset-v.mp4" muted playsinline
+               data-start="3.35" data-duration="1.15" data-media-start="0.2" data-track-index="0"></video>
+        <video id="shot5" class="clip shot" src="assets/shots/v36-hills-city-view-v.mp4" muted playsinline
+               data-start="4.5" data-duration="1.9" data-media-start="0" data-track-index="0"></video>
+        <video id="shot6" class="clip shot" src="assets/shots/v45-beach-aerial-v.mp4" muted playsinline
+               data-start="6.4" data-duration="0.6" data-media-start="0" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="7" data-track-index="1">
+        <div id="wshadow"></div>
+        <div id="chipWin"><div id="chip" data-layout-allow-occlusion></div></div>
+        <div id="pillBox">
+          <div id="pglow"></div>
+          <div id="pill">
+            <div class="rim chrome"></div><div class="rim gold" id="goldRim"></div>
+            <div class="inner"><div class="read" id="run"></div><div class="read" id="final"></div><div id="wband"></div></div>
+          </div>
+        </div>
+        <canvas id="gl" width="1080" height="1920"></canvas>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        startAt: 55.37,          // stopwatch reading (seconds) at t = 0; it runs in real time
+        stopAt: 4.5,             // timeline second the crown is pressed (the payoff); reads startAt + stopAt
+        chip: "NEW RECORD",
+        watch: { x: 262, y: 476, r: 128 },          // the 3D watch on the 1080x1920 canvas
+        pill: { x0: 262, x1: 918, h: 152 },         // readout from under the watch to its right end
+        digitWidth: 452,                             // the mm:ss.hh row fits this width
+        colors: { steel: "#D6DBE3", gold: "#E9B04A", hand: "#FF2E3A" },
+        timing: { in: 0.12, pill: 0.42, out: 6.45, end: 7.0 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const W = 1080, H = 1920, WC = CONFIG.watch, P = CONFIG.pill, TS = CONFIG.stopAt;
+        const clamp = (v, a, b) => Math.min(b, Math.max(a, v)), lerp = (a, b, u) => a + (b - a) * u;
+        const seg = (t, a, d) => clamp((t - a) / d, 0, 1), E = (n) => gsap.parseEase(n);
+        const FPS = 30;
+
+        // ---------- time model ----------
+        const hund = (t) => Math.round((CONFIG.startAt + Math.min(t, TS)) * 100);       // integer hundredths shown
+        const digitsOf = (hh) => { const s = Math.floor(hh / 100), m = Math.floor(s / 60), ss = s % 60, h = hh % 100;
+          return [Math.floor(m / 10), m % 10, 0, Math.floor(ss / 10), ss % 10, 0, Math.floor(h / 10), h % 10]; };
+        const finalDigits = digitsOf(hund(TS));
+
+        // ---------- readout: mm:ss big, .hh small, masked columns ----------
+        const SPEC = [["b", "d"], ["b", "d"], ["b", ":"], ["b", "d"], ["b", "d"], ["s", "."], ["s", "d"], ["s", "d"]];
+        function buildRead(host, live) {
+          const big = document.createElement("div"), small = document.createElement("div");
+          big.className = "grp big"; small.className = "grp small"; host.appendChild(big); host.appendChild(small);
+          const strips = [];
+          SPEC.forEach(([g, kind], i) => {
+            const c = document.createElement("div"); c.className = "col" + (kind === "d" ? "" : " sep");
+            (g === "b" ? big : small).appendChild(c);
+            if (kind !== "d") { const sp = document.createElement("span"); sp.setAttribute("data-layout-allow-occlusion", ""); sp.textContent = kind; c.appendChild(sp); strips.push(null); return; }
+            if (!live) { const sp = document.createElement("span"); sp.setAttribute("data-layout-allow-occlusion", ""); sp.textContent = String(finalDigits[i]); c.appendChild(sp); strips.push(null); return; }
+            const s = document.createElement("div"); s.className = "strip";
+            for (let d = 0; d <= 10; d++) { const sp = document.createElement("span"); sp.setAttribute("data-layout-allow-occlusion", ""); sp.textContent = String(d % 10); s.appendChild(sp); }
+            c.appendChild(s); strips.push(s);
+          });
+          return { big, small, strips };
+        }
+        const run = buildRead($("#run"), true), fin = buildRead($("#final"), false);
+        // roll events for the minute/second columns (count-up: the new digit rises from below); hundredths snap per frame
+        const events = SPEC.map(() => []);
+        { let prev = digitsOf(hund(0));
+          for (let f = 1; f / FPS <= TS + 1e-6; f++) { const t = f / FPS, d = digitsOf(hund(t));
+            [0, 1, 3, 4].forEach((i) => { if (d[i] !== prev[i]) events[i].push([t, prev[i], prev[i] === 9 && d[i] === 0 ? 10 : d[i]]); }); prev = d; } }
+        const eRoll = E("back.out(1.2)");
+        function colPos(i, t) {
+          if (i >= 6) return digitsOf(hund(t))[i];
+          let p = digitsOf(hund(0))[i];
+          for (const [te, a, b] of events[i]) if (t >= te - 2 / FPS) { const u = seg(t, te - 2 / FPS, 0.17); p = u >= 1 ? b % 10 : lerp(a, b, eRoll(u)); }
+          return p;
+        }
+        $("#chip").textContent = CONFIG.chip;
+
+        // ---------- Three.js: z = 0 maps 1:1 to page px ----------
+        const canvas = $("#gl");
+        const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+        renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 0);
+        renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15;
+        const scene = new THREE.Scene();
+        const FOV = 24, DIST = (H / 2) / Math.tan((FOV / 2) * Math.PI / 180);
+        const camera = new THREE.PerspectiveCamera(FOV, W / H, 10, DIST * 3);
+        camera.position.set(0, 0, DIST); camera.lookAt(0, 0, 0);
+        const wx = (x) => x - W / 2, wy = (y) => H / 2 - y;
+
+        const envScene = new THREE.Scene();
+        envScene.add(new THREE.Mesh(new THREE.SphereGeometry(50, 48, 24), new THREE.ShaderMaterial({
+          side: THREE.BackSide, depthWrite: false,
+          vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 top = vec3(0.8,0.83,0.9), hor = vec3(0.10,0.11,0.14), low = vec3(0.012,0.013,0.018);" +
+            " vec3 c = y > 0.0 ? mix(hor, top, smoothstep(0.1, 0.9, y)) : mix(hor, low, smoothstep(0.0, 0.4, -y)); gl_FragColor = vec4(c, 1.0); }"
+        })));
+        const panel = (w, h, x, y, z, c) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); envScene.add(m); };
+        panel(36, 10, -4, 30, 22, new THREE.Color(4.0, 3.95, 3.9));
+        panel(5, 34, -30, 4, 20, new THREE.Color(3.2, 3.2, 3.3));
+        panel(6, 26, 30, -2, 16, new THREE.Color(2.4, 2.2, 2.0));
+        panel(30, 4, 0, -14, 30, new THREE.Color(1.6, 1.6, 1.7));
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        scene.environment = pmrem.fromScene(envScene, 0.0, 0.1, 200).texture;
+        const key = new THREE.DirectionalLight(0xfff4ec, 1.6); key.position.set(-0.7, 0.9, 1.0); scene.add(key);
+        const rim = new THREE.DirectionalLight(0xffe2b8, 0.7); rim.position.set(0.9, -0.2, 0.5); scene.add(rim);
+        scene.add(new THREE.HemisphereLight(0xf2f5ff, 0x0c0e14, 0.5));
+
+        // ---------- the stopwatch ----------
+        const R = WC.r, k = R / 128;
+        const steel = new THREE.Color(CONFIG.colors.steel), gold = new THREE.Color(CONFIG.colors.gold);
+        const caseMat = new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, color: steel.clone(), metalness: 1, roughness: 0.2, clearcoat: 0.7, clearcoatRoughness: 0.08, envMapIntensity: 1.35 });
+        const pivot = new THREE.Group(), spin = new THREE.Group(), squash = new THREE.Group(), watch = new THREE.Group();
+        pivot.add(spin); spin.add(squash); squash.add(watch); scene.add(pivot);
+        // lathed case: rounded back, a fat polished middle and a raised bezel lip around the dial
+        const prof = [[0, -18], [96, -18], [114, -15], [124, -9], [128, -2], [128, 4], [125, 11], [118, 16], [110, 18.5], [104, 18], [101, 14], [99, 9]]
+          .map(([r, z]) => new THREE.Vector2(r * k, z * k));
+        const caseGeo = new THREE.LatheGeometry(prof, 96); caseGeo.rotateX(Math.PI / 2);
+        watch.add(new THREE.Mesh(caseGeo, caseMat));
+        // the lock-in gold arrives as a wipe across the metal (world-space front along the rake direction)
+        const GU = { uWipe: { value: -1e4 }, uGold: { value: gold.clone() }, uC: { value: new THREE.Vector3() } };
+        const goldify = (mat) => { mat.onBeforeCompile = (sh) => { Object.assign(sh.uniforms, GU);
+          sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vWpos;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvWpos = (modelMatrix * vec4(transformed, 1.0)).xyz;");
+          sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vWpos; uniform float uWipe; uniform vec3 uGold; uniform vec3 uC;")
+            .replace("#include <color_fragment>", "#include <color_fragment>\n{ float s = dot(vWpos.xy - uC.xy, normalize(vec2(0.70, -0.71))); float g = 1.0 - smoothstep(uWipe - 16.0, uWipe + 16.0, s); diffuseColor.rgb = mix(diffuseColor.rgb, uGold, g); }"); }; };
+        goldify(caseMat);
+        // dial: dark glass, luminous minute ticks, 5-second marks
+        const dialMat = new THREE.MeshPhysicalMaterial({ color: 0x0d1015, roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 0.9 });
+        const dialGeo = new THREE.CircleGeometry(100 * k, 96); dialGeo.translate(0, 0, 9 * k);
+        watch.add(new THREE.Mesh(dialGeo, dialMat));
+        const tickMat = new THREE.MeshStandardMaterial({ color: 0xf2f4f8, roughness: 0.4, emissive: 0xffffff, emissiveIntensity: 0.25 });
+        const tickMin = new THREE.MeshStandardMaterial({ color: 0x737b8a, roughness: 0.5 });
+        for (let i = 0; i < 60; i++) {
+          const major = i % 5 === 0, a = Math.PI / 2 - i / 60 * Math.PI * 2, len = (major ? 15 : 7) * k, rr = (91 - (major ? 4 : 0.5)) * k;
+          const m = new THREE.Mesh(new THREE.BoxGeometry((major ? 4.2 : 2) * k, len, 1.6 * k), major ? tickMat : tickMin);
+          m.position.set(Math.cos(a) * rr, Math.sin(a) * rr, 10 * k); m.rotation.z = a - Math.PI / 2; watch.add(m);
+        }
+        // a small inner sub-ring for depth
+        const sub = new THREE.Mesh(new THREE.RingGeometry(58 * k, 60 * k, 96), new THREE.MeshStandardMaterial({ color: 0x2a303a, roughness: 0.5, metalness: 0.5 }));
+        sub.position.z = 9.6 * k; watch.add(sub);
+        // the sweep hand: a red needle with a counterweight and a steel cap
+        const handMat = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(CONFIG.colors.hand), roughness: 0.3, clearcoat: 1, emissive: new THREE.Color(CONFIG.colors.hand), emissiveIntensity: 0.35 });
+        const hand = new THREE.Group(); hand.position.z = 13 * k; watch.add(hand);
+        { const s = new THREE.Shape(); s.moveTo(-1.6 * k, 0); s.lineTo(-4 * k, -22 * k); s.quadraticCurveTo(0, -30 * k, 4 * k, -22 * k); s.lineTo(1.6 * k, 0); s.lineTo(1.1 * k, 86 * k); s.lineTo(-1.1 * k, 86 * k); s.closePath();
+          const g = new THREE.ExtrudeGeometry(s, { depth: 2.2 * k, bevelEnabled: true, bevelThickness: 0.8 * k, bevelSize: 0.6 * k, bevelSegments: 2 }); hand.add(new THREE.Mesh(g, handMat)); }
+        { const g = new THREE.CylinderGeometry(8 * k, 8 * k, 5 * k, 32); g.rotateX(Math.PI / 2); g.translate(0, 0, 3.5 * k); hand.add(new THREE.Mesh(g, caseMat)); }
+        // crown: stem, knurled cap and the bow ring, as one group that presses down
+        const crown = new THREE.Group(); watch.add(crown);
+        { const g = new THREE.CylinderGeometry(9 * k, 9 * k, 26 * k, 24); g.translate(0, 128 * k + 9 * k, 0); crown.add(new THREE.Mesh(g, caseMat)); }
+        { const g = new THREE.CylinderGeometry(20 * k, 20 * k, 20 * k, 28, 1); g.translate(0, 128 * k + 30 * k, 0);
+          const m = new THREE.MeshPhysicalMaterial({ color: steel.clone(), metalness: 1, roughness: 0.32, flatShading: true, envMapIntensity: 1.3 }); crown.add(new THREE.Mesh(g, m)); crown.userData.cap = m; goldify(m); }
+        { const g = new THREE.TorusGeometry(19 * k, 5.5 * k, 16, 48); g.translate(0, 128 * k + 40 * k + 19 * k, 0); crown.add(new THREE.Mesh(g, caseMat)); }
+        // side pusher at 1:30
+        { const g = new THREE.CylinderGeometry(9 * k, 9 * k, 22 * k, 24); g.translate(0, 128 * k + 6 * k, 0); const m = new THREE.Mesh(g, caseMat); m.rotation.z = -Math.PI / 4; watch.add(m);
+          const g2 = new THREE.CylinderGeometry(12 * k, 12 * k, 9 * k, 24); g2.translate(0, 128 * k + 19 * k, 0); const m2 = new THREE.Mesh(g2, caseMat); m2.rotation.z = -Math.PI / 4; watch.add(m2); }
+        // specular rake on the case lip and the dial glass
+        const rakeMat = (amp, w) => new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
+          uniforms: { uPos: { value: -1e4 }, uAmp: { value: 0 }, uMax: { value: amp }, uCol: { value: new THREE.Color(1, 0.96, 0.9) } },
+          vertexShader: "varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "uniform float uPos; uniform float uAmp; uniform float uMax; uniform vec3 uCol; varying vec2 vP; void main(){ float d = dot(vP, normalize(vec2(0.70, -0.71))); float a = uMax * uAmp * exp(-pow((d - uPos) / " + w.toFixed(1) + ", 2.0)); gl_FragColor = vec4(uCol, a); }" });
+        const ringShape = (r1, r0) => { const s = new THREE.Shape(); s.absarc(0, 0, r1, 0, Math.PI * 2, false); const h = new THREE.Path(); h.absarc(0, 0, r0, 0, Math.PI * 2, true); s.holes.push(h); return s; };
+        const rakeC = new THREE.Mesh(new THREE.ShapeGeometry(ringShape(127 * k, 100 * k), 72), rakeMat(0.6, 30)); rakeC.position.z = 19.5 * k; rakeC.renderOrder = 4; watch.add(rakeC);
+        const SG = document.createElement("canvas"); SG.width = SG.height = 128;
+        { const g = SG.getContext("2d"), rg = g.createRadialGradient(64, 64, 0, 64, 64, 64); rg.addColorStop(0, "rgba(255,255,255,1)"); rg.addColorStop(0.3, "rgba(255,255,255,.4)"); rg.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = rg; g.fillRect(0, 0, 128, 128); }
+        const crownBloom = new THREE.Mesh(new THREE.PlaneGeometry(150 * k, 150 * k), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(SG), color: new THREE.Color("#FFD45E"), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, toneMapped: false }));
+        crownBloom.position.set(0, 158 * k, 30 * k); crownBloom.renderOrder = 7; watch.add(crownBloom);
+        const caseBloom = new THREE.Mesh(new THREE.ShapeGeometry(ringShape(132 * k, 96 * k), 96), new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
+          uniforms: { uAmp: { value: 0 } },
+          vertexShader: "varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "uniform float uAmp; varying vec2 vP; void main(){ float d = length(vP) - " + (114 * k).toFixed(1) + "; float a = uAmp * exp(-pow(d / " + (9 * k).toFixed(1) + ", 2.0)) * (0.55 + 0.45 * smoothstep(-80.0, 120.0, vP.y)); gl_FragColor = vec4(1.0, 0.83, 0.37, a); }" }));
+        caseBloom.position.z = 19.8 * k; caseBloom.renderOrder = 6; watch.add(caseBloom);
+        const rakeD = new THREE.Mesh(new THREE.CircleGeometry(99 * k, 72), rakeMat(0.2, 34)); rakeD.position.z = 16 * k; rakeD.renderOrder = 4; watch.add(rakeD);
+
+        // ---------- layout (DOM) ----------
+        const pb = $("#pillBox"), PW = P.x1 - P.x0, PH = P.h;
+        pb.style.left = P.x0 + "px"; pb.style.top = (WC.y - PH / 2) + "px"; pb.style.width = PW + "px"; pb.style.height = PH + "px";
+        let FS = 120, fs = 78, readW = 0, readL = 0;
+        const chipWin = $("#chipWin"), chip = $("#chip");
+
+        // ---------- motion: a pure function of t ----------
+        const eBack = E("back.out(1.5)"), eOut3 = E("power3.out"), eIn3 = E("power3.in"), eIO2 = E("power2.inOut"), eExpo = E("expo.out"), eExpoIn = E("expo.in");
+        function spring(tau, amp, freq, decay) { return tau < 0 ? 0 : amp * Math.exp(-tau / decay) * Math.cos(2 * Math.PI * freq * tau); }
+        function renderAt(t) {
+          // watch: drops in spinning, lands with a squash, presses at the stop, spins out on the exit
+          const u = seg(t, T.in, 0.46), ub = eBack(u), x = seg(t, T.out + 0.18, 0.3), xe = eIn3(x);
+          let cx = WC.x, cy = WC.y - 360 * (1 - eOut3(u));
+          let s = lerp(0.55, 1, ub) * (1 - 0.75 * xe);
+          let ry = lerp(1.2, 0, ub) - 1.5 * xe, rz = lerp(-0.6, 0, eOut3(u)) + 0.25 * xe, rx = 0.2 * (1 - eOut3(u));
+          cy -= 120 * xe;
+          const land = T.in + 0.32;
+          let sqx = 1 + spring(t - land, 0.05, 2.4, 0.12), sqy = 1 - spring(t - land, 0.07, 2.4, 0.12);
+          // the press
+          const tp = t - TS, press = tp < 0 ? 0 : tp < 2 / FPS ? tp / (2 / FPS) : tp < 5 / FPS ? 1 : 1 - E("elastic.out(1,0.45)")(seg(tp, 5 / FPS, 0.4));
+          crown.position.y = -11 * k * press;
+          sqy *= 1 - 0.035 * press; sqx *= 1 + 0.02 * press; cy += 6 * press;
+          s *= 1 + (tp > 0 ? spring(tp - 0.1, 0.035, 2.2, 0.16) * (tp > 0.1 ? 1 : 0) : 0);
+          const vis = t >= T.in && x < 1;
+          pivot.visible = vis;
+          pivot.position.set(wx(cx), wy(cy), 0); pivot.scale.setScalar(s);
+          spin.rotation.set(rx, ry, rz);
+          squash.scale.set(sqx, sqy, 1); squash.position.y = -R * (1 - sqy);
+          // hand: one turn a minute; it stops dead at the press with a damped jiggle
+          const secs = (CONFIG.startAt + Math.min(t, TS)) % 60;
+          const jig = tp > 0 ? 0.07 * Math.exp(-tp / 0.12) * Math.sin(2 * Math.PI * 6 * tp) : 0;
+          hand.rotation.z = -(secs / 60) * Math.PI * 2 - jig;
+          // the lock-in: steel turns gold under a raking key
+          const gk = eIO2(seg(t, TS + 0.02, 0.22));
+          GU.uWipe.value = gk <= 0 ? -1e4 : (gk >= 1 ? 1e4 : lerp(-215, 175, gk) * k); GU.uC.value.copy(pivot.position);
+          const bl0 = tp < 0 ? 0 : tp < 1 / FPS ? tp * FPS : tp < 4 / FPS ? 1 : Math.exp(-(tp - 4 / FPS) / 0.16);
+          crownBloom.material.opacity = 0.75 * bl0; crownBloom.position.y = (128 + 30) * k - 11 * k * press;
+          caseBloom.material.uniforms.uAmp.value = 0.55 * bl0;
+          rim.color.setRGB(1, lerp(0.89, 0.78, gk), lerp(0.72, 0.45, gk));
+          const ks = eIO2(seg(t, TS - 0.08, 0.6));
+          key.position.set(lerp(-0.9, 0.8, ks), 0.9, 1.0);
+          key.intensity = 1.6 + 2.0 * (tp < 0 ? 0 : tp < 0.1 ? 1 : Math.exp(-(tp - 0.1) / 0.2));
+          const rk = seg(t, TS + 0.02, 0.22), ro = seg(t, land + 0.15, 0.5);
+          const rpos = rk > 0 && rk < 1 ? lerp(-215, 175, eIO2(rk)) * k : (ro > 0 && ro < 1 ? lerp(-190, 190, eIO2(ro)) * k : -1e4);
+          const ramp = rk > 0 && rk < 1 ? Math.sin(Math.PI * rk) : (ro > 0 && ro < 1 ? 0.55 * Math.sin(Math.PI * ro) : 0);
+          [rakeC, rakeD].forEach((m) => { m.material.uniforms.uPos.value = rpos; m.material.uniforms.uAmp.value = ramp; m.material.uniforms.uCol.value.setRGB(1, lerp(0.96, 0.86, gk), lerp(0.9, 0.6, gk)); });
+          renderer.render(scene, camera);
+          const bl = (u > 0 && u < 0.5 ? 8 * (1 - u / 0.5) : 0) + 8 * xe;
+          canvas.style.filter = bl > 0.2 ? "blur(" + bl.toFixed(2) + "px)" : "none";
+          const sh = $("#wshadow");
+          sh.style.transform = "translate(" + (cx + 12).toFixed(1) + "px," + (cy + 20).toFixed(1) + "px) scale(" + (s * k * (1 - 0.06 * press)).toFixed(4) + ")";
+          sh.style.opacity = vis ? (Math.min(1, u * 2.5) * (1 - xe)).toFixed(3) : 0;
+
+          // readout: unrolls out of the watch, punches at the lock, retracts into the watch on the exit
+          const pu = eExpo(seg(t, T.pill, 0.55)), pr = eExpoIn(seg(t, T.out, 0.24));
+          const open = pu * (1 - pr), hidden = (PW - 40) * (1 - open);
+          const pp = tp > 0 ? 1 + spring(tp - 1 / FPS, 0.05, 2.6, 0.14) * (tp > 1 / FPS ? 1 : 0) + (tp <= 1 / FPS ? 0.05 * tp * FPS : 0) : 1;
+          pb.style.width = (PW - hidden).toFixed(1) + "px";
+          pb.style.transform = "translateY(" + (6 * press).toFixed(2) + "px) scale(" + pp.toFixed(4) + ")";
+          pb.style.transformOrigin = "40px 50%";
+          pb.style.visibility = open > 0.001 ? "visible" : "hidden";
+          $("#run").style.transform = "translateX(" + (-90 * (1 - pu)).toFixed(1) + "px)";
+          // digits
+          const locked = t >= TS;
+          run.strips.forEach((st, i) => { if (!st) return; const cp = colPos(i, t), fr = Math.abs(cp - Math.round(cp));
+            st.style.transform = "translateY(" + (-cp * 0.8 * (i >= 5 ? fs : FS)).toFixed(2) + "px)";
+            st.style.filter = i < 5 && fr > 0.04 ? "blur(" + (Math.min(1, fr * 4) * 2).toFixed(2) + "px)" : "none"; });
+          // the lock: digits freeze white, then a gold wipe with a light band crosses the rim and the digits
+          const xw = PW * eIO2(seg(t, TS + 0.1, 0.3)), xr = xw - 6 - readL;
+          $("#final").style.visibility = t >= TS + 0.1 ? "visible" : "hidden";
+          $("#final").style.clipPath = "inset(-30px " + Math.max(0, readW - xr).toFixed(1) + "px -30px -30px)";
+          $("#run").style.clipPath = "inset(-30px -30px -30px " + Math.max(0, xr).toFixed(1) + "px)";
+          $("#run").style.visibility = xr >= readW ? "hidden" : "visible";
+          $("#goldRim").style.opacity = t >= TS + 0.1 ? 1 : 0;
+          $("#goldRim").style.clipPath = "inset(-2px " + Math.max(0, PW - xw).toFixed(1) + "px -2px -2px)";
+          const wb = seg(t, TS + 0.1, 0.3);
+          $("#wband").style.opacity = wb > 0 && wb < 1 ? Math.sin(Math.PI * wb).toFixed(3) : 0;
+          $("#wband").style.transform = "translateX(" + (xw - 66).toFixed(1) + "px) skewX(-18deg)";
+          const gw = tp < 0 ? 0 : tp < 0.1 ? tp / 0.1 : 0.55 + 0.45 * Math.exp(-(tp - 0.1) / 0.25);
+          $("#pglow").style.opacity = (gw * (1 - pr)).toFixed(3);
+          // chip: rolls down out from under the readout, back up on the exit
+          const cu = seg(t, TS + 0.25, 0.42), cOut = eIn3(seg(t, T.out - 0.12, 0.16));
+          const cin = E("back.out(2)")(cu) * (1 - cOut);
+          chip.style.transform = "translateY(" + (-(1 - cin) * 120).toFixed(2) + "px) rotate(" + (-4 * (1 - Math.min(1, cu * 1.4)) ).toFixed(2) + "deg)";
+          chipWin.style.visibility = cin > 0.001 ? "visible" : "hidden";
+        }
+        window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+
+        const FACES = ["900 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          // fit the readout: mm:ss at FS, .hh at 0.64 FS, baselines aligned
+          const setSizes = () => { [run, fin].forEach((r) => { r.big.style.fontSize = FS + "px"; r.small.style.fontSize = fs + "px"; r.small.style.marginBottom = (0.286 * (FS - fs)).toFixed(2) + "px"; }); };
+          setSizes();
+          const w0 = $("#run").offsetWidth;
+          FS = Math.round(FS * Math.min(1.15, CONFIG.digitWidth / w0)); fs = Math.round(FS * 0.64); setSizes();
+          readW = $("#run").offsetWidth;
+          const rh = $("#run").offsetHeight, innerW = PW - 12, innerH = PH - 12;
+          readL = innerW - 44 - readW;
+          ["#run", "#final"].forEach((id) => { const el = $(id); el.style.left = (innerW - 44 - readW) + "px"; el.style.top = ((innerH - rh) / 2 + 2).toFixed(1) + "px";
+            el.style.filter = "drop-shadow(0 3px 2px rgba(0,0,0,.65))"; });
+          Look.fill("#final", "linear-gradient(180deg, #FFF7D1 0%, #FFDD73 30%, #F4B63C 56%, #C8800E 80%, #F6C85A 100%)", { sheen: true });
+          // chip sits under the readout's right end
+          const cw = chip.offsetWidth, ch = chip.offsetHeight;
+          chipWin.style.left = (P.x1 - 40 - cw - 30) + "px"; chipWin.style.top = (WC.y + PH / 2 - 10) + "px";
+          chipWin.style.width = (cw + 60) + "px"; chipWin.style.height = (ch + 40) + "px"; chip.style.top = "10px";
+          const tl = gsap.timeline({ paused: true });
+          renderAt(0);
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          Look.sheen(tl, "#final", TS + 0.42, { dur: 0.6 });
+          if (plate) Look.impact(tl, TS, { shake: "#shake", amp: 6, dur: 0.3, flash: 0, host: "#root", zoom: 1.015 });
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

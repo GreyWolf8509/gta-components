@@ -1,0 +1,295 @@
+<!doctype html>
+<!-- 57 Holo scan, variant A (16:9, 1920x1080): the creators' holographic point-cloud scan as a real 3D lidar scan of a car.
+     A volumetric scan curtain sweeps nose to tail; behind it ~110k points condense onto the body and lidar contours light up;
+     HUD tags lock onto parts as the curtain crosses them; the curtain bounces back as a lock wave that prints the car solid
+     (clearcoat body, glass, chrome) and the readout rolls from the scan % to the result. Variable: bg "plate" / "none". -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="media/holo3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      /* plate only: a clean local darkening behind the hologram (black, never a grey veil) */
+      #vig { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse 38% 44% at 50% 46%, rgba(1,6,10,.66) 0%, rgba(1,6,10,.46) 48%, rgba(1,6,10,0) 100%); }
+      #holo { position: absolute; inset: 0; }
+      #hud { position: absolute; inset: 0; overflow: visible; }
+      /* part tags: bracketed HUD data boxes (evidence: thin-line boxes, bracket corners, mono text), set heavy */
+      .tag { position: absolute; height: 126px; }
+      .tag .clip { position: absolute; inset: 0; }
+      .tag .cn { position: absolute; width: 34px; height: 34px; border: 0 solid #33D6FF; filter: drop-shadow(0 0 6px rgba(51,214,255,.6)); }
+      .tag .tl { left: 0; top: 0; border-left-width: 6px; border-top-width: 6px; }
+      .tag .br { right: 0; bottom: 0; border-right-width: 6px; border-bottom-width: 6px; }
+      .tag .spine { position: absolute; top: 14px; bottom: 14px; width: 5px; background: linear-gradient(180deg, #9ff0ff, #33D6FF 45%, #1a8fb8);
+        box-shadow: 0 0 14px rgba(51,214,255,.75); }
+      .tag.L .spine { right: -2px; } .tag.R .spine { left: -2px; }
+      .tag .hd { position: absolute; left: 24px; top: 13px; display: flex; align-items: center; gap: 12px; height: 36px; overflow: hidden; }
+      .tag.L .hd { left: auto; right: 26px; flex-direction: row-reverse; text-align: right; }
+      .tag.L .vw { left: auto; right: 12px; text-align: right; }
+      .tag .ix { display: block; font: 900 22px/30px "Archivo"; font-stretch: 80%; color: #02121a; background: linear-gradient(180deg, #b8f4ff, #33D6FF);
+        padding: 0 8px; border-radius: 3px; }
+      .tag .k { display: block; font: 800 27px/36px "JetBrains Mono"; letter-spacing: .12em; color: #d8f9ff; text-shadow: 0 0 2px rgba(0,0,0,.9), 0 2px 8px rgba(0,0,0,.8); }
+      .tag .vw { position: absolute; left: 12px; top: 48px; height: 78px; padding: 8px 14px 0 12px; overflow: hidden; }
+      .tag .v { display: block; font: 900 56px/58px "Archivo"; font-stretch: 70%; letter-spacing: -.005em; word-spacing: .14em; color: #fff; white-space: nowrap;
+        text-shadow: 0 0 18px rgba(51,214,255,.5), 0 2px 6px rgba(0,0,0,.65); }
+      /* readout */
+      #ro { position: absolute; left: 50%; top: 846px; width: 760px; margin-left: -380px; height: 190px; }
+      #ro .rk { position: absolute; left: 0; right: 0; top: 0; height: 30px; overflow: hidden; }
+      #ro .rk span { position: absolute; left: 0; right: 0; top: 0; text-align: center; font: 700 25px/30px "JetBrains Mono"; letter-spacing: .2em; color: #d2f7ff;
+        text-shadow: 0 2px 10px rgba(0,0,0,.85); }
+      #ro .rm { position: absolute; left: 0; right: 0; top: 30px; height: 128px; overflow: hidden; }
+      #ro .grp { position: absolute; left: 0; right: 0; top: 0; height: 128px; display: flex; justify-content: center; align-items: baseline; gap: 14px; }
+      #ro .num { font: 900 128px/128px "Archivo"; font-stretch: 66%; letter-spacing: -.01em; font-variant-numeric: tabular-nums; color: #fff;
+        text-shadow: 0 0 30px rgba(51,214,255,.5), 0 4px 14px rgba(0,0,0,.7); }
+      #ro .unit { font: 900 58px/58px "Archivo"; font-stretch: 72%; color: #bff3ff; text-shadow: 0 0 20px rgba(51,214,255,.5), 0 3px 10px rgba(0,0,0,.7); }
+      #ro #gRes .num { color: #FFD23C; text-shadow: 0 0 34px rgba(255,190,40,.55), 0 4px 14px rgba(0,0,0,.75); }
+      #ro #gRes .unit { color: #FFE27A; text-shadow: 0 0 22px rgba(255,190,40,.5), 0 3px 10px rgba(0,0,0,.7); }
+      #ro .bar { position: absolute; left: 60px; right: 60px; top: 168px; height: 12px; transform-origin: 50% 50%; background: rgba(4,22,30,.55); border-radius: 2px;
+        box-shadow: inset 0 0 0 2px rgba(51,214,255,.45); overflow: hidden; }
+      #ro .bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(180deg, #c8f7ff, #33D6FF 55%, #1690bd); }
+      #ro .bar b { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 34px, rgba(2,14,20,.9) 34px 38px); }
+      #ro .bar #barY { width: 0; background: linear-gradient(180deg, #fff1b0, #FFD23C 55%, #E59A1C); }
+      #ro .bar u { position: absolute; top: 0; bottom: 0; left: 0; width: 90px; opacity: 0; background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.9), rgba(255,255,255,0)); }
+      #ro .rglow { position: absolute; left: 150px; right: 150px; top: 24px; height: 150px; opacity: 0; pointer-events: none;
+        background: radial-gradient(ellipse 50% 50% at 50% 55%, rgba(255,196,50,.5), rgba(255,196,50,0) 72%); }
+      #fontprobe { position: absolute; left: -9999px; top: 0; font: 900 40px "Archivo"; opacity: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.4" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="s1" class="clip shot" style="z-index:4" src="assets/shots/v12-heli-city-dusk-h.mp4" muted playsinline data-start="0" data-duration="1.54" data-media-start="0" data-track-index="0"></video>
+        <video id="s2" class="clip shot" style="z-index:3" src="assets/shots/v41-smokestacks-dusk-h.mp4" muted playsinline data-start="1.4733" data-duration="1.4667" data-media-start="0" data-track-index="1"></video>
+        <video id="s3" class="clip shot" style="z-index:2" src="assets/shots/v44-bridge-skyline-h.mp4" muted playsinline data-start="2.8733" data-duration="1.7" data-media-start="0" data-track-index="0"></video>
+        <video id="s4" class="clip shot" style="z-index:1" src="assets/shots/v36-hills-city-view-h.mp4" muted playsinline data-start="4.5067" data-duration="1.8933" data-media-start="0" data-track-index="1"></video>
+      </div><div id="vig"></div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="6.4" data-track-index="2">
+        <div id="holo"></div>
+        <svg id="hud" width="1920" height="1080" viewBox="0 0 1920 1080"></svg>
+        <div id="tags"></div>
+        <div id="ro">
+          <div class="rk"><span id="rk1"></span><span id="rk2"></span></div>
+          <div class="rglow" id="rglow"></div>
+          <div class="rm">
+            <div class="grp" id="gPct"><span class="num" id="pct">000</span><span class="unit">%</span></div>
+            <div class="grp" id="gRes"><span class="num" id="resN"></span><span class="unit" id="resU"></span></div>
+          </div>
+          <div class="bar"><i id="barF"></i><i id="barY"></i><u id="barS"></u><b></b></div>
+        </div>
+        <div id="fontprobe" aria-hidden="true">213 <span style="font-family:'JetBrains Mono'">SCAN</span></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        kicker: "HOLO SCAN  //  VEHICLE 07",          // shown while scanning
+        done: "SCAN COMPLETE  //  TOP SPEED",          // rolls in at the lock
+        result: { value: "213", unit: "MPH" },
+        // part tags: anchor = point on the car (metres; nose +x), side = column, y = tag top (px)
+        tags: [
+          { k: "TYRES", v: "20\u2033 SLICKS", anchor: "brakes", side: "L", y: 600 },
+          { k: "WEIGHT", v: "1,290 KG", anchor: "roof", side: "L", y: 236 },
+          { k: "ENGINE", v: "4.0L V8", anchor: "intake", side: "R", y: 600 },
+          { k: "AERO", v: "ACTIVE WING", anchor: "wing", side: "R", y: 236 }
+        ],
+        columns: { L: 96, R: 1444 }, colW: 380,         // tag columns: left edge of each column (px) and the column width
+        car: { yaw: [133, 149], pitch: 11, dist: 12.2, target: [0.05, 0.62, 0], shift: [0, -48] },
+        colors: { body: 0x1a3a46 },                    // shell tint (dark clearcoat)
+        points: 140000,
+        timing: { ignite: 0.12, scan0: 0.24, scan1: 2.5, wave0: 2.64, lock: 2.94, rake0: 3.2, rake1: 4.6, exit: 5.46, erase0: 5.5, erase1: 6.02, end: 6.4 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const $ = (s) => document.querySelector(s);
+        if (!plate) { document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none")); document.getElementById("vig").style.display = "none"; }
+        const FACES = ["900 100px Archivo", "700 100px 'JetBrains Mono'"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const W = 1920, H = 1080, T = CONFIG.timing, C = CONFIG.car, DBG = Object.assign({ bloom: 1, wire: 1, pts: 1 }, window.__DBG || {});
+          const holo = Holo3D({ host: $("#holo"), W, H, dpr: 1.5, points: CONFIG.points, colors: CONFIG.colors,
+            cam: { fov: 22, target: C.target, shift: C.shift }, ptSize: 2.5, bloomPx: 5 });
+          const side = -1; // the camera sees the car's -z flank (nose to the left)
+          const A = {
+            brakes: [holo.XF, holo.WY + 0.1, side * (holo.WZ + 0.14)],
+            roof: [-0.2, 1.11, side * 0.1],
+            intake: [-0.6, 0.6, side * 0.93],
+            wing: [holo.XT + 0.32, 1.17, side * 0.62]
+          };
+          const E = (n) => gsap.parseEase(n);
+          const cl = (x) => Math.max(0, Math.min(1, x)), lerp = (a, b, p) => a + (b - a) * p;
+          const eEl = E("elastic.out(1, 0.5)"), eSine = E("sine.inOut"), eBack = E("back.out(2.2)"), eBack1 = E("back.out(1.4)"), eExpo = E("expo.out"), eP2in = E("power2.in"), eP3in = E("power3.in"), eP3o = E("power3.out"), eP2io = E("power2.inOut");
+          const XN = holo.XN + 0.12, XT = holo.XT - 0.12;
+          const scanXAt = (t) => lerp(XN, XT, eSine(cl((t - T.scan0) / (T.scan1 - T.scan0))));
+          const tCross = (x) => { let lo = T.scan0, hi = T.scan1; for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2; if (scanXAt(m) > x) lo = m; else hi = m; } return (lo + hi) / 2; };
+
+          // ---------- DOM: tags + svg ----------
+          const NS = "http://www.w3.org/2000/svg", svg = $("#hud");
+          const mk = (tag, at, parent) => { const n = document.createElementNS(NS, tag); for (const k in at) n.setAttribute(k, at[k]); (parent || svg).appendChild(n); return n; };
+          const ORD = CONFIG.tags.map((g, i) => i).sort((a, b) => { const A1 = CONFIG.tags[a], B1 = CONFIG.tags[b]; return (A1.side === B1.side ? A1.y - B1.y : (A1.side === "L" ? -1 : 1)); });
+          const TG = CONFIG.tags.map((g, i) => {
+            const el = document.createElement("div"); el.className = "tag " + g.side;
+            el.innerHTML = '<div class="clip"><i class="cn tl"></i><i class="cn br"></i><div class="spine"></div>' +
+              '<div class="hd"><b class="ix">0' + (ORD.indexOf(i) + 1) + '</b><span class="k"></span></div><div class="vw"><span class="v"></span></div></div>';
+            el.querySelector(".k").textContent = g.k; el.querySelector(".v").textContent = g.v;
+            el.style.top = g.y + "px";
+            $("#tags").appendChild(el);
+            const wv = Math.ceil(Math.max(el.querySelector(".v").getBoundingClientRect().width, el.querySelector(".hd").getBoundingClientRect().width)) + 54;
+            el.style.width = wv + "px"; el.style.left = (g.side === "L" ? CONFIG.columns.L : CONFIG.columns.R) + "px";
+            if (g.side === "L") el.style.left = (CONFIG.columns.L + CONFIG.colW - wv) + "px";
+            const glow = mk("polyline", { fill: "none", stroke: "rgba(51,214,255,0.24)", "stroke-width": "16", "stroke-linejoin": "round", "stroke-linecap": "round", opacity: "1" });
+            const edge = mk("polyline", { fill: "none", stroke: "rgba(14,15,19,0.6)", "stroke-width": "9", "stroke-linejoin": "round", "stroke-linecap": "round", opacity: "1" });
+            const line = mk("polyline", { fill: "none", stroke: "#6fe6ff", "stroke-width": "6", "stroke-linejoin": "round", "stroke-linecap": "round", opacity: "1" });
+            const ret = mk("g", { opacity: "1" });
+            const R0 = 25, arm = 14;
+            const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sy]) => mk("path", { d: "M" + (sx * R0) + " " + (sy * (R0 - arm)) + " L" + (sx * R0) + " " + (sy * R0) + " L" + (sx * (R0 - arm)) + " " + (sy * R0),
+              fill: "none", stroke: "#7fe8ff", "stroke-width": "6", "stroke-linecap": "square" }, ret));
+            const dot = mk("circle", { cx: "0", cy: "0", r: "7", fill: "#e6fbff", opacity: "1" }, ret);
+            return { g, el, clip: el.querySelector(".clip"), v: el.querySelector(".v"), hd: el.querySelector(".hd"), glow, edge, line, ret, dot, corners, tl: tCross(A[g.anchor][0]) };
+          });
+
+          $("#rk1").textContent = CONFIG.kicker; $("#rk2").textContent = CONFIG.done;
+          $("#resN").textContent = CONFIG.result.value; $("#resU").textContent = CONFIG.result.unit;
+
+          // ---------- per-frame state ----------
+          function hudAt(t) {
+            TG.forEach((o, i) => {
+              const a = holo.project(A[o.g.anchor]);
+              const u = t - o.tl;
+              const gone = t >= T.exit + 0.05 * i + 0.3;
+              const shown = u > -0.02 && !gone;
+              o.ret.style.display = shown ? "" : "none";
+              o.el.style.display = shown && u > 0.16 ? "" : "none";
+              o.line.style.display = o.glow.style.display = o.edge.style.display = shown && u > 0.08 ? "" : "none";
+              if (!shown) return;
+              // reticle: lands big and rotated, snaps tight (the lock), flashes white for 2 frames
+              const sn = eBack(cl((u + 0.02) / 0.26));
+              const ex = cl((t - (T.exit + 0.05 * i)) / 0.26), exE = eP3in(ex);
+              // the payoff tick: at the lock every reticle kicks out and snaps tight again, white for 3 frames
+              const lu = t - T.lock, tk = lu >= -0.02 && lu < 0.32 ? 1 + 0.5 * (1 - eBack(cl((lu + 0.02) / 0.24))) : 1;
+              const sc = lerp(2.6, 1, sn) * (1 - 0.9 * exE) * tk, rot = lerp(45, 0, eP3o(cl((u + 0.02) / 0.24)));
+              o.ret.setAttribute("transform", "translate(" + a.x.toFixed(1) + " " + a.y.toFixed(1) + ") rotate(" + rot.toFixed(2) + ") scale(" + sc.toFixed(3) + ")");
+              const hotF = (u > 0.2 && u < 0.2 + 2 / 30) || (lu >= 0 && lu < 3 / 30);
+              o.corners.forEach((c) => c.setAttribute("stroke", hotF ? "#ffffff" : "#7fe8ff"));
+              o.dot.setAttribute("r", (hotF ? 9 : 7).toString());
+              // leader: anchor -> elbow -> tag spine; draws out from the anchor, retracts into it on exit
+              const L = o.g.side === "L";
+              const tx = L ? CONFIG.columns.L + CONFIG.colW + 2 : CONFIG.columns.R - 2, ty = o.g.y + 62;
+              const ex2 = lerp(a.x, tx, 0.5) + (L ? -40 : 40), ey2 = ty;
+              const pts = [[a.x, a.y], [ex2, ey2], [tx, ty]];
+              const segs = [Math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]), Math.hypot(pts[2][0] - pts[1][0], pts[2][1] - pts[1][1])];
+              const total = segs[0] + segs[1];
+              let dr = eExpo(cl((u - 0.08) / 0.24)) * (1 - eP3in(cl((t - (T.exit + 0.05 * i + 0.06)) / 0.2)));
+              let len = total * dr, out = [pts[0]];
+              if (len <= segs[0]) out.push([lerp(pts[0][0], pts[1][0], len / segs[0]), lerp(pts[0][1], pts[1][1], len / segs[0])]);
+              else { out.push(pts[1]); out.push([lerp(pts[1][0], pts[2][0], (len - segs[0]) / segs[1]), lerp(pts[1][1], pts[2][1], (len - segs[0]) / segs[1])]); }
+              const ps = out.map((p) => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
+              o.line.setAttribute("points", ps); o.glow.setAttribute("points", ps); o.edge.setAttribute("points", ps);
+              // tag: opens from the leader side (clip-path), value rolls up in its window; collapses back on exit
+              const op = eExpo(cl((u - 0.16) / 0.3)) * (1 - eP3in(cl((t - (T.exit + 0.05 * i)) / 0.2)));
+              const ins = (1 - op) * 100;
+              o.clip.style.clipPath = L ? "inset(0 0 0 " + ins.toFixed(2) + "%)" : "inset(0 " + ins.toFixed(2) + "% 0 0)";
+              o.v.style.transform = "translateY(" + (62 * (1 - eBack1(cl((u - 0.24) / 0.34)))).toFixed(2) + "px)";
+              o.hd.style.transform = "translateY(" + (32 * (1 - eExpo(cl((u - 0.2) / 0.3)))).toFixed(2) + "px)";
+              o.el.style.opacity = u > 0.24 && u < 0.24 + 1 / 30 ? "0.85" : "1";
+              const lockFlash = cl(1 - Math.abs(t - T.lock - 0.03) / 0.12);
+              o.v.style.color = lockFlash > 0.5 ? "#e6fbff" : "#ffffff";
+            });
+          }
+          function readoutAt(t) {
+            const inP = eExpo(cl((t - (T.scan0 + 0.1)) / 0.4));
+            const outP = eP3in(cl((t - (T.exit + 0.1)) / 0.24));
+            const ro = $("#ro");
+            const inE = eExpo(cl((t - (T.scan0 + 0.1)) / 0.24));
+            ro.style.display = t > T.scan0 + 0.1 && outP < 1 ? "" : "none";
+            ro.style.clipPath = "inset(" + (100 * outP).toFixed(2) + "% 0 " + (100 * (1 - inE)).toFixed(2) + "% 0)";
+            ro.style.filter = inE < 1 ? "blur(" + (6 * (1 - inE)).toFixed(2) + "px)" : "";
+            ro.style.transform = "translateY(" + (36 * (1 - inP) + 20 * outP).toFixed(2) + "px)";
+            const sp = cl((t - T.scan0) / (T.scan1 - T.scan0));
+            const pct = Math.round(100 * eSine(sp));
+            $("#pct").textContent = String(pct).padStart(3, "0");
+            // the swap at the lock: % rolls up and out, the result slams up from below (no overlap, both in one window)
+            const sw = cl((t - (T.lock - 0.2)) / 0.14), swE = eP3in(sw);
+            const rs = cl((t - (T.lock - 0.12)) / 0.26), rsE = eBack1(rs);
+            $("#gPct").style.transform = "translateY(" + (-130 * swE).toFixed(2) + "px)";
+            $("#gPct").style.visibility = sw >= 1 ? "hidden" : "visible";
+            // the result counts up in its window, swells as it climbs and lands on a spring; a local bloom sits behind it
+            const RV = parseInt(CONFIG.result.value, 10), cu = eP3o(cl((t - (T.lock - 0.1)) / 0.45)), land = T.lock + 0.35;
+            $("#resN").textContent = isNaN(RV) ? CONFIG.result.value : String(Math.round(RV * cu)).padStart(CONFIG.result.value.length, "0");
+            const rsc = t < land ? 1 + 0.12 * eP2in(cl((t - (land - 0.3)) / 0.3)) : 1 + 0.12 * (1 - eEl(cl((t - land) / 0.6)));
+            $("#gRes").style.transform = "translateY(" + (132 * (1 - rsE)).toFixed(2) + "px) scale(" + rsc.toFixed(4) + ")";
+            $("#rglow").style.opacity = (t < T.lock - 0.1 ? 0 : t < land ? 0.6 * cl((t - (T.lock - 0.1)) / 0.45) : 0.32 + 0.68 * Math.exp(-(t - land) / 0.25)).toFixed(3);
+            $("#gRes").style.visibility = t >= T.lock - 0.12 ? "visible" : "hidden";
+            const k1 = eP3in(cl((t - (T.lock - 0.2)) / 0.12)), k2 = eExpo(cl((t - (T.lock - 0.06)) / 0.3));
+            $("#rk1").style.transform = "translateY(" + (-32 * k1).toFixed(2) + "px)";
+            $("#rk2").style.transform = "translateY(" + (32 * (1 - k2)).toFixed(2) + "px)";
+            $("#rk2").style.visibility = t >= T.lock - 0.06 ? "visible" : "hidden";
+            const bar = $("#barF");
+            bar.style.width = (100 * eSine(sp)).toFixed(2) + "%";
+            const locked = t >= T.lock;
+            const by = eP3o(cl((t - T.lock) / 0.3)), bs = cl((t - (T.lock + 0.04)) / 0.42);
+            $("#barY").style.width = (100 * by).toFixed(2) + "%";
+            $("#barS").style.opacity = bs > 0 && bs < 1 ? "1" : "0";
+            $("#barS").style.transform = "translateX(" + (-90 + 730 * eP2io(bs)).toFixed(1) + "px)";
+            const bc = eP3in(cl((t - (T.exit + 0.16)) / 0.18));
+            bar.parentNode.style.transform = bc > 0 ? "scaleX(" + (1 - bc).toFixed(4) + ")" : "";
+            bar.parentNode.style.filter = bc > 0 ? "blur(" + (6 * bc).toFixed(2) + "px)" : "";
+            bar.parentNode.style.opacity = (1 - bc * bc).toFixed(3);
+            bar.style.boxShadow = locked ? "0 0 " + (18 * (1 - cl((t - T.lock) / 0.6)) + 6).toFixed(1) + "px rgba(255,200,60,.9)" : "0 0 10px rgba(51,214,255,.8)";
+          }
+          function holoAt(t) {
+            const yaw = lerp(C.yaw[0], C.yaw[1], eP2io(cl(t / T.end)));
+            // the scan is a thin laser contour on the body (plus a floor line), never a slab
+            const scanK = t < T.scan1 ? eP3o(cl((t - T.ignite) / 0.22)) : 0;
+            let lockK = 0, lockX = holo.XT - 0.1;
+            if (t >= T.wave0) { lockK = 1; lockX = lerp(holo.XT - 0.05, holo.XN + 0.32, eP2in(cl((t - T.wave0) / (T.lock - T.wave0)))); }
+            const eraseX = t >= T.erase0 ? lerp(holo.XN + 0.05, holo.XT - 0.5, cl((t - T.erase0) / (T.erase1 - T.erase0))) : 10;
+            // payoff light: localized on the car (rim + emissive), peak held 3 frames, then decays; the lamps switch on
+            const hu = t - T.lock;
+            const hot = hu < 0 ? 0 : (hu < 3 / 30 ? 1 : Math.exp(-(hu - 3 / 30) / 0.22));
+            const lights = eExpo(cl((t - (T.lock - 0.04)) / 0.12));
+            // the payoff light is one specular band raking the printed car nose -> tail; the cloud squeezes and springs back
+            const gu = (t - T.lock) / 0.24, glK = t >= T.lock - 0.02 && gu < 1.05 ? 1 : 0, glX = lerp(holo.XN + 0.5, holo.XT - 0.6, eP2io(cl(gu)));
+            const su = t - T.lock, squeeze = su < 0 ? 0 : (su < 0.06 ? 0.06 * eP3o(su / 0.06) : 0.06 * (1 - eBack(cl((su - 0.06) / 0.35))));
+            const floor = t < T.exit + 0.1 ? eP3o(cl((t - T.ignite) / 0.7)) : 1 - eP3in(cl((t - (T.exit + 0.1)) / 0.45));
+            const erT = t >= T.erase0 ? cl((t - T.erase0) / (T.erase1 - T.erase0)) : 0;
+            holo.render({ yaw, pitch: C.pitch, dist: C.dist, scanX: t < T.scan1 ? scanXAt(t) : XT - 0.3, scanK, lockK, lockX, eraseX, erT,
+              floor, shadow: lockK * eP3o(cl((t - T.wave0) / 0.4)) * (t < T.erase0 ? 1 : 1 - cl((t - T.erase0) / 0.4)),
+              hot, lights, glK, glX, squeeze, rake: cl((t - T.rake0) / (T.rake1 - T.rake0)), bloom: (lockK > 0 ? 0.24 + 0.42 * hot : 0.4) * DBG.bloom, wire: DBG.wire, pts: DBG.pts,
+              ghost: eP2io(cl((t - T.ignite) / 0.22)), t, pool: floor * (0.6 + 0.4 * lockK) });
+            $("#holo").style.display = t < T.ignite || t > T.erase1 + 0.1 ? "none" : "";
+          }
+          function bedAt(t) {
+            if (!plate) return;
+            const k = t < T.erase1 ? eP2io(cl((t - 0.1) / 0.45)) : 1 - eP2io(cl((t - T.erase1) / 0.3));
+            $("#push").style.filter = k > 0.001 ? "blur(" + (4 * k).toFixed(2) + "px) brightness(" + (1 - 0.36 * k).toFixed(3) + ") contrast(" + (1 + 0.15 * k).toFixed(3) + ") saturate(" + (1 - 0.15 * k).toFixed(3) + ")" : "";
+            $("#vig").style.opacity = k.toFixed(3);
+            $("#push").style.transform = "scale(" + (1.02 + 0.03 * eP2io(cl(t / T.end))).toFixed(4) + ")";
+          }
+          function renderAt(t) { bedAt(t); holoAt(t); hudAt(t); readoutAt(t); }
+
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          window.__holoT = { T, locks: TG.map((o) => o.tl) };
+          tl.seek(0);
+          renderAt(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

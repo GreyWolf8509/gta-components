@@ -1,0 +1,309 @@
+<!doctype html>
+<!-- 12 Punch-in zoom, variant A "Detail punch" (16:9, 1920x1080, 30 fps).
+     A snap zoom 1.0 -> 1.6 onto one detail of a GTA V gameplay shot (here the wanted level in the HUD, the long-form creators'
+     favourite punch target): a focus frame springs in and locks onto the detail, the camera punches in
+     with a real zoom blur (stacked scaled copies of the frame, sharp at the detail, streaking at the edges), a decaying camera shake,
+     a bloom on the payoff (the 5th star igniting) and a light vignette, holds ~1.6 s with a slow tracked push, then snaps back.
+     kind "full": the component is a treatment of the footage, so bg:"none" keeps the footage (DESIGN.md §3). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #000; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: "Inter", sans-serif; }
+      #cam, #ffwrap { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 50% 50%; }
+      .layer { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
+      .zb { opacity: 0; }
+      .shot { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; }
+      #vig { position: absolute; inset: 0; pointer-events: none; }
+      #bloom { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; mix-blend-mode: screen; opacity: 0; }
+      #ff { position: absolute; left: 0; top: 0; overflow: visible; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="4.0" data-width="1920" data-height="1080">
+      <div id="cam">
+        <!-- L0: one continuous gameplay shot (police chase on the bridge), played at 1.0x -->
+        <div class="layer" id="L0" data-layout-allow-overflow>
+          <video id="s0" class="clip shot" src="assets/shots/v52-gp-police-bridge-h.mp4" muted playsinline data-start="0" data-duration="4.0" data-media-start="0.6" data-track-index="0"></video>
+        </div>
+        <!-- L1-L6: zoom-blur taps. The same frames, each scaled a little further about the detail and averaged (opacity 1/(k+1));
+             masked so the detail stays sharp and only the frame edges streak. Visible only while the scale moves. -->
+        <div class="layer zb" id="L1" data-layout-allow-overflow><video id="z1" class="clip shot" src="assets/shots/v52-gp-police-bridge-h.mp4" muted playsinline data-start="1.2333" data-duration="2.3000" data-media-start="1.8333" data-track-index="1"></video></div>
+        <div class="layer zb" id="L2" data-layout-allow-overflow><video id="z2" class="clip shot" src="assets/shots/v52-gp-police-bridge-h.mp4" muted playsinline data-start="1.2667" data-duration="2.2889" data-media-start="1.8667" data-track-index="2"></video></div>
+        <div class="layer zb" id="L3" data-layout-allow-overflow><video id="z3" class="clip shot" src="assets/shots/v52-gp-police-bridge-h.mp4" muted playsinline data-start="1.3000" data-duration="2.2778" data-media-start="1.9000" data-track-index="3"></video></div>
+        <div class="layer zb" id="L4" data-layout-allow-overflow><video id="z4" class="clip shot" src="assets/shots/v52-gp-police-bridge-h.mp4" muted playsinline data-start="1.3333" data-duration="2.2667" data-media-start="1.9333" data-track-index="4"></video></div>
+        <div class="layer zb" id="L5" data-layout-allow-overflow><video id="z5" class="clip shot" src="assets/shots/v52-gp-police-bridge-h.mp4" muted playsinline data-start="1.3667" data-duration="2.2556" data-media-start="1.9667" data-track-index="5"></video></div>
+        <div class="layer zb" id="L6" data-layout-allow-overflow><video id="z6" class="clip shot" src="assets/shots/v52-gp-police-bridge-h.mp4" muted playsinline data-start="1.4000" data-duration="2.2444" data-media-start="2.0000" data-track-index="6"></video></div>
+        <!-- payoff light: a bloom behind the igniting star only (screen blend, so it adds light and never greys the frame) -->
+        <div id="bloom"></div>
+        <!-- the game HUD (sample content: the wanted level), in the game layer so it is zoomed with the footage -->
+        <div class="layer" id="HUDL" data-layout-allow-overflow>
+          <svg width="1920" height="1080" viewBox="0 0 1920 1080">
+            <defs>
+              <linearGradient id="gStar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF" /><stop offset="1" stop-color="#D6DCE6" /></linearGradient>
+              <linearGradient id="gSheen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF" stop-opacity=".95" /><stop offset=".42" stop-color="#FFFFFF" stop-opacity="0" /></linearGradient>
+              <filter id="starShade" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000" flood-opacity=".45" /></filter>
+            </defs>
+            <g id="stars" filter="url(#starShade)"></g>
+          </svg>
+        </div>
+      </div>
+      <div id="vig"></div>
+      <!-- the focus frame rides the same shake as the camera, but sits outside its grade/sharpen filter -->
+      <div id="ffwrap">
+        <svg id="ff" width="1920" height="1080" viewBox="0 0 1920 1080">
+          <defs>
+            <linearGradient id="gIdle" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF" /><stop offset="1" stop-color="#E6EAF0" /></linearGradient>
+            <linearGradient id="gLock" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF1A8" /><stop offset=".5" stop-color="#FFD23C" /><stop offset="1" stop-color="#F0B01C" /></linearGradient>
+            <filter id="ffSoft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="4" /></filter>
+          </defs>
+          <g id="ffAll" opacity="0">
+            <path id="ffShade" d="" fill="none" stroke="#04060A" stroke-opacity=".5" stroke-width="17" stroke-linecap="round" stroke-linejoin="round" filter="url(#ffSoft)" transform="translate(0,3)" />
+            <path id="ffInk" d="" fill="none" stroke="#0E0F13" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" />
+            <path id="ffIdle" d="" fill="none" stroke="url(#gIdle)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" />
+            <path id="ffLock" d="" fill="none" stroke="url(#gLock)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" opacity="0" />
+          </g>
+        </svg>
+      </div>
+      <svg width="0" height="0" style="position:absolute">
+        <filter id="sharp" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+          <feConvolveMatrix id="sharpK" order="3" kernelMatrix="0 0 0 0 1 0 0 0 0" divisor="1" edgeMode="duplicate" preserveAlpha="true" />
+        </filter>
+      </svg>
+    </div>
+    <script>
+      const CONFIG = {
+        end: 4.0,
+        // The punch shot. Must match <video id="s0"> (and the z1-z6 taps): its data-start on the timeline and its length.
+        shot: { start: 0, dur: 4.0 },
+        // The detail's centre in source pixels of the 1920x1080 clip over the shot's own time (s). The punch follows it.
+        track: [[0, 1620, 128]],
+        box: [400, 110],                 // focus frame around the detail, source px
+        // Sample HUD: the wanted level, right-aligned under the top-right corner like the game's. `lit` stars at the start,
+        // star 5 ignites at `ignite` (the payoff, landed while punched in).
+        hud: { show: true, right: 1780, y: 128, size: 56, gap: 10, count: 5, lit: 4, ignite: 1.53 },
+        punch: {
+          at: 1.40,                      // snap-in starts (timeline s)
+          back: 3.20,                    // snap-back starts (1.67 s from landing)
+          scale: 1.6,                    // punched-in scale
+          drift: 0.035,                  // extra slow push across the hold
+          land: [1460, 220],             // where the detail would like to land (clamped so the frame stays covered)
+          inDur: 0.13, overshoot: 0.06, settle: 0.085, backDur: 0.14
+        },
+        focus: { in: 0.90, lock: 1.22, arm: 0.36, out: 3.06, outDur: 0.12 },   // out: the corners retract outward before the snap-back
+        shake: { amp: 15, rot: 0.45, dur: 0.36, backAmp: 7, backRot: 0.2 },
+        // light: a bloom on the igniting star (3-frame peak), a small lift (blacks stay black), a cleaner grade for the hold
+        light: { at: 1.53, brightness: 0.05, contrast: 0.05, saturate: 0.15, decay: 0.35, bloom: 0.95, bloomSize: 95,
+                 hold: { brightness: 0.07, contrast: 0.06, saturate: 0.08 } },
+        vignette: 0.12,
+        blur: { taps: 6, max: 0.10, k: 0.6 },
+        sharpen: 0.24
+      };
+      (function () {
+        const W = 1920, H = 1080, FPS = 30, P = CONFIG.punch, F = CONFIG.focus, SH = CONFIG.shake, HU = CONFIG.hud;
+        const $ = (s) => document.querySelector(s), NS = "http://www.w3.org/2000/svg";
+        const cam = $("#cam"), L0 = $("#L0"), HUDL = $("#HUDL"), bloom = $("#bloom"), taps = [1, 2, 3, 4, 5, 6].map((i) => $("#L" + i)), vig = $("#vig");
+        const ffwrap = $("#ffwrap"), ffAll = $("#ffAll"), ffShade = $("#ffShade"), ffInk = $("#ffInk"), ffIdle = $("#ffIdle"),
+          ffLock = $("#ffLock"), sharpK = $("#sharpK");
+        const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), lerp = (a, b, k) => a + (b - a) * k;
+        const smooth = (u) => { u = clamp(u, 0, 1); return u * u * (3 - 2 * u); };
+        const quadInOut = (u) => { u = clamp(u, 0, 1); return u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2; };
+        const backOut = (u, s) => { u = clamp(u, 0, 1) - 1; return u * u * ((s + 1) * u + s) + 1; };
+
+        // --- sample HUD: a row of wanted stars (our own drawing), right-aligned like the game's
+        const stars = [];
+        if (HU.show) {
+          const R = HU.size / 2, r = R * 0.43, pts = [];
+          for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r : R; pts.push((rr * Math.cos(a)).toFixed(2) + "," + (rr * Math.sin(a)).toFixed(2)); }
+          const d = "M" + pts.join("L") + "Z", g = $("#stars");
+          for (let i = 0; i < HU.count; i++) {
+            const cx = HU.right - R - (HU.count - 1 - i) * (HU.size + HU.gap);
+            const grp = document.createElementNS(NS, "g"); grp.setAttribute("transform", `translate(${cx},${HU.y})`);
+            const base = document.createElementNS(NS, "path"); base.setAttribute("d", d); base.setAttribute("stroke-linejoin", "round");
+            const sheen = document.createElementNS(NS, "path"); sheen.setAttribute("d", d); sheen.setAttribute("fill", "url(#gSheen)"); sheen.setAttribute("transform", "translate(0,-1.5) scale(.84)");
+            const hot = document.createElementNS(NS, "path"); hot.setAttribute("d", d); hot.setAttribute("fill", "#FFF6D0"); hot.setAttribute("opacity", "0");
+            const rim = document.createElementNS(NS, "path"); [["d", d], ["fill", "none"], ["stroke", "#F6C453"], ["stroke-width", "2.5"], ["stroke-linejoin", "round"], ["opacity", "0"]].forEach(([k, v]) => rim.setAttribute(k, v));
+            grp.appendChild(base); grp.appendChild(sheen); grp.appendChild(hot); grp.appendChild(rim); g.appendChild(grp);
+            stars.push({ grp, base, sheen, hot, rim, cx });
+          }
+        }
+        function starStyle(st, on) {
+          if (on) { st.base.setAttribute("fill", "url(#gStar)"); st.base.setAttribute("stroke", "#0E0F13"); st.base.setAttribute("stroke-width", "6"); st.base.setAttribute("paint-order", "stroke fill"); st.sheen.setAttribute("opacity", "1"); }
+          else { st.base.setAttribute("fill", "#232A38"); st.base.setAttribute("stroke", "#7E879A"); st.base.setAttribute("stroke-width", "3"); st.base.setAttribute("paint-order", "stroke fill"); st.sheen.setAttribute("opacity", "0"); }
+        }
+        function renderHud(t) {
+          const u = t - HU.ignite;
+          stars.forEach((st, i) => {
+            const isNew = i === HU.lit, on = i < HU.lit || (isNew && u >= 0);
+            starStyle(st, on);
+            let sc = 1, hot = 0, rim = 0;
+            // the new star pops inside its own slot (peak 1.28x, never over its neighbours), white-hot with a gold rim for 3 frames
+            if (isNew && u >= 0) {
+              sc = u < 0.05 ? lerp(0.9, 1.28, 1 - Math.pow(1 - u / 0.05, 2)) : 1 + 0.28 * Math.exp(-(u - 0.05) / 0.06) * Math.cos((u - 0.05) * 20);
+              hot = u < 0.1 ? 0.85 : Math.max(0, 0.85 * (1 - (u - 0.1) / 0.3));
+              rim = u < 0.1 ? 1 : Math.max(0, 1 - (u - 0.1) / 0.35);
+            }
+            st.grp.setAttribute("transform", `translate(${st.cx},${HU.y}) scale(${sc.toFixed(4)})`);
+            st.hot.setAttribute("opacity", hot.toFixed(3)); st.rim.setAttribute("opacity", rim.toFixed(3));
+          });
+        }
+
+        // --- the detail, tracked in source pixels
+        function detail(t) {
+          const k = CONFIG.track, lt = clamp(t - CONFIG.shot.start, k[0][0], k[k.length - 1][0]);
+          for (let i = 1; i < k.length; i++) if (lt <= k[i][0]) {
+            const u = (lt - k[i - 1][0]) / (k[i][0] - k[i - 1][0]);
+            return [lerp(k[i - 1][1], k[i][1], u), lerp(k[i - 1][2], k[i][2], u)];
+          }
+          return [k[k.length - 1][1], k[k.length - 1][2]];
+        }
+        // --- the zoom state: 0 = wide, 1 = punched (snap with overshoot and a damped settle), back to 0 on the snap-back
+        function zIn(tau) {
+          if (tau <= 0) return 0;
+          if (tau < P.inDur) { const u = tau / P.inDur; return (1 + P.overshoot) * (1 - Math.pow(1 - u, 3)); }
+          const w = tau - P.inDur; return 1 + P.overshoot * Math.exp(-w / P.settle) * Math.cos(Math.PI * w / (P.settle * 2.4));
+        }
+        function zoomState(t) {
+          let z = zIn(t - P.at);
+          if (t > P.back) z *= 1 - quadInOut((t - P.back) / P.backDur);
+          return Math.max(0, z);
+        }
+        // --- camera: scale s and offset T so that the detail p lands at q (screen); frame always covered
+        function camera(t) {
+          const z = zoomState(t), p = detail(t);
+          const hold = smooth((t - P.at) / (P.back - P.at));
+          const sT = P.scale * (1 + P.drift * hold);
+          const s = 1 + (sT - 1) * z;
+          const hx = (2.6 * Math.sin(t * 4.4) + 1.4 * Math.sin(t * 8.2 + 1.1)) * Math.min(z, 1);
+          const hy = (2.0 * Math.sin(t * 5.6 + 2.0) + 1.0 * Math.sin(t * 9.4)) * Math.min(z, 1);
+          const qx = p[0] + (P.land[0] - p[0]) * z + hx, qy = p[1] + (P.land[1] - p[1]) * z + hy;
+          let Tx = qx - s * p[0], Ty = qy - s * p[1];
+          Tx = clamp(Tx, W - s * W, 0); Ty = clamp(Ty, H - s * H, 0);
+          return { z, s, Tx, Ty, qx: Tx + s * p[0], qy: Ty + s * p[1], p };
+        }
+        const IMPACTS = [
+          { t: P.at + 0.03, amp: SH.amp, rot: SH.rot, dur: SH.dur, seed: 11 },
+          { t: P.back + P.backDur - 0.02, amp: SH.backAmp, rot: SH.backRot, dur: 0.24, seed: 37 }
+        ];
+        function shake(t) {
+          let x = 0, y = 0, r = 0; const f = Math.round(t * FPS);
+          for (const im of IMPACTS) {
+            const u = (t - im.t) / im.dur; if (u < 0 || u >= 1) continue;
+            const env = Math.pow(1 - u, 2.2), sgn = (f % 2 ? 1 : -1);
+            x += (Look.hash(im.seed + f * 3) * 2 - 1) * im.amp * env;
+            y += (0.55 + 0.45 * Look.hash(im.seed + f * 3 + 1)) * sgn * im.amp * 0.8 * env;
+            r += (Look.hash(im.seed + f * 3 + 2) * 2 - 1) * im.rot * env;
+          }
+          return { x, y, r };
+        }
+        // 1-frame attack, 3-frame hold at peak, then decay
+        function pop(t, at, decay) {
+          const a = 1 / FPS, h = 3 / FPS, u = t - at;
+          if (u <= 0) return 0; if (u < a) return u / a; if (u < a + h) return 1;
+          return Math.max(0, 1 - quadInOut((u - a - h) / decay));
+        }
+        // --- the focus frame: springs in (opacity 1 within 2 frames), locks (white -> caption yellow, snap tighter, glow),
+        //     rides the punch, pulses on the payoff, collapses into the detail as the camera snaps back
+        function bracketPath(cx, cy, w, h, arm) {
+          const x0 = cx - w / 2, x1 = cx + w / 2, y0 = cy - h / 2, y1 = cy + h / 2, a = arm;
+          return `M${x0},${y0 + a}L${x0},${y0}L${x0 + a},${y0}` + `M${x1 - a},${y0}L${x1},${y0}L${x1},${y0 + a}` +
+                 `M${x1},${y1 - a}L${x1},${y1}L${x1 - a},${y1}` + `M${x0 + a},${y1}L${x0},${y1}L${x0},${y1 - a}`;
+        }
+        function focusState(t) {
+          const tin = t - F.in, tl = t - F.lock, tb = t - P.back, ti = t - HU.ignite;
+          if (tin < 0) return null;
+          let op = clamp(tin / 0.05, 0, 1), blur = Math.max(0, 6 * (1 - tin / 0.1)), lock = 0, glow = 0;
+          let k = lerp(1.35, 1.0, backOut(tin / 0.16, 2.2));
+          if (tl >= 0) {
+            const u = tl;
+            k = u < 0.066 ? lerp(1.0, 0.88, u / 0.066) : 0.95 - 0.07 * Math.exp(-(u - 0.066) / 0.06) * Math.cos((u - 0.066) * 30);
+            lock = clamp(u / 0.066, 0, 1); glow = u < 0.1 ? 1 : Math.max(0.25, 1 - (u - 0.1) / 0.35);
+          }
+          if (t >= P.at) k = lerp(k, 1.0, smooth((t - P.at) / 0.4));
+          if (ti >= 0) { const pu = ti < 0.1 ? 1 : Math.max(0, 1 - (ti - 0.1) / 0.4); glow = Math.max(glow, pu); k *= 1 + 0.035 * Math.sin(Math.min(1, ti / 0.16) * Math.PI); }
+          // exit: the corners retract OUTWARD (box grows ~36 px a side, arms shrink to nothing) before the snap-back starts,
+          // so no bracket pixel ever crosses the stars
+          let armK = 1, grow = 0; const to = t - F.out;
+          if (to >= 0) {
+            const u = clamp(to / F.outDur, 0, 1), e3 = u * u * u;
+            grow = 36 * e3; armK = 1 - e3; blur = Math.max(blur, 5 * u); glow *= 1 - u; if (u >= 1) op = 0;
+          }
+          return { k, op, blur, lock, glow, armK, grow };
+        }
+
+        function render(t) {
+          const c = camera(t), sh = shake(t);
+          const cs = 1 + (2 * Math.max(Math.abs(sh.x), Math.abs(sh.y))) / H + Math.abs(sh.r * Math.PI / 180) * (W / H);
+          gsap.set([cam, ffwrap], { x: sh.x, y: sh.y, rotation: sh.r, scale: cs });
+          gsap.set([L0, HUDL], { x: c.Tx, y: c.Ty, scale: c.s });
+          if (HU.show) renderHud(t);
+          // zoom blur from the scale velocity
+          const h = 0.5 / FPS, ds = Math.abs(camera(t + h).s - camera(t - h).s) / (2 * h) / FPS / c.s;
+          const d = Math.min(CONFIG.blur.max, ds * CONFIG.blur.k), onShot = t >= CONFIG.shot.start && t < CONFIG.shot.start + CONFIG.shot.dur;
+          const N = taps.length;
+          taps.forEach((el, i) => {
+            const k = i + 1;
+            if (d < 0.004 || !onShot) { el.style.opacity = 0; return; }
+            const f = 1 + d * k / N, x = c.qx + f * (c.Tx - c.qx), y = c.qy + f * (c.Ty - c.qy);
+            gsap.set(el, { x, y, scale: f * c.s });
+            el.style.opacity = (1 / (k + 1)).toFixed(4);
+            el.style.filter = `blur(${Math.min(10, (d / N) * 1100 / 2.6).toFixed(1)}px)`;
+            const mx = ((c.qx - x) / (f * c.s)).toFixed(1), my = ((c.qy - y) / (f * c.s)).toFixed(1);
+            const m = `radial-gradient(circle at ${mx}px ${my}px, rgba(0,0,0,0) 150px, rgba(0,0,0,1) 520px)`;
+            el.style.webkitMaskImage = m; el.style.maskImage = m;
+          });
+          // light: exposure hit on the payoff (brightness lifts highlights, blacks stay black) + sharpen while punched in
+          const L = CONFIG.light, e = pop(t, L.at, L.decay), sk = CONFIG.sharpen * clamp((c.s - 1) / 0.5, 0, 1), hz = clamp(c.z, 0, 1);
+          let filt = "";
+          if (sk > 0.01) { sharpK.setAttribute("kernelMatrix", `0 ${-sk} 0 ${-sk} ${1 + 4 * sk} ${-sk} 0 ${-sk} 0`); filt += "url(#sharp) "; }
+          const br = 1 + L.brightness * e + L.hold.brightness * hz, ct = 1 + L.contrast * e + L.hold.contrast * hz, sa = 1 + L.saturate * e + L.hold.saturate * hz;
+          if (br > 1.002 || ct > 1.002) filt += `brightness(${br.toFixed(3)}) contrast(${ct.toFixed(3)}) saturate(${sa.toFixed(3)})`;
+          cam.style.filter = filt.trim() || "none";
+          // bloom on the igniting star only, in screen space, riding the camera
+          const bl = HU.show ? L.bloom * pop(t, HU.ignite, 0.35) : 0;
+          if (bl > 0.004) {
+            const st = stars[HU.lit], bx = c.Tx + c.s * st.cx, by = c.Ty + c.s * HU.y, R = L.bloomSize * c.s;
+            bloom.style.background = `radial-gradient(circle ${R.toFixed(0)}px at ${bx.toFixed(0)}px ${by.toFixed(0)}px, rgba(255,246,208,.95) 0%, rgba(255,214,80,.5) 32%, rgba(255,210,60,.12) 62%, rgba(255,210,60,0) 100%)`;
+            bloom.style.opacity = bl.toFixed(3);
+          } else bloom.style.opacity = 0;
+          // vignette tightens with the punch, centred on the detail; it lets go for the light hit
+          const v = CONFIG.vignette * clamp(c.z, 0, 1) * (1 - 0.6 * e);
+          vig.style.background = v > 0.004 ? `radial-gradient(ellipse 78% 82% at ${c.qx.toFixed(0)}px ${c.qy.toFixed(0)}px, rgba(0,0,0,0) 46%, rgba(4,6,10,${(v * 0.5).toFixed(3)}) 76%, rgba(4,6,10,${v.toFixed(3)}) 100%)` : "none";
+          // focus frame
+          const fs = focusState(t);
+          if (!fs || fs.op <= 0) { ffAll.setAttribute("opacity", "0"); ffwrap.style.filter = "none"; return; }
+          const bw0 = CONFIG.box[0] * c.s * fs.k, bh0 = CONFIG.box[1] * c.s * fs.k, arm = Math.min(bw0, bh0) * F.arm * fs.armK;
+          const bw = bw0 + 2 * fs.grow * c.s, bh = bh0 + 2 * fs.grow * c.s;
+          const dpath = bracketPath(c.qx, c.qy, bw, bh, arm);
+          [ffShade, ffInk, ffIdle, ffLock].forEach((n) => n.setAttribute("d", dpath));
+          ffLock.setAttribute("opacity", fs.lock.toFixed(3)); ffIdle.setAttribute("opacity", (1 - fs.lock).toFixed(3));
+          ffAll.setAttribute("opacity", fs.op.toFixed(3));
+          const g = fs.glow * fs.lock, blurPx = Math.max(fs.blur, Math.min(6, d * 50));
+          ffwrap.style.filter = ((blurPx > 0.2 ? `blur(${blurPx.toFixed(1)}px) ` : "") +
+            (g > 0.01 ? `drop-shadow(0 0 ${(4 + 12 * g).toFixed(1)}px rgba(255,200,40,${(0.85 * g).toFixed(3)}))` : "")) || "none";
+        }
+
+        gsap.set([cam, ffwrap], { transformOrigin: "50% 50%" });
+        gsap.set([L0, HUDL].concat(taps), { transformOrigin: "0 0" });
+        const FACES = ["900 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, CONFIG.end, (p) => render(p * CONFIG.end));
+          tl.set({}, {}, CONFIG.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

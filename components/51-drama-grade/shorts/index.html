@@ -1,0 +1,182 @@
+<!doctype html>
+<!-- 51 Drama grade, variant B (9:16 Short): "Silhouette grade".
+     A warm colour shot (the lifeguard tower at sunset) hard-cuts ON THE BEAT into a hard silhouette grade: the drive-by gunman
+     goes to pure black against a white sky, and the cut lands as one hit (punch from 1.10, a contrast slam, the vignette closing in).
+     The grade holds across beat cuts (the shoes on the wire) with one slow push through the hold; then red is the one colour kept,
+     1.23 s across a match cut: a car's tail light glows as a crimson lamp on a black car against a white sky, then the cut lands on
+     a second car's two tail lights in the same place. The red drives the return: the tail lights surge for 4 frames (red light
+     bleeding into the black), then the frame SNAPS to full colour on the beat, lit from the tail lights: a soft localised light
+     that starts on the left one and sweeps across the rear while it decays, with a punch. Colour holds 1.23 s at 1.0x (the car
+     lifts off over explosions) and ends.
+     Looks and the snap are baked per shot (grade/bake_b.py: same frames and timing as the source window); CONFIG.look picks one.
+     No label by default (CONFIG.label keeps the optional look tag). Variable: bg (full-kind: footage always shows). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #000; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake { position: absolute; inset: 0; }
+      .sg, .pw, .pc { position: absolute; inset: 0; }
+      .sg { overflow: hidden; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #vig { position: absolute; z-index: 11; inset: 0; opacity: 0; pointer-events: none;
+        background: radial-gradient(ellipse 120% 80% at 50% 46%, rgba(0,0,0,0) 50%, rgba(0,0,0,.40) 82%, rgba(0,0,0,.62) 100%); }
+      #grain { position: absolute; z-index: 12; inset: 0; opacity: 0; pointer-events: none; background-image: url('assets/kit/look/grain.png');
+        background-repeat: repeat; background-size: 300px 300px; mix-blend-mode: overlay; }
+      /* optional look label (CONFIG.label, off by default): the look's name over a thin strip of the shot's palette */
+      #lab { position: absolute; left: 0; right: 0; top: 1300px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+      #sw { display: flex; gap: 6px; }
+      .sw { position: relative; height: 9px; border-radius: 2px; overflow: hidden; transform-origin: 0% 50%; box-shadow: 0 2px 8px rgba(0,0,0,.65); }
+      .sw i { position: absolute; inset: 0; border-radius: inherit; }
+      .sw .g { clip-path: inset(0% 100% 0% 0%); }
+      #keep { position: absolute; inset: -3px; border-radius: 4px; box-shadow: 0 0 0 1.5px rgba(255,92,100,.9), 0 0 12px rgba(255,40,52,.42); opacity: 0; }
+      .cw { overflow: hidden; height: 62px; display: flex; align-items: center; }
+      .cw > span { display: block; }
+      #labN { font: 800 54px/1 "Archivo"; font-stretch: 104%; letter-spacing: .07em; padding-left: .07em; color: #F6F2EC;
+        text-shadow: 0 3px 3px rgba(0,0,0,.55), 0 6px 22px rgba(0,0,0,.6); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="4.9" data-width="1080" data-height="1920">
+      <div id="shake">
+        <!-- S1 colour: the lifeguard tower at sunset (cut 0.6667) -->
+        <div class="sg" id="g1" style="z-index:4"><div class="pw" id="p1" data-layout-allow-overflow>
+          <video id="s1c" class="clip shot" src="media/v01-col.mp4" muted playsinline data-start="0" data-duration="0.6667" data-media-start="0" data-track-index="0"></video>
+        </div></div>
+        <!-- S2 THE HIT: hard cut into the silhouette grade, the drive-by gunman. Starts 2 frames early, underneath -->
+        <div class="sg" id="g2" style="z-index:3"><div class="pw" id="p2" data-layout-allow-overflow>
+          <video id="s2a" class="clip shot look" data-look="silhouette-red" src="media/v14-silhouette-red.mp4" muted playsinline data-start="0.6" data-duration="1.0333" data-media-start="0" data-track-index="1"></video>
+          <video id="s2b" class="clip shot look" data-look="noir" src="media/v14-noir.mp4" muted playsinline data-start="0.6" data-duration="1.0333" data-media-start="0" data-track-index="2"></video>
+        </div></div>
+        <!-- S3 beat cut inside the hold: the shoes on the wire -->
+        <div class="sg" id="g3" style="z-index:2"><div class="pw" id="p3" data-layout-allow-overflow>
+          <video id="s3a" class="clip shot look" data-look="silhouette-red" src="media/v24-silhouette-red.mp4" muted playsinline data-start="1.5667" data-duration="0.8666" data-media-start="0" data-track-index="3"></video>
+          <video id="s3b" class="clip shot look" data-look="noir" src="media/v24-noir.mp4" muted playsinline data-start="1.5667" data-duration="0.8666" data-media-start="0" data-track-index="4"></video>
+        </div></div>
+        <!-- S4 the kept red: a car's tail light glows crimson in the grade -->
+        <div class="sg" id="g4" style="z-index:1"><div class="pw" id="p4" data-layout-allow-overflow>
+          <video id="s4a" class="clip shot look" data-look="silhouette-red" src="media/v16-silhouette-red.mp4" muted playsinline data-start="2.3667" data-duration="1" data-media-start="0" data-track-index="5"></video>
+          <video id="s4b" class="clip shot look" data-look="noir" src="media/v16-noir.mp4" muted playsinline data-start="2.3667" data-duration="1" data-media-start="0" data-track-index="6"></video>
+        </div></div>
+        <!-- S5 match cut onto the second car's two tail lights, still in the grade; they surge and THE SNAP lands on them: full
+             colour, the tail lights flare and a soft light sweeps the rear (baked: --surge 0.3333, --snapcol/--kick 0.3667).
+             Not in the push: it plays at 1.0x. Starts 2 frames early, underneath -->
+        <div class="sg" id="g5" style="z-index:0"><div class="pc" id="p5" data-layout-allow-overflow>
+          <video id="s5a" class="clip shot look" data-look="silhouette-red" src="media/v17-silhouette-red.mp4" muted playsinline data-start="3.3" data-duration="1.6" data-media-start="0" data-track-index="8"></video>
+          <video id="s5b" class="clip shot look" data-look="noir" src="media/v17-noir.mp4" muted playsinline data-start="3.3" data-duration="1.6" data-media-start="0" data-track-index="9"></video>
+        </div></div>
+        <div id="vig"></div>
+        <div id="grain"></div>
+      </div>
+      <div id="ov" class="clip" data-start="0" data-duration="4.9" data-track-index="7">
+        <div id="lab">
+          <div class="cw" data-layout-allow-overflow><span id="labN">SILHOUETTE</span></div>
+          <div id="sw"></div>
+        </div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        look: "silhouette-red",               // "silhouette-red" | "noir" (baked plates in media/, see grade/bake_b.py)
+        looks: {   // grain/vignette while the grade holds; label + swatches only matter when label is on (keep: the swatch that stays in colour)
+          "silhouette-red": { label: "SILHOUETTE", grain: 0.18, vignette: 0.42, keep: 2, swatches: ["#DEDEDD", "#F0F0EF", "#C8102E", "#41403E", "#8C8B89", "#000000"] },
+          noir:             { label: "NOIR",       grain: 0.18, vignette: 0.48, keep: -1, swatches: ["#E2E0DF", "#FAF9F9", "#77746E", "#797670", "#A4A19C", "#272420"] }
+        },
+        palette: ["#F08A3C", "#FFC15E", "#C8102E", "#7A4A6A", "#5B86C8", "#3A2A22"],   // the sequence's own colours (label strip only)
+        label: false,                         // optional look tag (name + palette strip); creators don't label the grade, so it is off
+        push: 1.06,                           // one slow push through the grade's hold (hit -> match cut); the last shot plays at 1.0x
+        // the hit (colour -> grade), a beat cut inside the hold, the cut to the kept red, the match cut (tail light -> tail lights)
+        cuts: { hit: 0.6667, beat: 1.6333, red: 2.4333, match: 3.3667 },
+        // snap = the last shot's data-start + its bake's --snapcol / --kick time (3.3 + 0.3667)
+        timing: { snap: 3.6667, end: 4.9 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const T = CONFIG.timing, C = CONFIG.cuts, $ = (s) => document.querySelector(s), K = CONFIG.looks[CONFIG.look] || CONFIG.looks["silhouette-red"];
+        document.querySelectorAll("video.look").forEach((v) => { if (v.dataset.look !== CONFIG.look) v.style.display = "none"; });
+        $("#labN").textContent = K.label;
+        const swBox = $("#sw");
+        CONFIG.palette.forEach((c, i) => {
+          const d = document.createElement("div"); d.className = "sw" + (i === K.keep ? " kept" : "");
+          d.innerHTML = `<i class="c" style="background:${c}"></i><i class="g" style="background:${K.swatches[i] || "#888"}"></i>`;
+          swBox.appendChild(d);
+        });
+        if (K.keep >= 0) { const k = document.createElement("div"); k.id = "keep"; swBox.children[K.keep].style.overflow = "visible"; swBox.children[K.keep].appendChild(k); }
+        if (!CONFIG.label) $("#lab").style.display = "none";
+
+        const FACES = ["800 54px Archivo"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const segW = Math.max(28, ($("#labN").getBoundingClientRect().width - 5 * 6) / 6);
+          document.querySelectorAll("#sw .sw").forEach((d) => { d.style.width = segW.toFixed(1) + "px"; });
+          const tl = gsap.timeline({ paused: true });
+
+          // ---- one slow push through the grade's hold: every graded shot carries on at the same scale, so it reads as one move ----
+          Look.push(tl, ".pw", C.hit, C.match - C.hit, { from: 1.0, to: CONFIG.push, origin: "55% 52%", ease: "power1.inOut" });
+
+          // ---- one per-frame renderer (a pure function of time, so any seek order lands on the right state) ----
+          // THE HIT: the cut into the grade lands with a contrast slam that settles over 9 frames (CSS filter, no SVG/mask on a cut layer)
+          const g2 = $("#g2"), grain = $("#grain"), slam = gsap.parseEase("power2.out");
+          const render = (t) => {
+            const f = Math.round(t * 30);
+            grain.style.backgroundPosition = Math.floor(Look.hash(f * 2 + 1) * 300) + "px " + Math.floor(Look.hash(f * 2 + 7919) * 300) + "px";
+            const d = t - C.hit, k = (d >= -0.001 && d < 0.3) ? 1 - slam(Math.max(0, d) / 0.3) : 0;
+            g2.style.filter = k > 0.002 ? `contrast(${(1 + 0.42 * k).toFixed(3)}) brightness(${(1 - 0.06 * k).toFixed(3)})` : "";
+          };
+          Look.drive(tl, 0, T.end, (p) => render(p * T.end));
+
+          // the hit itself: a big punch from 1.10 that decays with the shake (starts on the cut frame)
+          Look.impact(tl, C.hit - 0.002, { shake: "#shake", amp: 10, dur: 0.38, zoom: 1.10, flash: 0 });
+          // beat cuts inside the hold: smaller punches (the red arrives on the second)
+          Look.impact(tl, C.beat - 0.002, { shake: "#shake", amp: 4, dur: 0.22, zoom: 1.025, flash: 0 });
+          Look.impact(tl, C.red - 0.002, { shake: "#shake", amp: 5, dur: 0.26, zoom: 1.04, flash: 0 });
+          Look.impact(tl, C.match - 0.002, { shake: "#shake", amp: 3, dur: 0.2, zoom: 1.02, flash: 0 });
+
+          // ---- finishing stack slams in with the grade: grain, and the vignette closes in hard then settles ----
+          tl.set("#grain", { opacity: 0 }, 0);
+          tl.set("#grain", { opacity: K.grain }, C.hit);
+          tl.set("#vig", { opacity: 0 }, 0);
+          tl.fromTo("#vig", { opacity: 0.9 }, { opacity: K.vignette, duration: 0.45, ease: "power2.out", immediateRender: false }, C.hit);
+
+          // ---- THE SNAP (baked: the tail lights surge 4 frames, then full colour; they flare and a soft light sweeps the rear,
+          //      3 frames at peak, 0.35 s decay). Here: the punch and shake on the beat ----
+          Look.impact(tl, T.snap - 0.002, { shake: "#shake", amp: 7, dur: 0.32, zoom: 1.05, flash: 0 });
+          tl.set("#grain", { opacity: K.grain * 0.35 }, T.snap - 0.002);
+          tl.to("#vig", { opacity: K.vignette * 0.4, duration: 0.3, ease: "power2.out" }, T.snap);
+
+          // ---- optional look label (off by default): name rises out of its window with the grade, leaves on the snap ----
+          if (CONFIG.label) {
+            const sws = Array.from(document.querySelectorAll("#sw .sw")), gs = sws.map((d) => d.querySelector(".g")), L0 = C.hit + 0.14;
+            gsap.set(sws, { scaleX: 0 }); gsap.set("#labN", { y: 66 });
+            tl.fromTo("#labN", { y: 66 }, { y: 0, duration: 0.45, ease: "expo.out", immediateRender: false }, L0);
+            sws.forEach((d, i) => {
+              tl.fromTo(d, { scaleX: 0 }, { scaleX: 1, duration: 0.3, ease: "expo.out", immediateRender: false }, L0 + 0.1 + i * 0.035);
+              if (i !== K.keep) tl.fromTo(gs[i], { clipPath: "inset(0% 100% 0% 0%)" }, { clipPath: "inset(0% 0% 0% 0%)", duration: 0.12, ease: "power2.inOut", immediateRender: false }, L0 + 0.42 + i * 0.05);
+              if (i !== K.keep) tl.to(gs[i], { clipPath: "inset(0% 0% 0% 100%)", duration: 0.1, ease: "power2.inOut" }, T.snap + 0.02 + Math.abs(i - 2.5) * 0.03);
+              tl.to(d, { scaleX: 0, transformOrigin: "100% 50%", duration: 0.2, ease: "power3.in" }, T.snap + 0.22 + i * 0.025);
+            });
+            if (K.keep >= 0) {
+              tl.fromTo("#keep", { opacity: 0 }, { opacity: 1, duration: 0.16, ease: "power2.out", immediateRender: false }, C.red);
+              tl.to("#keep", { opacity: 0, duration: 0.1, ease: "power2.in" }, T.snap);
+            }
+            tl.to("#labN", { y: -66, duration: 0.18, ease: "power3.in" }, T.snap);
+          }
+
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,316 @@
+<!doctype html>
+<!-- GTA-niche 04 Speaker captions, variant B (9:16 Shorts dialogue, 1080x1920, 30 fps).
+     Two-speaker back-and-forth, centred in the caption band (rows at y ~1250-1370). Each speaker owns a real Three.js
+     medallion badge (steel rim, enamel ring in their colour, portrait under a glass dome) on their own side: Lamar left,
+     Franklin right. On every speaker change the old badge spins shut into its centre and the new one pops in on its edge,
+     with its name plate springing out from behind it. The line is set as glossy bevelled white caps; the word being spoken
+     lights up in the speaker's colour (a light-front wipe plus a spring lift) and hands off to the next word. The payoff
+     word lands bigger, with a light rake across the badge and one specular sweep. See ../DECISIONS.md.
+     Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/coin3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; pointer-events: none; }
+      .line { position: absolute; left: 0; top: 0; }
+      .row { position: absolute; white-space: nowrap; clip-path: inset(0px -420px 0px -420px); }
+      .glow { mix-blend-mode: screen; opacity: 0; }
+      .w { position: relative; display: inline-block; vertical-align: top; text-transform: uppercase; white-space: nowrap; font-family: "Archivo"; }
+      .wi { position: relative; display: block; }
+      .pop { position: relative; display: block; }
+      .l { display: block; white-space: nowrap; line-height: 1; padding: 0 0.04em; }
+      .abs { position: absolute; left: 0; top: 0; }
+      .set { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+      .spec { mix-blend-mode: screen; }
+      .token { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+      .token canvas { filter: drop-shadow(0 0 1.2px rgba(4,5,9,.95)) drop-shadow(0 0 1.4px rgba(4,5,9,.9)) drop-shadow(0 10px 14px rgba(0,0,0,.5)); }
+      .chip { position: absolute; left: 0; top: 0; height: 66px; border-radius: 33px; border: 4px solid #fff;
+        font: 800 40px/58px "Inter"; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; color: #0B0D14;
+        box-shadow: 0 0 0 2.5px #06070B, 0 8px 14px rgba(0,0,0,.45), inset 0 2px 0 rgba(255,255,255,.8), inset 0 -4px 0 rgba(0,0,0,.18); }
+      .fx { position: absolute; width: 0; height: 0; overflow: hidden; }
+    </style>
+  </head>
+  <body>
+    <svg class="fx" aria-hidden="true">
+      <filter id="bevel" x="-5%" y="-10%" width="110%" height="120%" color-interpolation-filters="sRGB">
+        <feOffset in="SourceAlpha" dx="-0.7" dy="3" result="dn" />
+        <feComposite in="SourceAlpha" in2="dn" operator="out" result="topE" />
+        <feGaussianBlur in="topE" stdDeviation="0.7" result="topB" />
+        <feFlood flood-color="#FFFFFF" flood-opacity="0.95" />
+        <feComposite in2="topB" operator="in" result="hiC" />
+        <feComposite in="hiC" in2="SourceAlpha" operator="in" result="hi" />
+        <feOffset in="SourceAlpha" dx="0" dy="-2.2" result="up" />
+        <feComposite in="SourceAlpha" in2="up" operator="out" result="botE" />
+        <feGaussianBlur in="botE" stdDeviation="0.6" result="botB" />
+        <feFlood flood-color="#000000" flood-opacity="0.32" />
+        <feComposite in2="botB" operator="in" result="seamC" />
+        <feComposite in="seamC" in2="SourceAlpha" operator="in" result="seam" />
+        <feMerge><feMergeNode in="SourceGraphic" /><feMergeNode in="seam" /><feMergeNode in="hi" /></feMerge>
+      </filter>
+    </svg>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="7" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <video id="shotA" class="clip shot" src="assets/shots/v05-franklin-lamar-street-v.mp4" muted playsinline data-start="0" data-duration="1.233" data-media-start="0" data-track-index="0"></video>
+        <video id="shotB" class="clip shot" src="assets/shots/v06-franklin-lamar-portrait-v.mp4" muted playsinline data-start="1.233" data-duration="1.217" data-media-start="0" data-track-index="0"></video>
+        <video id="shotC" class="clip shot" src="assets/shots/v03-franklin-street-v.mp4" muted playsinline data-start="2.45" data-duration="1.2" data-media-start="0" data-track-index="0"></video>
+        <video id="shotD" class="clip shot" src="assets/shots/v06-franklin-lamar-portrait-h.mp4" style="object-position: 41% 50%" muted playsinline data-start="3.65" data-duration="0.58" data-media-start="0.98" data-track-index="0"></video>
+        <video id="shotE" class="clip shot" src="assets/shots/v39-lowriders-downtown-v.mp4" muted playsinline data-start="4.23" data-duration="1.167" data-media-start="0" data-track-index="0"></video>
+        <video id="shotF" class="clip shot" src="assets/shots/v44-bridge-skyline-v.mp4" muted playsinline data-start="5.397" data-duration="1.603" data-media-start="0" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="7" data-track-index="1"></div>
+    </div>
+    <script>
+      const CONFIG = {
+        // The two speakers. side: where their badge lives. colour: the active-word highlight, ring and plate.
+        speakers: [
+          { name: "Lamar",    face: "media/lamar.jpg",    colour: "yellow", side: "left" },
+          { name: "Franklin", face: "media/franklin.jpg", colour: "cyan",   side: "right" }
+        ],
+        // The dialogue. t = line start (the speaker's badge pops in). rows = line breaks, each word with the second it is spoken.
+        // pay:1 on a word = the payoff word (lands bigger, light rake on the badge, specular sweep, stays lit).
+        lines: [
+          { spk: 0, t: 0.18, rows: [[["I", 0.34], ["JUST", 0.46], ["BOUGHT", 0.66]], [["A", 1.02], ["LOWRIDER!", 1.14]]] },
+          { spk: 1, t: 2.45, rows: [[["WITH", 2.6], ["WHOSE", 2.78]], [["MONEY,", 3.06], ["LAMAR?", 3.38]]] },
+          { spk: 0, t: 4.7, rows: [[["...YOURS,", 4.86, 1]], [["HOMIE.", 5.36]]] }
+        ],
+        out: 6.55,
+        end: 7.0,
+        type: { family: "Archivo", stretch: 72, weight: 900, size: 118, tracking: -0.005, gap: 0.24, capY: [1262, 1382], cx: 504, edge: 6, rim: 1.8, depth: 9, ink: "#07080C", lift: 1.1, payLift: 1.24 },
+        badge: { R: 112, cy: 1078, inset: 6, canvas: 360, plateGap: 26 },
+        palette: {
+          white:  { face: ["#FFFFFF", "#FFFFFF", "#E8EDF4", "#CDD6E2"], side: ["#5A6272", "#0B0D12"], lip: "#A9B2C2" },
+          yellow: { face: ["#FFF8C8", "#FFE466", "#FFC21E", "#EC9600"], side: ["#B66C00", "#391D00"], lip: "#F7B53A", glow: "#FFB000", ring: "#FFC51F", plate: ["#FFF6BE", "#FFE15A", "#FFC21E", "#E99400"], hot: "#FFF6D0" },
+          cyan:   { face: ["#E4FBFF", "#93ECFF", "#33D6FF", "#0898D6"], side: ["#08679C", "#031F38"], lip: "#4CCBF2", glow: "#22C4FF", ring: "#22C4FF", plate: ["#DDFAFF", "#8EEBFF", "#33D6FF", "#0A96D2"], hot: "#E8FDFF" }
+        },
+        shots: ["#shotA", "#shotB", "#shotC", "#shotD", "#shotE", "#shotF"]
+      };
+
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const $ = (s) => document.querySelector(s);
+        const C = CONFIG, T = C.type, B = C.badge, FR = 1 / 30;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+        const E = (n) => gsap.parseEase(n);
+        const px = (v) => v.toFixed(1) + "px";
+        const mix = (a, b, k) => { const p = (h) => [1, 3, 5].map((i) => parseInt(h.substr(i, 2), 16)); const A = p(a), Bq = p(b);
+          return "rgb(" + A.map((v, i) => Math.round(v + (Bq[i] - v) * k)).join(",") + ")"; };
+        const FONT = (size) => T.weight + " " + size + "px '" + T.family + "'";
+
+        function metrics(size) {
+          const sp = document.createElement("span"); sp.style.cssText = "position:absolute;left:0;top:0;visibility:hidden;white-space:nowrap;font:" + FONT(size) + ";line-height:1;font-stretch:" + T.stretch + "%";
+          sp.textContent = "H"; const mk = document.createElement("span"); mk.style.cssText = "display:inline-block;width:0;height:0;vertical-align:baseline"; sp.appendChild(mk);
+          document.body.appendChild(sp); const base = mk.offsetTop; sp.remove();
+          return { cap: size * 0.716, base: base, top: base - size * 0.716 };   // Archivo cap height 0.716 em
+        }
+        const inkChain = (n, c) => Array.from({ length: n }, () => "drop-shadow(0 1px 0 " + c + ")").join(" ");
+        const sideChain = (n, c, lip) => Array.from({ length: n }, (_, k) => "drop-shadow(0 1px 0 " + (lip && k === 0 ? lip : mix(c[0], c[1], n > 2 ? (k - 1) / (n - 2) : 1)) + ")").join(" ");
+        const faceGrad = (M, f) => "linear-gradient(180deg, " + f[0] + " " + px(M.top - 3) + ", " + f[1] + " " + px(M.top + M.cap * 0.46) + ", " +
+          f[2] + " " + px(M.top + M.cap * 0.56) + ", " + f[3] + " " + px(M.top + M.cap + 2) + ")";
+        const band = (X, hw) => "linear-gradient(112deg, rgba(255,252,240,0) " + px(X - hw - 16) + ", rgba(255,252,240,.18) " + px(X - hw * 0.5) + ", rgba(255,252,240,.4) " + px(X) + ", rgba(255,252,240,.18) " + px(X + hw * 0.5) + ", rgba(255,252,240,0) " + px(X + hw + 16) + ")";
+
+        // a word = ink edge (shared) + a white set + a colour set (revealed by a light-front wipe when spoken) + specular
+        function buildWord(text, white, pal, M, size) {
+          const w = document.createElement("span"); w.className = "w";
+          w.style.cssText = "font:" + FONT(size) + ";line-height:1;font-stretch:" + T.stretch + "%;letter-spacing:" + T.tracking + "em;margin-right:" + T.gap + "em";
+          const wi = document.createElement("span"); wi.className = "wi"; w.appendChild(wi);
+          const pop = document.createElement("span"); pop.className = "pop"; wi.appendChild(pop);
+          pop.style.transformOrigin = "50% " + M.base.toFixed(1) + "px";
+          const mk = (cls, parent) => { const s = document.createElement("span"); s.className = "l " + cls; s.textContent = text; (parent || pop).appendChild(s); return s; };
+          const k = size / 118;
+          const ink = mk("ink");
+          ink.style.cssText = "color:" + T.ink + ";-webkit-text-stroke:" + (2 * T.edge * k).toFixed(1) + "px " + T.ink + ";filter:" + inkChain(T.depth, T.ink) +
+            " drop-shadow(0 " + Math.round(7 * k) + "px " + Math.round(10 * k) + "px rgba(0,0,0,.5)) drop-shadow(0 " + Math.round(18 * k) + "px " + Math.round(32 * k) + "px rgba(0,0,0,.32))";
+          const set = (P, cls) => {
+            const s = document.createElement("span"); s.className = "set " + cls; pop.appendChild(s);
+            const side = mk("abs side", s); side.style.cssText = "color:" + P.side[0] + ";filter:" + sideChain(T.depth, P.side, P.lip);
+            const rim = mk("abs rim", s); rim.style.cssText = "color:" + T.ink + ";-webkit-text-stroke:" + (2 * T.rim * k).toFixed(1) + "px " + T.ink;
+            const face = mk("abs face", s); face.style.filter = "url(#bevel)";
+            return { el: s, face, P };
+          };
+          const cold = set(white, "cold"), hot = set(pal, "hot");
+          const front = mk("abs front"); front.style.cssText = "color:" + pal.hot + ";opacity:0;filter:blur(1.5px) drop-shadow(0 0 10px " + pal.ring + ")";
+          const glow = mk("abs glow"); glow.style.cssText = "color:" + pal.glow + ";filter:blur(" + Math.round(14 * k) + "px) drop-shadow(0 0 " + Math.round(20 * k) + "px " + pal.glow + ")";
+          const spec = mk("abs spec");
+          return { w, wi, pop, cold, hot, front, glow, spec, M, size };
+        }
+
+        function loadImg(src) { return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; }); }
+        const fontsReady = Promise.all([document.fonts.load(T.weight + " 118px Archivo", "LOWRIDER"), document.fonts.load("800 40px Inter", "LAMAR")]).then(() => document.fonts.ready);
+        const imgsReady = Promise.all(C.speakers.map((s) => loadImg(s.face)));
+        Promise.all([fontsReady, imgsReady]).then(([_, imgs]) => {
+          const ov = $("#ov"), tl = gsap.timeline({ paused: true });
+          const M = metrics(T.size), white = C.palette.white;
+          const pals = C.speakers.map((s) => C.palette[s.colour]);
+          const padX = 0.62 * T.size, padT = 0.42 * T.size, padB = 0.82 * T.size;
+
+          // ---------- lines: rows centred on the safe-zone centre ----------
+          const lines = C.lines.map((ln, li) => {
+            const pal = pals[ln.spk];
+            const el = document.createElement("div"); el.className = "line"; el.id = "L" + li; ov.appendChild(el);
+            const rows = ln.rows.map((r, ri) => {
+              const row = document.createElement("div"); row.className = "row";
+              const words = r.map(([wd, t, pay]) => { const o = buildWord(wd, white, pal, M, T.size); o.t = t; o.pay = !!pay; row.appendChild(o.w); return o; });
+              words[words.length - 1].w.style.marginRight = "0";
+              el.appendChild(row);
+              row.style.padding = px(padT) + " " + px(padX) + " " + px(padB);
+              const rw = row.offsetWidth;
+              row.style.left = px(T.cx - rw / 2); row.style.top = px(T.capY[ri] - (M.top + M.cap / 2) - padT);
+              return { row, words };
+            });
+            return { ln, el, rows, words: rows.reduce((a, r) => a.concat(r.words), []) };
+          });
+          lines.forEach((L) => L.words.forEach((o) => {
+            Look.fill(o.cold.face, faceGrad(o.M, white.face)); Look.fill(o.hot.face, faceGrad(o.M, pals[L.ln.spk].face));
+            o.spec.style.color = "transparent"; o.spec.style.webkitTextFillColor = "transparent";
+            if (o.pay) gsap.set(o.hot.el, { clipPath: "inset(-30% 101% -30% -2%)" }); else gsap.set(o.hot.el, { opacity: 0 });
+          }));
+
+          // ---------- one medallion per speaker, on their side ----------
+          const tokens = C.speakers.map((s, i) => {
+            const pal = pals[i], R = B.R;
+            const cx = s.side === "left" ? 72 + B.inset + R : 936 - B.inset - R;
+            const tok = document.createElement("div"); tok.className = "token"; ov.appendChild(tok);
+            gsap.set(tok, { x: cx, y: B.cy });
+            const chip = document.createElement("div"); chip.className = "chip"; chip.textContent = s.name;
+            chip.style.background = "linear-gradient(180deg, " + pal.plate[0] + " 0%, " + pal.plate[1] + " 44%, " + pal.plate[2] + " 56%, " + pal.plate[3] + " 100%)";
+            const tuck = 40;   // the plate starts this far under the badge's edge, so it grows out from behind it
+            if (s.side === "left") { chip.style.paddingLeft = (tuck + B.plateGap) + "px"; chip.style.paddingRight = "28px"; }
+            else { chip.style.paddingRight = (tuck + B.plateGap) + "px"; chip.style.paddingLeft = "28px"; }
+            tok.appendChild(chip);
+            const cw = chip.offsetWidth;
+            gsap.set(chip, { x: s.side === "left" ? R - tuck : -(R - tuck) - cw, y: -33 + 40, transformOrigin: s.side === "left" ? "0% 50%" : "100% 50%", scaleX: 0 });
+            const coin = Coin3D({ size: B.canvas, R: R, thick: 0.2, faces: [Coin3D.portrait(imgs[i], pal.ring)], rings: [pal.ring] });
+            tok.appendChild(coin.canvas);
+            return { tok, chip, coin, side: s.side };
+          });
+
+          // ---------- timing ----------
+          const OUT = C.out, ePop = E("back.out(2.3)"), eExpo = E("expo.out"), eIn = E("power3.in"), eIO = E("power2.inOut");
+          // badge spans per speaker: on from its line start, off when the other speaker takes over (or at OUT)
+          const spans = lines.map((L, li) => ({ spk: L.ln.spk, on: L.ln.t - 0.06, off: li < lines.length - 1 ? lines[li + 1].ln.t - 0.1 : OUT, li }));
+          // each pop anchors the badge to its line's text block: centre just inside the block's outer edge, clamped to the safe zone
+          spans.forEach((sp) => {
+            const L = lines[sp.li], ws = L.rows.map((r) => r.row.offsetWidth - 2 * padX), wmax = Math.max.apply(null, ws) * (L.words.some((o) => o.pay) ? T.payLift : 1);
+            const side = tokens[sp.spk].side, R = B.R;
+            const cx = side === "left" ? Math.max(72 + B.inset + R, T.cx - wmax / 2 + R * 0.35) : Math.min(936 - B.inset - R, T.cx + wmax / 2 - R * 0.35);
+            tl.set(tokens[sp.spk].tok, { x: cx }, sp.on - 0.01);
+            if (sp.li === 0 || !spans.slice(0, sp.li).some((q) => q.spk === sp.spk)) gsap.set(tokens[sp.spk].tok, { x: cx });
+          });
+          // merge consecutive spans of the same speaker
+          const payWord = lines.reduce((a, L) => a || L.words.find((o) => o.pay), null);
+          const payT = payWord ? payWord.t : -1;
+          function coinAt(i, t) {
+            const sp = spans.filter((s) => s.spk === i && t >= s.on - 1e-6).pop();
+            if (!sp || t >= sp.off + 0.24) return { visible: false, scale: 0 };
+            const pe = clamp((t - sp.on) / 0.5, 0, 1);
+            let scale = ePop(pe), yaw = -Math.PI * (1 - eExpo(clamp((t - sp.on) / 0.65, 0, 1))) * (tokens[i].side === "left" ? 1 : -1), pitch = 0;
+            yaw += 0.08 * Math.sin(2 * Math.PI * t / 2.4 + i); pitch += 0.05 * Math.sin(2 * Math.PI * t / 3.1 + 1 + i);
+            if (payT > 0 && i === C.lines.find((l) => l.rows.some((r) => r.some((w) => w[2]))).spk && t >= payT) {   // payoff bounce
+              const q = t - payT; scale *= 1 + 0.25 * Math.sin(2 * Math.PI * 2.9 * q) * Math.exp(-7.5 * q); pitch -= 0.14 * Math.sin(Math.PI * clamp(q / 0.3, 0, 1));
+            }
+            if (t >= sp.off) {   // collapse, spinning shut into its centre
+              const q = (t - sp.off) / 0.24;
+              scale *= q < 0.25 ? 1 + 0.06 * (q / 0.25) : 1.06 * (1 - eIn((q - 0.25) / 0.75));
+              yaw += 0.55 * Math.PI * q * q * (tokens[i].side === "left" ? 1 : -1);
+            }
+            let rake = 0;
+            const sweeps = [sp.on + 0.3].concat(payT > 0 && t >= payT ? [payT + 0.05] : []);
+            sweeps.forEach((s, m) => { if (t >= s) { const p = eIO(clamp((t - s) / 0.7, 0, 1)); rake = m % 2 ? 1 - p : p; } });
+            return { visible: true, scale, yaw, pitch, roll: 0, rake, front: 0, back: 0 };
+          }
+          const renderCoins = (t) => tokens.forEach((k, i) => { k.coin.set(coinAt(i, t)); k.coin.render(); });
+          Look.drive(tl, 0, C.end, (p) => renderCoins(p * C.end));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderCoins(e.detail.time); });
+
+          // plates spring out from behind the badge after it lands, fold back as it closes
+          spans.forEach((sp) => {
+            const chip = tokens[sp.spk].chip;
+            tl.fromTo(chip, { scaleX: 0 }, { scaleX: 1, duration: 0.36, ease: "back.out(2)", immediateRender: false }, sp.on + 0.26);
+            tl.fromTo(chip, { scaleX: 1 }, { scaleX: 0, duration: 0.12, ease: "power3.in", immediateRender: false }, sp.off);
+          });
+
+          // words: masked rise in; the spoken word snaps to the speaker colour (2 frames) with a 1 -> 1.10 -> 1 pop; one active word
+          lines.forEach((L, li) => {
+            const tin = L.ln.t + 0.1;
+            L.words.forEach((o, wi) => {
+              const at = tin + wi * 0.03;
+              gsap.set(o.wi, { yPercent: 205, visibility: "hidden" });
+              tl.set(o.wi, { visibility: "visible" }, at);
+              tl.fromTo(o.wi, { yPercent: 205 }, { yPercent: 0, duration: 0.38, ease: "back.out(1.6)", immediateRender: false }, at);
+              Look.mblur(tl, o.wi, at, 0.18, { y: 10, ease: "power2.out" });
+            });
+            const next = li < lines.length - 1 ? lines[li + 1].ln.t - 0.42 : OUT;
+            L.words.forEach((o, wi) => {
+              const on = o.t, nxt = L.words[wi + 1], offT = (nxt && !o.pay) ? nxt.t : null;
+              if (!o.pay) {
+                tl.fromTo(o.hot.el, { opacity: 0 }, { opacity: 1, duration: 2 * FR, ease: "none", immediateRender: false }, on);
+                tl.fromTo(o.pop, { scale: 1, y: 0 }, { scale: T.lift, y: -5, duration: 0.06, ease: "power2.out", immediateRender: false }, on);
+                tl.fromTo(o.pop, { scale: T.lift, y: -5 }, { scale: 1, y: 0, duration: 0.2, ease: "back.out(3)", immediateRender: false }, on + 0.06);
+                if (offT != null) tl.fromTo(o.hot.el, { opacity: 1 }, { opacity: 0, duration: 2 * FR, ease: "none", immediateRender: false }, offT);
+              } else {
+                // the payoff word ignites: hot light front + colour, a spring up to its held size, bloom (2-frame attack, 3-frame hold)
+                tl.fromTo(o.hot.el, { clipPath: "inset(-30% 101% -30% -2%)" }, { clipPath: "inset(-30% -2% -30% -2%)", duration: 0.16, ease: "expo.out", immediateRender: false }, on);
+                Look.drive(tl, on, 0.22, (p) => {
+                  const k = p <= 0 || p >= 1 ? 0 : Math.sin(Math.PI * Math.min(1, p * 1.15));
+                  o.front.style.opacity = (k * 0.92).toFixed(3);
+                  const e = eExpo(clamp(p / 0.75, 0, 1)) * 100;
+                  o.front.style.clipPath = "inset(-30% " + Math.max(-2, 100 - e - 1).toFixed(1) + "% -30% " + Math.max(-2, e - 26).toFixed(1) + "%)";
+                });
+                tl.fromTo(o.pop, { scale: 1, y: 0 }, { scale: T.payLift * 1.08, y: -8, duration: 0.08, ease: "power2.out", immediateRender: false }, on);
+                tl.fromTo(o.pop, { scale: T.payLift * 1.08, y: -8 }, { scale: T.payLift, y: -6, duration: 0.3, ease: "back.out(2.5)", immediateRender: false }, on + 0.08);
+                const A = 2 * FR, H = 3 * FR, D = 0.45, eD = E("power2.out");
+                Look.drive(tl, on, A + H + D, (p) => {
+                  const t = p * (A + H + D);
+                  o.glow.style.opacity = (p <= 0 ? 0 : t < A ? t / A : t < A + H ? 1 : 1 - 0.88 * eD((t - A - H) / D)).toFixed(3);
+                });
+              }
+            });
+            L.words.forEach((o, wi) => {
+              const at = next + wi * 0.018;
+              if (li < lines.length - 1) tl.fromTo(o.wi, { yPercent: 0 }, { yPercent: -215, duration: 0.17, ease: "power3.in", immediateRender: false }, at);
+              else tl.fromTo(o.wi, { yPercent: 0 }, { yPercent: 205, duration: 0.2, ease: "power3.in", immediateRender: false }, at);
+              Look.mblur(tl, o.wi, at + 0.05, 0.13, { y: 0, to: [0, 9], ease: "power2.in" });
+              tl.set(o.wi, { visibility: "hidden" }, at + (li < lines.length - 1 ? 0.17 : 0.2));
+            });
+          });
+
+          // ---------- the payoff: one specular sweep across the lit word, a punch on the footage (light stays on the word) ----------
+          if (payWord) {
+            const at = payT + 0.26, hw = 0.5 * T.size, dur = 0.42, eS = E("power2.inOut"), lw = payWord.w.offsetWidth;
+            Look.drive(tl, at, dur, (p) => {
+              const X = p <= 0 || p >= 1 ? -2000 : -hw - 40 + (lw + 2 * hw + 80) * eS(p);
+              payWord.spec.style.backgroundImage = band(X, hw); payWord.spec.style.webkitBackgroundClip = "text"; payWord.spec.style.backgroundClip = "text";
+            });
+            if (plate) Look.impact(tl, payT, { shake: "#shake", amp: 9, dur: 0.28, flash: 0, zoom: 1.02 });
+          }
+          if (plate) Look.push(tl, "#push", 0, C.end, { from: 1.0, to: 1.04 });
+          // intentional layer stacks (ink / side / rim / face / specular per word; badge canvas beside the rows)
+          document.querySelectorAll("#ov .line, #ov .row, #ov .w, #ov .wi, #ov .pop, #ov .l, #ov .set, #ov canvas, #ov .chip, #ov #token, #ov .token").forEach((n) => { n.setAttribute("data-layout-allow-overlap", ""); n.setAttribute("data-layout-allow-occlusion", ""); });
+          document.querySelectorAll("#ov .spec, #ov .front").forEach((n) => { if (n.classList.contains("spec") && !n.style.backgroundImage) n.style.backgroundImage = "linear-gradient(rgba(255,255,255,0), rgba(255,255,255,0))"; n.style.webkitBackgroundClip = "text"; n.style.backgroundClip = "text"; });
+          tl.set({}, {}, C.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+          renderCoins(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

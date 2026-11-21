@@ -1,0 +1,698 @@
+<!doctype html>
+<!-- 56 Earth zoom, variant A (16:9, 1920x1080): "Globe dive (3D)". Three.js r160 global build.
+     One continuous dive. A real Earth (NASA Blue Marble NG day mosaic + Black Marble night lights + Blue Marble cloud layer,
+     public domain, see DECISIONS.md) lit physically: day/night terminator, atmosphere rim, sun glint on the oceans. The camera
+     dives onto Southern California through four texture levels (4K globe, western North America, 460 m SoCal, 30 m Landsat
+     of the Los Angeles basin), so the coast and the city stay sharp all the way down. Small in-game style district labels
+     (our own lettering) sit on the city, under the clouds. The dive falls into a raymarched cumulus tower over the hills,
+     and the cloud breaks up outward onto real Los Santos footage (the hills over downtown, 1.0x): a glossy 3D pin lands on
+     the skyline and the place name springs out. Radial zoom blur is a shader pass driven from timeline time.
+     Kind: full (always shows footage). Rendered from timeline time only (GSAP proxy + hf-seek). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #000; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; background: #000; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      #gl { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; display: block; }
+      /* landing label: place name under the 3D pin */
+      #scrim { position: absolute; left: 960px; top: 770px; width: 1700px; height: 560px; margin: -280px 0 0 -850px; opacity: 0;
+        background: radial-gradient(closest-side, rgba(4,8,14,.58), rgba(4,8,14,.3) 55%, rgba(4,8,14,0)); }
+      #place { position: absolute; left: 0; top: 0; width: 1920px; text-align: center; }
+      #nameWin { position: absolute; left: 0; top: 688px; width: 1920px; height: 136px; overflow: hidden; }
+      #nameMove { display: inline-block; }
+      #name { display: inline-block; font: normal 900 118px/136px "Archivo"; font-stretch: 125%; letter-spacing: -0.012em; color: #fff;
+        white-space: nowrap; filter: drop-shadow(0 3px 0 #77818F) drop-shadow(0 1px 0 #4B535E) drop-shadow(0 3px 3px rgba(0,0,0,.6)) drop-shadow(0 10px 24px rgba(0,0,0,.45)); }
+      #kickWin { position: absolute; left: 0; top: 832px; width: 1920px; height: 46px; overflow: hidden; }
+      #kick { display: inline-flex; align-items: center; gap: 18px; font: normal 800 30px/46px "Inter"; letter-spacing: .34em; color: #fff;
+        white-space: nowrap; text-transform: uppercase; text-shadow: 0 2px 10px rgba(0,0,0,.6); padding-left: .34em; }
+      #kick b { display: inline-block; width: 46px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, #FF5A63, #E0162B);
+        box-shadow: 0 0 12px rgba(255,46,58,.55); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.47" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="shotLand" class="clip shot" src="assets/shots/v36-hills-city-view-h.mp4" muted playsinline data-start="4.54" data-duration="1.93" data-media-start="0" data-track-index="2"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="6.47" data-track-index="1">
+        <div id="scrim"></div>
+        <canvas id="gl" width="1920" height="1080" data-layout-allow-overflow></canvas>
+        <div id="place">
+          <div id="nameWin"><span id="nameMove" data-layout-allow-overflow><span id="name" data-layout-allow-occlusion></span></span></div>
+          <div id="kickWin"><span id="kick" data-layout-allow-overflow><b></b><span id="kickT" data-layout-allow-occlusion></span><b></b></span></div>
+        </div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        place: { name: "Los Santos", kicker: "San Andreas" },
+        target: [34.050, -118.250],    // [lat, lon] the dive falls into: downtown Los Angeles (the real-world Los Santos), where the pin lands in the landing shot
+        start: [22, -101],             // [lat, lon] at the centre of the globe at t = 0
+        sun: [15, -175],               // subsolar point: afternoon over California, dusk on the US east coast, night over Brazil
+        spin: 9,                       // degrees the globe turns eastward over the first 2.6 s
+        pin: { screen: [1217, 606], height: 250, color: "#E3162B" },   // the pin's tip stands on the downtown towers of the landing shot
+        cam: {
+          fov: 28,
+          // log-altitude keys [time, altitude above the ground in planet radii, slope d(ln h)/dt]
+          alt: [[0, 4.1, -0.10], [1.2, 3.1, -0.45], [2.3, 0.95, -1.7], [2.95, 0.16, -2.6], [3.45, 0.038, -1.8], [3.8, 0.0235, -1.2],
+                [4.1, 0.0158, -1.4], [4.3, 0.0105, -2.2], [4.42, 0.0079, -2.2], [4.52, 0.0066, -1.4], [4.7, 0.0058, -0.6], [4.9, 0.0055, -0.25]],
+          swing: [0.45, 2.75],         // the view swings from the start point to straight down over the target over [t0, t1]
+          aim: [2.1, 3.5]              // the dive's vanishing point slides from frame centre onto pin.screen over [t0, t1]
+        },
+        // the cumulus field over the basin and the cumulus tower we fall into (units of 1/1000 planet radius; ground = 0)
+        deck: { base: 2.0, top: 4.6, size: 1.5, tower: { r: 1.1, top: 7.0, off: [0.0, 0.0], skirt: 2.9 } },
+        // the closest texture level (30 m Landsat of the LA basin): swap in your own top-down map capture (an in-game map
+        // screenshot works) with its [lon0, lon1, lat0, lat1] box; water = a white-on-black sea mask of the same image
+        city: { src: "la_city.jpg", water: "la_city_water.jpg", box: [-118.95, -117.75, 33.55, 34.45] },
+        // in-game style district labels on the city (our lettering): [lat, lon] of the place, time it lands; water = italic sea style
+        labels: { px: 34, safe: [96, 54, 1824, 1026], list: [
+          { t: "Pacific Ocean", ll: [33.890, -118.720], at: 3.56, water: true },
+          { t: "Vinewood Hills", ll: [34.160, -118.330], at: 3.62 },
+          { t: "Del Perro", ll: [34.018, -118.492], at: 3.80 },
+          { t: "Los Santos Int'l", ll: [33.942, -118.390], at: 3.78 } ] },
+        // swap: full cloud cover, the globe goes off and the landing shot is under the cloud; part..partEnd: the cloud breaks
+        // up outward from the pin; land: pin impact + title; out: exit; end
+        timing: { swap: 4.52, part: 4.52, partEnd: 4.84, land: 4.66, out: 6.31, end: 6.47 }
+      };
+
+      (function () {
+        const W = 1920, H = 1080, T = CONFIG.timing, C = CONFIG;
+        const $ = (s) => document.querySelector(s);
+        const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+        const lerp = (a, b, k) => a + (b - a) * k;
+        const sstep = (a, b, x) => { const k = clamp((x - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
+        const hh = (n) => Look.hash(n);
+        const DEG = Math.PI / 180;
+        const dirLL = (lat, lon) => new THREE.Vector3(Math.cos(lon * DEG) * Math.cos(lat * DEG), Math.sin(lat * DEG), -Math.sin(lon * DEG) * Math.cos(lat * DEG));
+        const mkCv = (n) => { const c = document.createElement("canvas"); c.width = c.height = n; return c; };
+
+        // ======================= renderer + textures (NASA, public domain) =======================
+        const canvas = $("#gl");
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, premultipliedAlpha: true, preserveDrawingBuffer: true });
+        renderer.setPixelRatio(1); renderer.setSize(W, H, false);
+        renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+        renderer.autoClear = false;
+        const maxAniso = renderer.capabilities.getMaxAnisotropy();
+        window.__hf = window.__hf || {}; window.__hf.buildReady = window.__hf.buildReady || {};
+        let pending = 0, readyRes; const ready = new Promise((r) => { readyRes = r; });
+        window.__hf.buildReady["earth56"] = ready;
+        const loader = new THREE.TextureLoader();
+        const ld = (f, srgb, repeatU) => { pending++;
+          const t = loader.load("media/" + f, () => { if (--pending === 0) readyRes(); });
+          t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace; t.anisotropy = maxAniso;
+          t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; if (repeatU) t.wrapS = THREE.RepeatWrapping; return t; };
+        const tex = {
+          day: ld("earth_day_4k.jpg", true), water: ld("earth_water_4k.jpg"), lights: ld("earth_lights_4k.jpg"), clouds: ld("earth_clouds_2k.jpg", false, true),
+          mid: ld("wna_mid.jpg", true), midW: ld("wna_mid_water.jpg"), det: ld("socal_detail.jpg", true), detW: ld("socal_water.jpg"),
+          city: ld(CONFIG.city.src, true), cityW: ld(CONFIG.city.water)
+        };
+        // lon/lat boxes of the detail levels (radians): [lon0, lon1, lat0, lat1]
+        const MID_BOX = new THREE.Vector4(-140 * DEG, -92 * DEG, 12 * DEG, 52 * DEG);
+        const DET_BOX = new THREE.Vector4(-123 * DEG, -113 * DEG, 29.5 * DEG, 38.5 * DEG);
+        const CITY_BOX = new THREE.Vector4(...CONFIG.city.box.map((v) => v * DEG));
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(C.cam.fov, W / H, 0.0004, 200);
+        const TGT0 = dirLL(C.target[0], C.target[1]);
+        const SUN_W = dirLL(C.sun[0], C.sun[1]);
+        const D0 = dirLL(C.start[0], C.start[1]);
+
+        const NOISE = `
+          vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}
+          vec4 mod289(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}
+          vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
+          vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}
+          float snoise(vec3 v){
+            const vec2 C=vec2(1.0/6.0,1.0/3.0); const vec4 D=vec4(0.0,0.5,1.0,2.0);
+            vec3 i=floor(v+dot(v,C.yyy)); vec3 x0=v-i+dot(i,C.xxx);
+            vec3 g=step(x0.yzx,x0.xyz); vec3 l=1.0-g; vec3 i1=min(g.xyz,l.zxy); vec3 i2=max(g.xyz,l.zxy);
+            vec3 x1=x0-i1+C.xxx; vec3 x2=x0-i2+C.yyy; vec3 x3=x0-D.yyy;
+            i=mod289(i);
+            vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));
+            float n_=0.142857142857; vec3 ns=n_*D.wyz-D.xzx;
+            vec4 j=p-49.0*floor(p*ns.z*ns.z); vec4 x_=floor(j*ns.z); vec4 y_=floor(j-7.0*x_);
+            vec4 x=x_*ns.x+ns.yyyy; vec4 y=y_*ns.x+ns.yyyy; vec4 h=1.0-abs(x)-abs(y);
+            vec4 b0=vec4(x.xy,y.xy); vec4 b1=vec4(x.zw,y.zw);
+            vec4 s0=floor(b0)*2.0+1.0; vec4 s1=floor(b1)*2.0+1.0; vec4 sh=-step(h,vec4(0.0));
+            vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy; vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+            vec3 p0=vec3(a0.xy,h.x); vec3 p1=vec3(a0.zw,h.y); vec3 p2=vec3(a1.xy,h.z); vec3 p3=vec3(a1.zw,h.w);
+            vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+            p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
+            vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0); m=m*m;
+            return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
+          }
+          float fbm(vec3 p,int oct){ float s=0.0,a=0.5; for(int i=0;i<6;i++){ if(i>=oct) break; s+=a*snoise(p); p=p*2.07+vec3(1.7,9.2,3.1); a*=0.5; } return s; }`;
+        const VERT = `varying vec3 vPos; varying vec2 vUv; varying vec3 vWP;
+          void main(){ vPos=position; vUv=uv; vec4 wp=modelMatrix*vec4(position,1.0); vWP=wp.xyz; gl_Position=projectionMatrix*viewMatrix*wp; }`;
+        // shared lighting helpers (object space; the sphere normal is the position)
+        const LIGHT = `
+          uniform vec3 uSunO, uCamO, uTgtO; uniform float uSunI, uCloudU, uHoleR, uThin;
+          vec3 sunColor(float ndl){ return mix(vec3(1.0,0.42,0.16), vec3(1.0,0.95,0.88), smoothstep(-0.02,0.20,ndl)); }
+          vec3 skyColor(float ndl){ vec3 s=mix(vec3(0.17,0.38,1.0),vec3(0.40,0.64,1.0),smoothstep(0.0,0.6,ndl));
+            return mix(s,vec3(1.0,0.50,0.26),0.22*(1.0-smoothstep(0.0,0.10,abs(ndl-0.01)))); }
+          // clear sky over the target: the cumulus deck takes over there
+          float clearing(vec3 q){ float d=distance(q,uTgtO); return smoothstep(uHoleR*0.45,uHoleR,d+0.012*sin(q.x*170.0+q.y*90.0)); }`;
+
+        // ---------- the planet ----------
+        const earthU = {
+          tDay: { value: tex.day }, tWater: { value: tex.water }, tLights: { value: tex.lights }, tClouds: { value: tex.clouds },
+          tMid: { value: tex.mid }, tMidW: { value: tex.midW }, tDet: { value: tex.det }, tDetW: { value: tex.detW },
+          tCity: { value: tex.city }, tCityW: { value: tex.cityW },
+          uMidBox: { value: MID_BOX }, uDetBox: { value: DET_BOX }, uCityBox: { value: CITY_BOX },
+          uSunO: { value: SUN_W.clone() }, uCamO: { value: new THREE.Vector3() }, uTgtO: { value: TGT0.clone() },
+          uSunI: { value: 1.75 }, uCloudU: { value: 0 }, uHoleR: { value: 0.085 }, uGlint: { value: 1 }, uLightsK: { value: 1 }, uThin: { value: 0 }, uSeaK: { value: 0 }
+        };
+        const earthMat = new THREE.ShaderMaterial({ uniforms: earthU, vertexShader: VERT,
+          fragmentShader: LIGHT + `
+          uniform sampler2D tDay,tWater,tLights,tClouds,tMid,tMidW,tDet,tDetW,tCity,tCityW; uniform vec4 uMidBox,uDetBox,uCityBox; uniform float uGlint,uLightsK,uSeaK;
+          varying vec3 vPos; varying vec2 vUv; varying vec3 vWP;
+          float feather(vec2 u,float e){ vec2 m=min(u,1.0-u); return smoothstep(0.0,e,min(m.x,m.y)); }
+          void main(){
+            vec3 p=normalize(vPos); vec3 V=normalize(uCamO-vPos); vec3 L=uSunO;
+            float lon=atan(-p.z,p.x), lat=asin(clamp(p.y,-1.0,1.0));
+            vec2 gx=dFdx(vUv), gy=dFdy(vUv);
+            // four texture levels share one mosaic: 4K globe, 1.4 km western North America, 460 m Southern California,
+            // 30 m Landsat over the Los Angeles basin (each sampled with gradients matched to the globe's uv)
+            vec2 mu=vec2((lon-uMidBox.x)/(uMidBox.y-uMidBox.x),(lat-uMidBox.z)/(uMidBox.w-uMidBox.z));
+            vec2 du=vec2((lon-uDetBox.x)/(uDetBox.y-uDetBox.x),(lat-uDetBox.z)/(uDetBox.w-uDetBox.z));
+            vec2 cu=vec2((lon-uCityBox.x)/(uCityBox.y-uCityBox.x),(lat-uCityBox.z)/(uCityBox.w-uCityBox.z));
+            vec2 sM=vec2(6.2831853/(uMidBox.y-uMidBox.x),3.1415927/(uMidBox.w-uMidBox.z));
+            vec2 sD=vec2(6.2831853/(uDetBox.y-uDetBox.x),3.1415927/(uDetBox.w-uDetBox.z));
+            vec2 sC=vec2(6.2831853/(uCityBox.y-uCityBox.x),3.1415927/(uCityBox.w-uCityBox.z));
+            vec3 alb=texture2D(tDay,vUv).rgb; float wat=texture2D(tWater,vUv).r;
+            float wm=feather(mu,0.05), wd=feather(du,0.09), wc=feather(cu,0.12);
+            vec3 aM=textureGrad(tMid,mu,gx*sM,gy*sM).rgb; float wM=textureGrad(tMidW,mu,gx*sM,gy*sM).r;
+            vec3 aD=textureGrad(tDet,du,gx*sD,gy*sD).rgb; float wD=textureGrad(tDetW,du,gx*sD,gy*sD).r;
+            vec3 aC=textureGrad(tCity,cu,gx*sC,gy*sC).rgb; float wC=textureGrad(tCityW,cu,gx*sC,gy*sC).r;
+            alb=mix(alb,aM,wm); wat=mix(wat,wM,wm); alb=mix(alb,aD,wd); wat=mix(wat,wD,wd); alb=mix(alb,aC,wc); wat=mix(wat,wC,wc);
+            wat=smoothstep(0.25,0.75,wat);
+            vec3 albS=texture2D(tDay,vUv,3.0).rgb;
+            albS=mix(albS,textureGrad(tMid,mu,gx*sM*10.0,gy*sM*10.0).rgb,wm); albS=mix(albS,textureGrad(tDet,du,gx*sD*10.0,gy*sD*10.0).rgb,wd);
+            albS=mix(albS,textureGrad(tCity,cu,gx*sC*10.0,gy*sC*10.0).rgb,wc);
+            alb=mix(alb,albS,0.88*wat);
+            float wB=texture2D(tWater,vUv,4.0).r;
+            wB=mix(wB,textureGrad(tMidW,mu,gx*sM*24.0,gy*sM*24.0).r,wm); wB=mix(wB,textureGrad(tDetW,du,gx*sD*24.0,gy*sD*24.0).r,wd);
+            wB=mix(wB,textureGrad(tCityW,cu,gx*sC*40.0,gy*sC*40.0).r,wc);
+            float shal=1.0-smoothstep(0.45,0.97,wB);                                         // near the coast: the shelf
+            vec3 sea=mix(vec3(0.016,0.046,0.108),vec3(0.030,0.118,0.165),shal);
+            alb=mix(alb,sea,wat*uSeaK);
+            float NdL=dot(p,L), NdV=clamp(dot(p,V),0.0,1.0);
+            // cloud shadows from the cloud shell (looked up toward the sun)
+            vec3 ps=normalize(p+L*0.009);
+            vec2 suv=vec2(atan(-ps.z,ps.x)/6.2831853+0.5+uCloudU, asin(clamp(ps.y,-1.0,1.0))/3.1415927+0.5);
+            float cs=smoothstep(0.85*uThin,1.0,textureGrad(tClouds,suv,gx,gy).r)*clearing(ps);
+            float shade=1.0-0.5*smoothstep(0.12,0.8,cs);
+            vec3 sc=sunColor(NdL);
+            float lam=clamp((NdL+0.03)/1.03,0.0,1.0);
+            vec3 col=alb*sc*lam*uSunI*shade;
+            col+=alb*vec3(0.30,0.45,0.80)*0.05*smoothstep(-0.2,0.3,NdL);          // sky fill
+            // ocean: a clipped sun glint (two GGX lobes) and the sky in it at grazing angles
+            vec3 Hh=normalize(L+V); float NdH=clamp(dot(p,Hh),0.0,1.0), VdH=clamp(dot(V,Hh),0.0,1.0);
+            float F=0.02+0.98*pow(1.0-VdH,5.0);
+            float wind=0.75+0.5*sin(dot(p,vec3(61.0,37.0,53.0)))*sin(dot(p,vec3(-29.0,71.0,43.0)));
+            float a1=0.07*0.07*wind, a2=0.17*0.17*wind;
+            float q1=NdH*NdH*(a1-1.0)+1.0, q2=NdH*NdH*(a2-1.0)+1.0;
+            float D=0.5*a1/(3.1415927*q1*q1)+0.22*a2/(3.1415927*q2*q2);
+            float spec=D*F/(4.0*max(NdV,0.2))*max(NdL,0.0);
+            col+=wat*sc*spec*uSunI*shade*uGlint;
+            float Fv=0.02+0.98*pow(1.0-NdV,5.0);
+            col+=wat*vec3(0.30,0.50,0.95)*Fv*0.35*smoothstep(-0.1,0.3,NdL);
+            // night side: city lights
+            float night=1.0-smoothstep(-0.10,0.03,NdL);
+            float li=texture2D(tLights,vUv,1.2).r;
+            col+=vec3(1.0,0.64,0.30)*li*li*3.2*night*uLightsK;
+            // atmosphere: aerial perspective toward the limb
+            float fres=pow(1.0-NdV,3.0);
+            float skyL=smoothstep(-0.28,0.25,NdL);
+            vec3 sk=skyColor(NdL)*uSunI*0.5*skyL;
+            col=mix(col,sk,clamp(fres*0.8,0.0,1.0))+sk*0.03;
+            gl_FragColor=vec4(col,1.0);
+          }` });
+        const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 384, 192), earthMat);
+        earth.renderOrder = 0; scene.add(earth);
+
+        // ---------- cloud shell (Blue Marble cloud layer) ----------
+        const cloudU = { tClouds: { value: tex.clouds }, uSunO: earthU.uSunO, uCamO: earthU.uCamO, uTgtO: earthU.uTgtO,
+          uSunI: earthU.uSunI, uCloudU: earthU.uCloudU, uHoleR: earthU.uHoleR, uAlpha: { value: 1 }, uThin: earthU.uThin };
+        const cloudMat = new THREE.ShaderMaterial({ uniforms: cloudU, vertexShader: VERT, transparent: true, depthWrite: false,
+          fragmentShader: LIGHT + `
+          uniform sampler2D tClouds; uniform float uAlpha; varying vec3 vPos; varying vec2 vUv; varying vec3 vWP;
+          void main(){ vec3 p=normalize(vPos); vec3 V=normalize(uCamO-vPos);
+            float c=texture2D(tClouds,vUv+vec2(uCloudU,0.0)).r;
+            float a=smoothstep(0.10+0.85*uThin,0.82+0.25*uThin,c)*clearing(p)*uAlpha;
+            float NdL=dot(p,uSunO), NdV=clamp(dot(p,V),0.0,1.0);
+            float lam=clamp((NdL+0.06)/1.06,0.0,1.0);
+            vec3 col=sunColor(NdL)*lam*uSunI*(0.80+0.25*c)+vec3(0.20,0.27,0.40)*0.04;
+            float skyL=smoothstep(-0.28,0.25,NdL);
+            col=mix(col,skyColor(NdL)*uSunI*0.5*skyL,clamp(pow(1.0-NdV,3.0)*0.6,0.0,1.0));
+            gl_FragColor=vec4(col,a); }` });
+        const clouds = new THREE.Mesh(new THREE.SphereGeometry(1.006, 256, 128), cloudMat);
+        clouds.renderOrder = 1; scene.add(clouds);
+
+        // ---------- atmosphere rim (back faces, additive in colour only) ----------
+        const atmoU = { uSun: { value: SUN_W.clone() }, uCam: { value: new THREE.Vector3() }, uAmt: { value: 1 }, uSunI: earthU.uSunI };
+        const atmo = new THREE.Mesh(new THREE.SphereGeometry(1.12, 192, 96), new THREE.ShaderMaterial({ uniforms: atmoU, vertexShader: VERT,
+          side: THREE.BackSide, transparent: true, depthWrite: false,
+          blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor,
+          blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor,
+          fragmentShader: `uniform vec3 uSun,uCam; uniform float uAmt,uSunI; varying vec3 vPos; varying vec2 vUv; varying vec3 vWP;
+          void main(){ vec3 rd=normalize(vWP-uCam); float tc=max(-dot(uCam,rd),0.0); vec3 cp=uCam+rd*tc; float hc=max(length(cp)-1.0,0.0);
+            float g=exp(-hc/0.0085)+0.24*exp(-hc/0.032);
+            float s=dot(normalize(cp),uSun);
+            vec3 c=mix(vec3(0.16,0.40,1.0),vec3(0.42,0.70,1.0),smoothstep(0.0,0.7,s));
+            c=mix(c,vec3(1.0,0.45,0.20),0.35*(1.0-smoothstep(0.0,0.10,abs(s+0.01))));
+            float lit=smoothstep(-0.22,0.22,s);
+            gl_FragColor=vec4(c*g*lit*uAmt*uSunI*0.55,0.0); }` }));
+        atmo.renderOrder = 2; scene.add(atmo);
+
+        // ---------- stars (sparse, faint; gone before the dive ends) ----------
+        { const n = 900, pos = new Float32Array(n * 3), sz = new Float32Array(n), br = new Float32Array(n);
+          for (let i = 0; i < n; i++) { const u = hh(9000 + i) * 2 - 1, a = hh(9100 + i) * Math.PI * 2, r = Math.sqrt(1 - u * u);
+            pos[i * 3] = r * Math.cos(a) * 80; pos[i * 3 + 1] = u * 80; pos[i * 3 + 2] = r * Math.sin(a) * 80;
+            const k = Math.pow(hh(9200 + i), 4); sz[i] = 1.2 + k * 1.8; br[i] = 0.05 + k * 0.45; }
+          const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+          g.setAttribute("aSize", new THREE.BufferAttribute(sz, 1)); g.setAttribute("aBri", new THREE.BufferAttribute(br, 1));
+          const stars = new THREE.Points(g, new THREE.ShaderMaterial({ uniforms: { uAmt: { value: 1 } }, transparent: true, depthWrite: false,
+            blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor,
+            vertexShader: `attribute float aSize; attribute float aBri; varying float vB; void main(){ vB=aBri; gl_PointSize=aSize; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+            fragmentShader: `uniform float uAmt; varying float vB; void main(){ float r=length(gl_PointCoord-0.5); float a=smoothstep(0.5,0.08,r); gl_FragColor=vec4(vec3(0.8,0.86,1.0)*vB*a*uAmt,0.0); }` }));
+          stars.renderOrder = -1; scene.add(stars); window.__stars = stars; }
+
+        // ======================= the cumulus field + tower (raymarched) =======================
+        const DK = C.deck, S = 0.001;    // local units: 1/1000 planet radius; the ground is y = 0 under the target
+        const TOWTOP = Math.max(DK.top, DK.tower.top);
+        const rtCloud = new THREE.WebGLRenderTarget(W, H, { type: THREE.HalfFloatType, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+        const deckU = { uCam: { value: new THREE.Vector3() }, uR: { value: new THREE.Vector3() }, uU: { value: new THREE.Vector3() }, uF: { value: new THREE.Vector3() },
+          uTan: { value: new THREE.Vector2(Math.tan(C.cam.fov * DEG / 2) * W / H, Math.tan(C.cam.fov * DEG / 2)) }, uPP: { value: new THREE.Vector2() },
+          uYb: { value: DK.base }, uYt: { value: DK.top }, uSize: { value: DK.size }, uSun: { value: new THREE.Vector3(0, 1, 0) },
+          uTowR: { value: DK.tower.r }, uTowTop: { value: DK.tower.top }, uTowOff: { value: new THREE.Vector2(DK.tower.off[0], DK.tower.off[1]) }, uSkTop: { value: DK.tower.skirt },
+          uFill: { value: 0 }, uHC: { value: new THREE.Vector2() },
+          uClr: { value: [0, 1, 2, 3, 4, 5].map(() => new THREE.Vector4()) }, tCityW: { value: tex.cityW }, uCityBox: { value: CITY_BOX },
+          uTLL: { value: new THREE.Vector2(C.target[0] * DEG, C.target[1] * DEG) },
+          uCover: { value: 0 }, uPartK: { value: 0 }, uShadowOn: { value: 1 }, uDrift: { value: 0 }, uSunI: earthU.uSunI, uWarm: { value: 0 } };
+        const deckMat = new THREE.ShaderMaterial({ uniforms: deckU, depthTest: false, depthWrite: false,
+          vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }`,
+          fragmentShader: NOISE + `
+          uniform vec3 uCam,uR,uU,uF,uSun; uniform vec2 uTan,uPP,uTowOff,uHC; uniform vec4 uClr[6]; uniform sampler2D tCityW; uniform vec4 uCityBox; uniform vec2 uTLL; uniform float uYb,uYt,uSize,uTowR,uTowTop,uSkTop,uCover,uPartK,uShadowOn,uDrift,uSunI,uWarm,uFill;
+          varying vec2 vUv;
+          #define EWPX 18.0
+          // the tower: a cumulus congestus over the hills, taller than the field around it (the dive falls into it)
+          float tower(vec2 xz){ vec2 d=xz-uTowOff; float rr=length(d);
+            return 1.0-smoothstep(0.35*uTowR,uTowR,rr+0.32*uTowR*snoise(vec3(d/uTowR*1.3,4.2))); }
+          float den(vec3 p,int oct){
+            float cl=tower(p.xz);
+            float tur=clamp(0.62+0.5*snoise(vec3(p.xz/(uTowR*0.42),3.3)),0.0,1.0);         // turrets of different heights in the cluster
+            float top=mix(uYt,uTowTop,cl*tur);
+            float hN=(p.y-uYb)/(top-uYb);
+            if(hN<=0.0||hN>=1.0) return 0.0;
+            vec3 q=p/uSize+vec3(uDrift,0.0,0.37*uDrift);
+            float n0=fbm(q,oct>2?6:oct);
+            float rr=length(p.xz);
+            // cumulus lumps: a popcorn field, denser and taller in a cluster over the target
+            float cov=(0.31+0.22*snoise(vec3(p.xz/(uSize*7.0),2.1))+0.30*cl)*(1.0-smoothstep(uSize*110.0,uSize*170.0,rr))*uCover;
+            // clear air over each district label while it is up (the popcorn never cuts a word; the tower still swallows them)
+            float clr=0.0; for(int i=0;i<6;i++){ vec4 c=uClr[i]; if(c.z>0.0){ vec2 e=(p.xz-c.xy)/c.zw; clr=max(clr,1.0-smoothstep(0.7,1.0,length(e))); } }
+            cov-=0.7*clr*(1.0-cl);
+            float d=(n0*0.5+0.5)+cov-1.0-0.5*hN*hN;                                         // rounded cauliflower tops
+            d*=smoothstep(0.0,0.10,hN);                                                     // flat bases
+            if(oct>2){ d+=0.09*snoise(q*2.9+vec3(0.0,1.3*uDrift,0.0));                        // cauliflower billows
+              d-=0.22*(1.0-abs(snoise(q*5.3)))*(1.0-smoothstep(0.0,0.30,d));                 // eroded edges
+              d-=0.10*(1.0-abs(snoise(q*13.0)))*(1.0-smoothstep(0.0,0.16,d)); }               // fine wisps
+            // under the cluster, a lumpy stratocumulus skirt fills the gaps between the towers (we fall into one cloud mass)
+            float hS=(p.y-uYb)/(uSkTop-uYb);
+            if(hS<1.0){ float sk=1.0-smoothstep(0.55*uTowR,1.7*uTowR,rr+0.4*uTowR*snoise(vec3(p.xz/uTowR*1.1,7.7)));
+              float ds=(0.55*n0+0.62)*sk-0.55*hS*hS-0.25; ds*=smoothstep(0.0,0.15,hS); d=max(d,ds*uCover); }
+            d=max(d,0.0);
+            return d*2.6+1.1*smoothstep(0.0,0.07,d);                                         // firm lobes, dense cores, wispy rims
+          }
+          float ign(vec2 f){ return fract(52.9829189*fract(dot(f,vec2(0.06711056,0.00583715)))); }
+          void main(){
+            vec2 nd=vUv*2.0-1.0;
+            vec2 ndp=uHC+(nd-uHC)/(1.0+1.6*uPartK)-uPP;                                       // rays relative to the dive's vanishing point; during the
+                                                                                             // break-out the cloud we push through swells outward past us
+            vec3 rd=normalize(uF+ndp.x*uTan.x*uR+ndp.y*uTan.y*uU), ro=uCam;
+            float Tr=1.0; vec3 col=vec3(0.0);
+            float yTop=max(uYt,uTowTop);
+            float ry=abs(rd.y)<1e-4?1e-4*sign(rd.y+1e-9):rd.y;
+            float ta=(yTop-ro.y)/ry, tb=(uYb-ro.y)/ry;
+            float t0=max(min(ta,tb),0.0), t1=max(ta,tb);
+            float ls=uSize/12.0, ext=5.5;
+            vec3 sunC=vec3(1.0,0.96,0.90)*uSunI;
+            if(t1>t0&&uCover>0.0){
+              const int N=64; float len=min(t1-t0,12.0), dt=len/float(N), t=t0+dt*ign(gl_FragCoord.xy);
+              for(int i=0;i<N;i++){
+                vec3 p=ro+rd*t; float d=den(p,4);
+                if(d>0.002){
+                  float l=den(p+uSun*1.0*ls,2)+den(p+uSun*2.8*ls,2)+den(p+uSun*6.5*ls,2);
+                  float tl=exp(-l*2.0)+0.20*exp(-l*0.35);            // single + a multiple-scattering octave (cloud interiors stay luminous)
+                  float hN=clamp((p.y-uYb)/(yTop-uYb),0.0,1.0);
+                  vec3 amb=mix(vec3(0.17,0.22,0.33),vec3(0.38,0.46,0.62),hN)*uSunI*0.30;
+                  float powder=1.0-exp(-d*2.0);
+                  vec3 Sx=sunC*0.82*tl*mix(0.82,1.0,powder)+amb+sunC*0.16*exp(-d*2.6)*tl;   // shaded turret sides; thin sunlit edges glow
+                  float a=1.0-exp(-d*dt*ext);
+                  col+=Tr*a*Sx; Tr*=1.0-a;
+                  if(Tr<0.006) break;
+                }
+                t+=dt;
+              }
+            }
+            // the clouds' shadows on the ground (sampled along the sun ray through the slab)
+            float sh=1.0;
+            if(uShadowOn>0.0&&uCover>0.0&&rd.y<0.0&&uSun.y>0.05){ vec3 g=ro+rd*(-ro.y/rd.y); float s=0.0;
+              vec3 sd=normalize(vec3(uSun.x*0.45,uSun.y,uSun.z*0.45));     // shadows sit close to their clouds (the deck is height-compressed)
+              for(int k=0;k<5;k++){ float y=mix(uYb,yTop,(float(k)+0.5)/5.0); s+=den(g+sd*(y/sd.y),2); }
+              vec2 gL=vec2(uTLL.y+g.x*0.001/cos(uTLL.x),uTLL.x+g.z*0.001);
+              vec2 gu=vec2((gL.x-uCityBox.x)/(uCityBox.y-uCityBox.x),(gL.y-uCityBox.z)/(uCityBox.w-uCityBox.z));
+              float gw=(gu.x>0.0&&gu.x<1.0&&gu.y>0.0&&gu.y<1.0)?smoothstep(0.3,0.7,texture2D(tCityW,gu).r):0.0;
+              sh=mix(1.0,exp(-s*0.9),0.36*uShadowOn*(1.0-0.65*gw)); }
+            // once we are inside the cloud mass, any last gap shows deeper cloud (never the footage before the break-out)
+            if(uFill>0.0){ float fy=max(ro.y-uYb+0.6,0.3); vec3 g=ro+rd*(fy/max(-rd.y,0.2));    // a virtual deeper deck (slower parallax)
+              float fn=fbm(vec3(g.xz/0.8,2.0+0.3*uDrift),3);
+              // it closes in from the frame edges as opaque billows with ragged fronts (never a see-through veil)
+              float er=length(ndp*vec2(uTan.x/uTan.y,1.0));
+              float fa=smoothstep(-0.06,0.06,0.55*fn+uFill*2.4-1.7+0.45*er);
+              vec3 fc=vec3(0.66,0.71,0.80)*uSunI*0.38*(0.86+0.34*fn);
+              col+=Tr*fc*fa; Tr*=1.0-fa; }
+            float al=1.0-Tr*sh;
+            // the break-out: under full cover a hole opens at the vanishing point (where the pin lands) and the cloud streams
+            // outward past the edges in opaque wisps (a mask in screen space around the vanishing point; no see-through veil)
+            if(uPartK>0.0){ float asp=uTan.x/uTan.y; vec2 sp=(nd-uHC)*vec2(asp,1.0); float r=length(sp); vec2 c=sp/max(r,1e-4);
+              float lr=log(r+0.05);
+              c*=smoothstep(0.0,0.35,r);                                                    // no starburst where the streaks converge
+              float s=0.58*snoise(vec3(c*1.6,lr*1.2-2.8*uPartK))+0.34*snoise(vec3(c*3.6,lr*2.4-4.8*uPartK+5.0))+0.16*snoise(vec3(c*8.5,lr*5.0-8.0*uPartK+9.0));
+              float m=(r-mix(-0.9,3.0,uPartK))/0.5+0.65*s*smoothstep(0.05,0.7,r);              // a clean hole first, ragged wisps further out
+              float M=clamp(0.5+m/(max(fwidth(m),1e-4)*EWPX),0.0,1.0);                                 // a firm edge, the same few pixels wide everywhere (never a see-through veil)
+              float edge=clamp(M*(1.0-M)*4.0,0.0,1.0);
+              col=col*M+vec3(0.62,0.34,0.13)*edge*uWarm*M*al; al*=M; }
+            gl_FragColor=vec4(col,al);
+          }` });
+        const deckScene = new THREE.Scene(); deckScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), deckMat));
+        const quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+        // ======================= district labels: a 2D canvas layer composited between the ground and the clouds =======================
+        const labCv = document.createElement("canvas"); labCv.width = W; labCv.height = H; const lx = labCv.getContext("2d");
+        const labTex = new THREE.CanvasTexture(labCv); labTex.colorSpace = THREE.NoColorSpace; labTex.generateMipmaps = false;
+        labTex.minFilter = THREE.LinearFilter; labTex.magFilter = THREE.LinearFilter;
+
+        // ======================= post: smooth radial zoom blur + tone map; labels sit under the clouds =======================
+        const rtScene = new THREE.WebGLRenderTarget(W, H, { type: THREE.HalfFloatType, samples: 4 });
+        const postU = { tScene: { value: rtScene.texture }, tCloud: { value: rtCloud.texture }, tLab: { value: labTex }, uBlur: { value: 0 }, uCA: { value: 0 },
+          uAsp: { value: W / H }, uSceneOn: { value: 1 }, uC: { value: new THREE.Vector2(0.5, 0.5) } };
+        const post = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({ uniforms: postU, depthTest: false, depthWrite: false,
+          vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }`,
+          fragmentShader: `uniform sampler2D tScene,tCloud,tLab; uniform float uBlur,uCA,uAsp,uSceneOn; uniform vec2 uC; varying vec2 vUv;
+            vec3 aces(vec3 x){ x*=1.0/0.6; mat3 i=mat3(0.59719,0.07600,0.02840,0.35458,0.90834,0.13383,0.04823,0.01566,0.83777);
+              mat3 o=mat3(1.60475,-0.10208,-0.00327,-0.53108,1.10813,-0.07276,-0.07367,-0.00605,1.07602);
+              x=i*x; vec3 a=x*(x+0.0245786)-0.000090537; vec3 b=x*(0.983729*x+0.4329510)+0.238081; return clamp(o*(a/b),0.0,1.0); }
+            vec3 srgb(vec3 c){ return mix(c*12.92,1.055*pow(c,vec3(1.0/2.4))-0.055,step(0.0031308,c)); }
+            vec3 disp(vec4 a){ return a.a>1e-4?srgb(aces(a.rgb/a.a)):vec3(0.0); }
+            float ign(vec2 f){ return fract(52.9829189*fract(dot(f,vec2(0.06711056,0.00583715)))); }
+            void main(){ vec2 d=vUv-uC; vec4 aS,aC;
+              if(uBlur<0.0005){ aS=texture2D(tScene,vUv); aC=texture2D(tCloud,vUv); }
+              else { aS=vec4(0.0); aC=vec4(0.0); float j=ign(gl_FragCoord.xy); float r2=dot(d*vec2(uAsp,1.0),d*vec2(uAsp,1.0)); float ca=uCA*r2;
+                for(int i=0;i<32;i++){ float f=(float(i)+j)/32.0, s=1.0-uBlur*f;
+                  vec2 u0=uC+d*s, uRr=uC+d*s*(1.0+ca), uBb=uC+d*s*(1.0-ca);
+                  vec4 gS=texture2D(tScene,u0), gC=texture2D(tCloud,u0);
+                  aS+=vec4(texture2D(tScene,uRr).r,gS.g,texture2D(tScene,uBb).b,gS.a);
+                  aC+=vec4(texture2D(tCloud,uRr).r,gC.g,texture2D(tCloud,uBb).b,gC.a); }
+                aS/=32.0; aC/=32.0; }
+              aS*=uSceneOn;
+              vec3 sD=disp(aS), cD=disp(aC);
+              vec4 lab=texture2D(tLab,vUv);
+              vec3 under=lab.rgb*lab.a+sD*aS.a*(1.0-lab.a); float uA=lab.a+aS.a*(1.0-lab.a);
+              vec3 o=cD*aC.a+under*(1.0-aC.a); float oA=aC.a+uA*(1.0-aC.a);
+              o+=(ign(gl_FragCoord.xy+17.0)-0.5)/255.0*oA;
+              gl_FragColor=vec4(clamp(o,0.0,1.0),oA); }` }));
+        const postScene = new THREE.Scene(); postScene.add(post);
+
+        // ======================= the 3D pin (own scene, rendered last, ACES + PMREM env) =======================
+        const pinScene = new THREE.Scene();
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        const envScene = new THREE.Scene();
+        { const g = new THREE.SphereGeometry(50, 32, 16), cols = [];
+          for (let i = 0; i < g.attributes.position.count; i++) { const y = g.attributes.position.getY(i) / 50, k = clamp(y * 0.5 + 0.5, 0, 1);
+            cols.push(lerp(0.10, 1.0, k * k), lerp(0.10, 1.0, k * k), lerp(0.12, 1.04, k * k)); }
+          g.setAttribute("color", new THREE.Float32BufferAttribute(cols, 3));
+          envScene.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+          const lamp = new THREE.Mesh(new THREE.PlaneGeometry(30, 14), new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 5, 5), side: THREE.DoubleSide }));
+          lamp.position.set(-20, 30, 22); lamp.lookAt(0, 0, 0); envScene.add(lamp);
+          const rim = new THREE.Mesh(new THREE.PlaneGeometry(10, 30), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 2.2, 2.4), side: THREE.DoubleSide }));
+          rim.position.set(34, 10, -14); rim.lookAt(0, 0, 0); envScene.add(rim); }
+        const envTex = pmrem.fromScene(envScene, 0.03).texture;
+        pinScene.environment = envTex;
+        pinScene.add(new THREE.HemisphereLight(0xE4ECFF, 0x5A4632, 0.9));
+        const key = new THREE.DirectionalLight(0xFFF6EA, 2.6); key.position.set(-5, 7, 6); pinScene.add(key);
+        const pin = new THREE.Group(); pinScene.add(pin);
+        const pinBody = new THREE.Group(); pin.add(pinBody);
+        { const pts = [], R = 1, cy = 2.2, phi = Math.acos(R / cy);
+          pts.push(new THREE.Vector2(0.0, 0.0)); pts.push(new THREE.Vector2(0.035, 0.05));
+          const tx = R * Math.sin(phi), ty = cy - R * Math.cos(phi);
+          for (let i = 1; i <= 10; i++) { const k = i / 10; pts.push(new THREE.Vector2(lerp(0.035, tx, k), lerp(0.05, ty, k))); }
+          for (let i = 1; i <= 40; i++) { const a = lerp(phi, Math.PI, i / 40); pts.push(new THREE.Vector2(Math.max(0, R * Math.sin(a)), cy - R * Math.cos(a))); }
+          const body = new THREE.Mesh(new THREE.LatheGeometry(pts, 96), new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.pin.color), roughness: 0.26, metalness: 0.0,
+            clearcoat: 1.0, clearcoatRoughness: 0.06, envMapIntensity: 1.25, sheen: 0.2 }));
+          pinBody.add(body);
+          const capM = new THREE.MeshPhysicalMaterial({ color: 0xFFFFFF, roughness: 0.18, clearcoat: 1.0, clearcoatRoughness: 0.05, envMapIntensity: 1.3 });
+          const grooveM = new THREE.MeshPhysicalMaterial({ color: 0x5E0710, roughness: 0.45, clearcoat: 0.4, clearcoatRoughness: 0.2 });
+          [1, -1].forEach((sd) => { const lens = new THREE.Mesh(new THREE.SphereGeometry(0.4, 64, 32), capM); lens.scale.set(1, 1, 0.42); lens.position.set(0, cy, sd * 0.93); pinBody.add(lens);
+            const groove = new THREE.Mesh(new THREE.TorusGeometry(0.43, 0.045, 16, 96), grooveM); groove.position.set(0, cy, sd * 0.9); pinBody.add(groove); }); }
+        // contact shadow + two ground ripples
+        const radTex = (stops) => { const cv = mkCv(256), x = cv.getContext("2d"), g = x.createRadialGradient(128, 128, 0, 128, 128, 128);
+          stops.forEach(([o, c]) => g.addColorStop(o, c)); x.fillStyle = g; x.fillRect(0, 0, 256, 256); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t; };
+        const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: radTex([[0, "rgba(0,0,0,.62)"], [0.45, "rgba(0,0,0,.3)"], [1, "rgba(0,0,0,0)"]]), transparent: true, depthWrite: false, toneMapped: false }));
+        shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.01; pinScene.add(shadow);
+        const rings = [0, 1].map((i) => { const m = new THREE.Mesh(new THREE.RingGeometry(0.95, 1.0, 128), new THREE.MeshBasicMaterial({ color: i ? 0xFFE6DA : 0xFF2E3A, transparent: true, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
+          m.rotation.x = -Math.PI / 2; m.position.y = 0.02 + i * 0.01; pinScene.add(m); return m; });
+        const bloom = new THREE.Sprite(new THREE.SpriteMaterial({ map: radTex([[0, "rgba(255,246,236,1)"], [0.18, "rgba(255,150,140,.55)"], [0.5, "rgba(255,60,60,.12)"], [1, "rgba(255,40,40,0)"]]),
+          transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+        bloom.position.set(0, 2.2, 0.6); pinScene.add(bloom);
+        const pinCam = new THREE.PerspectiveCamera(18, W / H, 1, 400);
+        { const unitsPerPx = 3.2 / C.pin.height, D = (H * unitsPerPx) / (2 * Math.tan(9 * Math.PI / 180)), el = 15 * Math.PI / 180;
+          pinCam.position.set(0, Math.sin(el) * D, Math.cos(el) * D); pinCam.lookAt(0, 0, 0);
+          pinCam.setViewOffset(W, H, W / 2 - C.pin.screen[0], H / 2 - C.pin.screen[1], W, H); pinCam.updateProjectionMatrix(); }
+
+        // ======================= camera rig =======================
+        function hermite(keys, t) { // keys: [t, v, slope]
+          if (t <= keys[0][0]) return keys[0][1] + keys[0][2] * (t - keys[0][0]);
+          for (let i = 0; i < keys.length - 1; i++) { const a = keys[i], b = keys[i + 1]; if (t <= b[0]) {
+            const dt = b[0] - a[0], u = (t - a[0]) / dt, u2 = u * u, u3 = u2 * u;
+            return (2 * u3 - 3 * u2 + 1) * a[1] + (u3 - 2 * u2 + u) * dt * a[2] + (-2 * u3 + 3 * u2) * b[1] + (u3 - u2) * dt * b[2]; } }
+          const z = keys[keys.length - 1]; return z[1] + z[2] * (t - z[0]);
+        }
+        const ALTK = C.cam.alt.map(([t, h, s]) => [t, Math.log(h), s]);
+        const altAt = (t) => Math.exp(hermite(ALTK, t));
+        const lnRate = (t) => (hermite(ALTK, t + 0.005) - hermite(ALTK, t - 0.005)) / 0.01;     // d(ln h)/dt
+        const spinE = gsap.parseEase("power2.out"), swingE = gsap.parseEase("power2.inOut"), aimE = gsap.parseEase("sine.inOut");
+        const spinAt = (t) => C.spin * DEG * spinE(clamp(t / 2.6, 0, 1));
+        const Yax = new THREE.Vector3(0, 1, 0);
+        function slerpDir(a, b, k) { const d = clamp(a.dot(b), -1, 1), om = Math.acos(d); if (om < 1e-6) return b.clone();
+          const s = Math.sin(om); return a.clone().multiplyScalar(Math.sin((1 - k) * om) / s).add(b.clone().multiplyScalar(Math.sin(k * om) / s)); }
+        const vE = new THREE.Vector3(), vN = new THREE.Vector3(), vT = new THREE.Vector3(), v1 = new THREE.Vector3(), mR = new THREE.Vector3(), mU = new THREE.Vector3(), mB = new THREE.Vector3();
+        const toLocal = (v, out) => out.set(v.dot(vE), v.dot(vT), v.dot(vN));
+        // the camera at time t: log-altitude dive, swinging from the start view to straight down over the target; the
+        // vanishing point (principal point) slides from frame centre onto the pin's spot, so the dive converges where it lands
+        function pose(t) {
+          const rot = spinAt(t);
+          const Tw = TGT0.clone().applyAxisAngle(Yax, rot);
+          const h = altAt(t), k = swingE(clamp((t - C.cam.swing[0]) / (C.cam.swing[1] - C.cam.swing[0]), 0, 1));
+          const dir = slerpDir(D0, Tw, k);
+          camera.position.copy(dir).multiplyScalar(1 + h);
+          camera.up.set(0, 1, 0); camera.lookAt(0, 0, 0);
+          const a = aimE(clamp((t - C.cam.aim[0]) / (C.cam.aim[1] - C.cam.aim[0]), 0, 1));
+          const ppx = lerp(W / 2, C.pin.screen[0], a), ppy = lerp(H / 2, C.pin.screen[1], a);
+          camera.setViewOffset(W, H, W / 2 - ppx, H / 2 - ppy, W, H);
+          camera.updateMatrixWorld();
+          return { rot, Tw, h, ppx, ppy };
+        }
+        const pv = new THREE.Vector3();
+        function project(ll, rot) { pv.copy(dirLL(ll[0], ll[1])).applyAxisAngle(Yax, rot).project(camera);
+          return { x: (pv.x * 0.5 + 0.5) * W, y: (0.5 - pv.y * 0.5) * H, z: pv.z }; }
+
+        $("#name").textContent = C.place.name.toUpperCase();
+        $("#kickT").textContent = C.place.kicker.toUpperCase();
+
+        // ======================= district labels =======================
+        const LB = C.labels, LPX = LB.px, SAFE = LB.safe;
+        const labs = LB.list.map((L) => Object.assign({}, L, { txt: L.t.toUpperCase() }));
+        const labFont = (L) => (L.water ? "italic 600 " : "normal 800 ") + LPX + "px Inter";
+        const labLS = (L) => (L.water ? 0.30 : 0.15) * LPX;
+        function measureLabels() {
+          labs.forEach((L) => { lx.font = labFont(L); lx.letterSpacing = labLS(L) + "px";
+            L.w = lx.measureText(L.txt).width - labLS(L); L.cap = LPX * 0.73; });
+          // each label leaves (drops into its mask) before its ink reaches the title-safe edge; a label that would not get
+          // ~0.45 s on screen is skipped
+          labs.forEach((L) => { L.outEnd = T.swap; L.skip = false; const m = LPX * 0.12 + 4;
+            for (let t = L.at; t < T.swap; t += 1 / 120) { const P = pose(t), p = project(L.ll, P.rot), c = project(C.target, P.rot);
+              const x0 = p.x - L.w / 2 - m, x1 = p.x + L.w / 2 + m, y0 = p.y - L.cap / 2 - m, y1 = p.y + L.cap / 2 + m;
+              if (x0 < SAFE[0] || x1 > SAFE[2] || y0 < SAFE[1] || y1 > SAFE[3]) { L.outEnd = t - 1 / 30; break; }
+              // the cluster's silhouette (its rim stands about deck-top high, seen from the camera's height)
+              const hU = P.h / S, pxU = H / (2 * Math.tan(C.cam.fov * DEG / 2));
+              const rT = 1.1 * DK.tower.r / Math.max(hU - DK.top, 0.5) * pxU;
+              const nx = clamp(c.x, x0, x1), ny = clamp(c.y, y0, y1);
+              if (Math.hypot(nx - c.x, ny - c.y) < rT) { L.outEnd = t; break; } }
+            L.outEnd = Math.min(L.outEnd, T.swap - 0.1);     // gone before the last gaps close
+            L.outStart = Math.min(L.outEnd - 0.1, T.swap);
+            if (L.outEnd - L.at < 0.45) L.skip = true; });
+          // each live label gets a clear-air ellipse in the cumulus field (local units), sized to its ground footprint when it appears
+          const T0 = dirLL(C.target[0], C.target[1]), E0 = new THREE.Vector3().crossVectors(Yax, T0).normalize(), N0 = new THREE.Vector3().crossVectors(T0, E0).normalize();
+          let ci = 0; deckU.uClr.value.forEach((v) => v.set(0, 0, 0, 0));
+          labs.forEach((L) => { if (L.skip || ci >= 6) return;
+            const P = pose(L.at), q = dirLL(L.ll[0], L.ll[1]), d = q.clone().applyAxisAngle(Yax, P.rot).distanceTo(camera.position);
+            const upp = d * 2 * Math.tan(C.cam.fov * DEG / 2) / H / S, mg = LPX * 0.55, rel = q.clone().sub(T0);
+            deckU.uClr.value[ci++].set(rel.dot(E0) / S, rel.dot(N0) / S, (L.w / 2 + mg) * upp + 0.6, (L.cap / 2 + mg) * upp + 0.8); });
+          window.__labs = labs.map((L) => ({ t: L.txt, at: L.at, outStart: +L.outStart.toFixed(3), outEnd: +L.outEnd.toFixed(3), skip: L.skip }));
+        }
+        const inE = gsap.parseEase("expo.out"), outE = gsap.parseEase("power3.in");
+        function drawLabels(t, rot) {
+          lx.clearRect(0, 0, W, H);
+          if (t >= T.swap) return;
+          labs.forEach((L) => {
+            if (L.skip || L.w === undefined || t < L.at || t >= L.outEnd) return;
+            const p = project(L.ll, rot);
+            const ki = inE(clamp((t - L.at) / 0.24, 0, 1)), ko = outE(clamp((t - L.outStart) / 0.1, 0, 1));
+            const mg = LPX * 0.55, boxH = L.cap + 2 * mg;
+            const dy = (1 - ki) * boxH + ko * boxH;                         // rises out of its mask, drops back in to leave
+            lx.save();
+            lx.beginPath(); lx.rect(p.x - L.w / 2 - mg, p.y - L.cap / 2 - mg, L.w + 2 * mg, boxH); lx.clip();
+            lx.font = labFont(L); lx.letterSpacing = labLS(L) + "px"; lx.textAlign = "left"; lx.textBaseline = "alphabetic";
+            const x = p.x - L.w / 2, y = p.y + L.cap / 2 + dy;
+            lx.lineJoin = "round"; lx.miterLimit = 2;
+            lx.shadowColor = "rgba(3,6,12,0.85)"; lx.shadowBlur = LPX * 0.42; lx.shadowOffsetY = LPX * 0.04;
+            lx.lineWidth = LPX * 0.16; lx.strokeStyle = "rgba(5,8,14,0.80)"; lx.strokeText(L.txt, x, y);
+            lx.shadowColor = "rgba(0,0,0,0)"; lx.shadowBlur = 0; lx.shadowOffsetY = 0;
+            lx.fillStyle = L.water ? "#DCEBFF" : "#FFFFFF"; lx.fillText(L.txt, x, y);
+            lx.restore();
+          });
+        }
+
+        // ======================= per-frame render =======================
+        const pinE = gsap.parseEase("power2.in");
+        function pinPose(t) {
+          const tl0 = t - T.land, fall = 0.26;
+          if (tl0 < -fall) return null;
+          let y = 0, sx = 1, sy = 1, ry = 0;
+          if (tl0 < 0) { const k = pinE((tl0 + fall) / fall); y = lerp(15, 0, k); sy = lerp(1.0, 1.2, k); sx = 1 / Math.sqrt(sy); }
+          else if (tl0 < 0.07) { const k = tl0 / 0.07; sy = lerp(1.2, 0.74, Math.sin(k * Math.PI / 2)); sx = lerp(0.91, 1.2, Math.sin(k * Math.PI / 2)); }
+          else { const u = tl0 - 0.07, w = 15, z = Math.exp(-6.5 * u);
+            y = 1.25 * z * Math.sin(w * u) * (u < Math.PI / w ? 1 : 0.55); y = Math.max(y, 0);
+            sy = 1 - 0.26 * z * Math.cos(w * 1.12 * u); sx = 1 + 0.2 * z * Math.cos(w * 1.12 * u); }
+          ry = -2.6 * (1 - gsap.parseEase("power3.out")(clamp((tl0 + fall) / 0.95, 0, 1)));
+          return { y, sx, sy, ry, tl0 };
+        }
+        function renderAt(t) {
+          t = Math.max(0, t || 0);
+          const P = pose(t), rot = P.rot, Tw = P.Tw, h = P.h;
+          earth.rotation.y = rot; clouds.rotation.y = rot;
+          // object-space uniforms
+          earthU.uSunO.value.copy(SUN_W).applyAxisAngle(Yax, -rot);
+          earthU.uCamO.value.copy(camera.position).applyAxisAngle(Yax, -rot);
+          earthU.uCloudU.value = -0.0012 * t;
+          atmoU.uCam.value.copy(camera.position);
+          const globeOn = t < T.swap;
+          atmoU.uAmt.value = sstep(0.06, 0.4, h);
+          earthU.uThin.value = sstep(0.9, 0.3, h);            // the cloud layer thins from its edges as we dive (dense cores last)
+          earthU.uLightsK.value = sstep(0.5, 1.6, h);
+          earthU.uSeaK.value = sstep(0.4, 0.1, h);
+          window.__stars.material.uniforms.uAmt.value = sstep(0.9, 2.2, h); window.__stars.visible = h > 0.9;
+          // the cloud field: local frame at the target (x east, y up, z north), in 1/1000 planet radii
+          vT.copy(Tw); vE.crossVectors(Yax, vT).normalize(); vN.crossVectors(vT, vE).normalize();
+          v1.copy(camera.position).sub(Tw).multiplyScalar(1 / S); toLocal(v1, deckU.uCam.value);
+          camera.matrixWorld.extractBasis(mR, mU, mB);
+          toLocal(mR, deckU.uR.value); toLocal(mU, deckU.uU.value); toLocal(mB.negate(), deckU.uF.value);
+          toLocal(SUN_W, deckU.uSun.value);
+          deckU.uPP.value.set(P.ppx / W * 2 - 1, 1 - P.ppy / H * 2);
+          deckU.uCover.value = globeOn ? sstep(0.12, 0.05, h) : 1;      // the cumulus builds in once its cells are bigger than a pixel (no speckle)
+          const partK = clamp((t - T.part) / (T.partEnd - T.part), 0, 1);
+          deckU.uPartK.value = globeOn ? 0 : Math.pow(partK, 1.2);
+          deckU.uFill.value = sstep(T.swap - 0.1, T.swap, t);            // inside the mass the last gaps close on deeper cloud, never the footage
+          // the hole opens at the pin and its centre drifts to frame centre as it grows, so the far side clears in time
+          const hk = gsap.parseEase("sine.inOut")(partK);
+          deckU.uHC.value.set(lerp(P.ppx / W * 2 - 1, 0, hk), lerp(1 - P.ppy / H * 2, 0, hk));
+          deckU.uShadowOn.value = globeOn ? sstep(0.07, 0.035, h) : 0; deckU.uWarm.value = globeOn ? 0 : 1;
+          deckU.uDrift.value = 0.06 * t;
+          const deckOn = deckU.uCover.value > 0.001 && t < T.partEnd;
+          // radial zoom blur from the dive speed (a 1/50 s shutter): the ground's rate, or the near cloud tops as we fall into them
+          const camY = deckU.uCam.value.y, vy = Math.abs(lnRate(t)) * h / S;
+          const near = Math.max(camY - TOWTOP, 0.5);
+          const spd = Math.max(Math.abs(lnRate(t)), deckOn ? (vy / near) * deckU.uCover.value : 0);
+          postU.uBlur.value = globeOn ? clamp(0.0025 * spd + 0.0008 * spd * spd, 0, 0.022)
+            : (t < T.partEnd ? 0.03 * Math.pow(1 - partK, 0.7) : 0);                  // the cloud tears outward past us as it opens
+          postU.uCA.value = clamp(postU.uBlur.value * 0.08, 0, 0.005);
+          postU.uSceneOn.value = globeOn ? 1 : 0;
+          postU.uC.value.set(P.ppx / W, 1 - P.ppy / H);
+          // labels (projected onto the city, composited under the clouds)
+          drawLabels(t, rot); labTex.needsUpdate = true;
+          // passes: globe -> rtScene, clouds -> rtCloud, composite + blur + tone map -> canvas, then the pin
+          renderer.setRenderTarget(rtScene); renderer.setClearColor(0x000000, globeOn ? 1 : 0); renderer.clear();
+          if (globeOn) renderer.render(scene, camera);
+          renderer.setRenderTarget(rtCloud); renderer.setClearColor(0x000000, 0); renderer.clear();
+          if (deckOn) renderer.render(deckScene, quadCam);
+          renderer.setRenderTarget(null); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(postScene, quadCam);
+          // pin
+          const pp = pinPose(t), outK = clamp((t - T.out - 0.01) / 0.14, 0, 1);
+          if (pp && outK < 1) {
+            const oe = outK, popS = oe < 0.3 ? 1 + 0.12 * Math.sin(oe / 0.3 * Math.PI / 2) : (1.12 * (1 - gsap.parseEase("power3.in")((oe - 0.3) / 0.7)));
+            pinBody.position.y = pp.y + oe * 1.2; pinBody.scale.set(pp.sx * popS, pp.sy * popS, pp.sx * popS); pinBody.rotation.y = pp.ry;
+            const gk = clamp(1 - pp.y / 15, 0, 1);
+            shadow.scale.set(1.3 * (0.35 + 0.65 * gk) * pp.sx * popS, 1.3 * (0.35 + 0.65 * gk) * popS, 1); shadow.material.opacity = (0.25 + 0.75 * gk) * (1 - outK) * 0.7 * sstep(T.land - 0.03, T.land + 0.03, t); shadow.visible = shadow.material.opacity > 0.003;
+            rings.forEach((m, i) => { const u = clamp((pp.tl0 - i * 0.11) / 0.62, 0, 1), e = 1 - Math.pow(1 - u, 3);
+              m.visible = pp.tl0 > i * 0.11 && u < 1; m.scale.setScalar(lerp(0.7, i ? 4.6 : 3.8, e)); m.material.opacity = (i ? 0.7 : 1.0) * (1 - u) * (1 - u); });
+            const bk = pp.tl0 < 0 ? 0 : pp.tl0 < 0.04 ? pp.tl0 / 0.04 : pp.tl0 < 0.04 + 3 / 30 ? 1 : Math.max(0, 1 - (pp.tl0 - 0.04 - 3 / 30) / 0.42);
+            bloom.visible = bk > 0.003; bloom.material.opacity = 0.85 * bk; bloom.scale.setScalar(lerp(3.5, 7.5, bk)); bloom.position.y = 2.2 * pp.sy + pp.y;
+            renderer.clearDepth(); renderer.render(pinScene, pinCam);
+          }
+        }
+        window.addEventListener("hf-seek", (e) => renderAt(e.detail && e.detail.time));
+
+        // ======================= timeline =======================
+        const FACES = ["800 30px Inter", "900 118px Archivo", "italic 600 30px Inter"];
+        Promise.all([ready].concat(FACES.map((f) => document.fonts.load(f)))).then(() => document.fonts.ready).then(() => {
+          measureLabels();
+          const tl = gsap.timeline({ paused: true });
+          const proxy = { _t: 0 }; Object.defineProperty(proxy, "t", { get() { return this._t; }, set(v) { this._t = v; renderAt(v); } });
+          tl.fromTo(proxy, { t: 0 }, { t: T.end, duration: T.end, ease: "none", immediateRender: false }, 0);
+
+          // the place name springs out of a mask under the pin, kicker tracks in, a sheen rakes across
+          const nm = $("#nameMove"), kk = $("#kick");
+          Look.fill("#name", "linear-gradient(180deg,#FFFFFF 0%,#FFFFFF 50%,#E3E9F1 78%,#C9D3DF 100%)", { sheen: true });
+          gsap.set(nm, { yPercent: 105, scale: 0.92, filter: "blur(8px)" });
+          tl.fromTo(nm, { yPercent: 105, scale: 0.92 }, { yPercent: 0, scale: 1, duration: 0.22, ease: "back.out(1.6)", immediateRender: false }, T.land + 0.02);
+          tl.fromTo(nm, { filter: "blur(8px)" }, { filter: "blur(0px)", duration: 0.1, ease: "power2.out", immediateRender: false }, T.land + 0.02);
+          tl.set(nm, { filter: "none" }, T.land + 0.13);
+          Look.sheen(tl, "#name", T.land + 0.18, { dur: 0.55 });
+          gsap.set(kk, { yPercent: 110 });
+          tl.fromTo(kk, { yPercent: 110 }, { yPercent: 0, duration: 0.2, ease: "expo.out", immediateRender: false }, T.land + 0.05);
+          const bars = kk.querySelectorAll("b");
+          tl.fromTo(bars[0], { x: 70, scaleX: 0.2 }, { x: 0, scaleX: 1, duration: 0.24, ease: "expo.out", immediateRender: false }, T.land + 0.06);
+          tl.fromTo(bars[1], { x: -70, scaleX: 0.2 }, { x: 0, scaleX: 1, duration: 0.24, ease: "expo.out", immediateRender: false }, T.land + 0.06);
+          tl.fromTo("#scrim", { opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power2.out", immediateRender: false }, T.land - 0.12);
+
+          // exit: type rolls down into its masks, the pin pops up and shrinks into its tip, all done before the end
+          tl.fromTo(nm, { yPercent: 0, filter: "blur(0px)" }, { yPercent: 108, filter: "blur(6px)", duration: 0.11, ease: "power3.in", immediateRender: false }, T.out);
+          tl.to(kk, { yPercent: 110, duration: 0.1, ease: "power3.in", immediateRender: false }, T.out - 0.02);
+          tl.to("#scrim", { opacity: 0, duration: 0.13, ease: "power2.in", immediateRender: false }, T.out);
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+          renderAt(0);
+        });
+        ready.then(() => renderAt(window.__hfThreeTime || 0));
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,304 @@
+<!doctype html>
+<!-- 12 Punch-in zoom, variant B "Face punch" (9:16, 1080x1920, 30 fps).
+     The Shorts layout creators use for gameplay: the clip in a band across the middle of the frame (1080x909, close to the
+     evidence's squarish band) on true black bars, like the 8.5M-view letterboxed Short. Setup (Lamar talking to Franklin on
+     the street) -> the next shot of the same scene, the two-shot, held 4 frames at 1.0 -> three stepped punches on Franklin's
+     side-eye (1.0 -> 1.25 -> 1.5 -> 1.9). Each punch is a 2-frame snap with overshoot, a real zoom blur (stacked scaled copies,
+     sharp on the face), a crisp 3-frame decaying shake, a contrast kick and a vignette that tightens; every step re-centres
+     on his tracked face. Steps 1-2 punch inside the band; step 3 BURSTS the band from 909 to 1728 px tall (the letterbox
+     breaks; the last 96 px sit under the platform UI) and slams the payoff accent: "BRO?!" as real extruded, bevelled
+     caption-yellow letters (Three.js, media/sfx3d.js) with a thick ink outline, a key light raking the bevels and one specular
+     sweep. The 1.9 step is 1.6x of the source (sharpened). It holds on the same shot with a slow push, snaps back to the band
+     on the cut to his "what?" shrug; the word docks onto the band's lower edge, then stomps out.
+     kind "full": the component is a treatment of the footage, so bg:"none" keeps the footage (DESIGN.md §3). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <script src="media/sfx3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #020203; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #020203; font-family: "Archivo", sans-serif; }
+      #cam { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; z-index: 1; }
+      #grade { position: absolute; inset: 0; z-index: 0; }
+      #W0 { z-index: 0; background: #020203; }
+      .win { position: absolute; overflow: hidden; }
+      .layer { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
+      .tw { opacity: 0; }   /* off = opacity 0: the runtime forces visibility:visible on active clip videos */
+      .shot { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; }
+      .g1 { filter: contrast(1.05) saturate(1.08); }   /* the punch shot: a touch of snap, natural skin */
+      #fx { position: absolute; overflow: hidden; pointer-events: none; }
+      #vig { position: absolute; inset: 0; }
+      #word { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="4.0" data-width="1080" data-height="1920">
+      <div id="cam">
+        <div id="grade">
+          <!-- the band: a window onto the 16:9 clip. Setup -> the two-shot (three punches, hold, snap-out) -> his "what?" shrug.
+               Each incoming shot starts 1 frame early UNDER the outgoing one (lesson 25). -->
+          <div class="win" id="W0" data-layout-allow-overflow>
+            <div class="layer" id="L0" data-layout-allow-overflow>
+              <video id="s2" class="clip shot" style="z-index:1" src="assets/shots/v03-franklin-street-h.mp4" muted playsinline data-start="2.8" data-duration="1.2" data-media-start="0" data-track-index="2"></video>
+              <video id="s1" class="clip shot g1" style="z-index:2" src="assets/shots/v06-franklin-lamar-portrait-h.mp4" muted playsinline data-start="1.2" data-duration="1.6333" data-media-start="0" data-track-index="3"></video>
+              <video id="s0" class="clip shot" style="z-index:3" src="assets/shots/v05-franklin-lamar-street-h.mp4" muted playsinline data-start="0" data-duration="1.2333" data-media-start="0.0333" data-track-index="2"></video>
+            </div>
+          </div>
+          <!-- T1-T6: zoom-blur taps (the same frames scaled a little further about the face, averaged, masked off the face so
+               it stays sharp, clipped to the band). Only live during a punch, off 2+ frames before a cut (lesson 25). -->
+          <div class="win tw" id="T1" data-layout-allow-overflow><div class="layer" data-layout-allow-overflow><video id="z1" class="clip shot g1" src="assets/shots/v06-franklin-lamar-portrait-h.mp4" muted playsinline data-start="1.2" data-duration="1.6320" data-media-start="0" data-track-index="4"></video></div></div>
+          <div class="win tw" id="T2" data-layout-allow-overflow><div class="layer" data-layout-allow-overflow><video id="z2" class="clip shot g1" src="assets/shots/v06-franklin-lamar-portrait-h.mp4" muted playsinline data-start="1.2" data-duration="1.6307" data-media-start="0" data-track-index="5"></video></div></div>
+          <div class="win tw" id="T3" data-layout-allow-overflow><div class="layer" data-layout-allow-overflow><video id="z3" class="clip shot g1" src="assets/shots/v06-franklin-lamar-portrait-h.mp4" muted playsinline data-start="1.2" data-duration="1.6294" data-media-start="0" data-track-index="6"></video></div></div>
+          <div class="win tw" id="T4" data-layout-allow-overflow><div class="layer" data-layout-allow-overflow><video id="z4" class="clip shot g1" src="assets/shots/v06-franklin-lamar-portrait-h.mp4" muted playsinline data-start="1.2" data-duration="1.6281" data-media-start="0" data-track-index="7"></video></div></div>
+          <div class="win tw" id="T5" data-layout-allow-overflow><div class="layer" data-layout-allow-overflow><video id="z5" class="clip shot g1" src="assets/shots/v06-franklin-lamar-portrait-h.mp4" muted playsinline data-start="1.2" data-duration="1.6268" data-media-start="0" data-track-index="8"></video></div></div>
+          <div class="win tw" id="T6" data-layout-allow-overflow><div class="layer" data-layout-allow-overflow><video id="z6" class="clip shot g1" src="assets/shots/v06-franklin-lamar-portrait-h.mp4" muted playsinline data-start="1.2" data-duration="1.6255" data-media-start="0" data-track-index="9"></video></div></div>
+        </div>
+        <!-- inside the band: the vignette that tightens on every step, centred on the face -->
+        <div id="fx" data-layout-allow-overflow><div id="vig" data-layout-allow-overflow></div></div>
+        <svg width="0" height="0" style="position:absolute">
+          <filter id="sharp" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+            <feConvolveMatrix order="3" kernelMatrix="0 -0.2 0 -0.2 1.8 -0.2 0 -0.2 0" divisor="1" edgeMode="duplicate" preserveAlpha="true" />
+          </filter>
+        </svg>
+      </div>
+      <!-- the payoff accent: the reaction word as real geometry (Three.js canvas, rendered from timeline time) -->
+      <div id="word"></div>
+    </div>
+    <script>
+      const CONFIG = {
+        end: 4.0,
+        base: 0.842,                       // the band at 1.0: the 16:9 clip at 0.842x, a 1080x909 band (sides trimmed, like the evidence's squarish band)
+        bandY: 960,                        // the band's centre line
+        // each step opens the letterbox a notch (909 -> 1000 -> 1100 px); step 3 bursts it to 1728 px (y 96-1824: the image's full height at 1.6x)
+        // Shots in the band, matching the <video> tags: start (incl. a 1-frame pre-roll under the previous shot), the cut
+        // (when it shows), media in-point, ax = horizontal anchor at 1.0 (0.5 centred, 0 = left-aligned).
+        // track = the face's centre in source px of the 1920x1080 clip over MEDIA time (s).
+        shots: [
+          { start: 0.0, cut: 0.0, media: 0.0333, ax: 0.3, track: [[0, 600, 300]] },
+          { start: 1.2, cut: 1.2333, media: 0.0, ax: 0.5,
+            track: [[0, 1010, 248], [0.167, 1083, 269], [0.333, 1114, 288], [0.5, 1171, 307], [0.667, 1286, 323],
+                    [0.833, 1344, 352], [1.0, 1376, 358], [1.167, 1386, 360], [1.333, 1366, 368], [1.5, 1318, 372], [1.633, 1300, 374]] },
+          { start: 2.8, cut: 2.8333, media: 0.0, ax: 0.5, track: [[0, 700, 240], [1.2, 920, 255]] }
+        ],
+        creep: 0.04,                       // slow tension push on the setup shot, inside the band
+        tailCreep: 0.03,                   // and a gentle one on the tail
+        // three stepped punches on ONE continuous shot (total zoom relative to the band); they accelerate into the burst
+        steps: [ { at: 1.40, zoom: 1.25, band: 1.10 }, { at: 1.60, zoom: 1.5, band: 1.21 }, { at: 1.7667, zoom: 1.9, band: 1.9 } ],   // band = the letterbox's height factor after each step
+        snap: { inDur: 0.067, overshoot: 0.06, settle: 0.06 },   // 2-frame snap: it lands hard on the beat
+        push: 0.035,                       // continued slow push across the hold
+        out: { at: 2.7667, dur: 0.0667 },  // 2-frame snap-out on the punched shot, landing in the band on the cut to the tail
+        faceX: 540,                        // where the face is re-centred
+        // crisp shake: 3 frames from the landing (offset, then a smaller kick back, then a tap), px and degrees per step
+        shake: { amp: [12, 16, 26], rot: [0.25, 0.32, 0.55], outAmp: 8 },
+        vignette: [0.20, 0.32, 0.44],      // tightens a notch on every step (and narrows), centred on the face
+        // light per landing: a contrast/saturation kick with a small exposure lift (bright sky: never a frame-wide flash)
+        light: { amp: [0.5, 0.7, 1.0], brightness: 0.035, contrast: 0.08, saturate: 0.16, decay: 0.28 },
+        sharpen: { from: 1 },              // unsharp pass on the band from step 2 until the snap-out
+        blur: { max: 0.10, k: 0.6 },
+        // the payoff accent: the reaction word, real 3D caption-yellow letters with the creator ink outline
+        word: {
+          text: "BRO?!", size: 298, cx: 504, cy: 1290,    // cap centre during the hold (lower third, over his hoodie)
+          depth: 70, bevel: 8, tilt: 0.30, yaw: -0.16, rz: -0.045, ink: 15,
+          dock: { at: 2.7667, dur: 0.14, cy: 1378, s: 0.76 },   // on the snap-out it docks on the band's lower edge
+          out: 3.24,                                            // then stomps out (gone by ~3.42); footage-only tail after that
+          face: ["#FFE84A", "#FFC814", "#FF8E0A"], side: ["#C95F00", "#2E0C00"], lip: "#FFC23A", hot: "#FFF8D8", inkColor: "#0B0C10"
+        }
+      };
+      (function () {
+        const W = 1080, H = 1920, SW = 1920, SH = 1080, FPS = 30, PAD = 60, C = CONFIG;
+        const $ = (s) => document.querySelector(s);
+        const cam = $("#cam"), grade = $("#grade"), W0 = $("#W0"), L0 = $("#L0"), fx = $("#fx"), vig = $("#vig");
+        const taps = [1, 2, 3, 4, 5, 6].map((i) => { const w = $("#T" + i); return { w, l: w.firstElementChild }; });
+        const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), lerp = (a, b, k) => a + (b - a) * k;
+        const smooth = (u) => { u = clamp(u, 0, 1); return u * u * (3 - 2 * u); };
+        const quadInOut = (u) => { u = clamp(u, 0, 1); return u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2; };
+        const cut1 = C.shots[1].cut, cut2 = C.shots[2].cut;
+
+        function shotAt(t) { let sh = C.shots[0]; for (const s of C.shots) if (t >= s.cut) sh = s; return sh; }
+        function detail(t) {
+          const sh = shotAt(t), k = sh.track, lt = clamp(t - sh.start + (sh.media || 0), k[0][0], k[k.length - 1][0]);
+          for (let i = 1; i < k.length; i++) if (lt <= k[i][0]) {
+            const u = (lt - k[i - 1][0]) / (k[i][0] - k[i - 1][0]);
+            return [lerp(k[i - 1][1], k[i][1], u), lerp(k[i - 1][2], k[i][2], u)];
+          }
+          return [k[k.length - 1][1], k[k.length - 1][2]];
+        }
+        // one punch: a 2-frame cubic-out snap past the target, then a damped spring settle
+        function zIn(tau) {
+          const S = C.snap;
+          if (tau <= 0) return 0;
+          if (tau < S.inDur) { const u = tau / S.inDur; return (1 + S.overshoot) * (1 - Math.pow(1 - u, 3)); }
+          const w = tau - S.inDur; return 1 + S.overshoot * Math.exp(-w / S.settle) * Math.cos(Math.PI * w / (S.settle * 2.4));
+        }
+        // cz = the content's stepped zoom; wf = the band's height factor (1 until the burst); cp = creep/push; o = snap-out
+        function zoom(t) {
+          let cz = 1, prev = 1, wf = 1, pb = 1; const sz = [];
+          C.steps.forEach((st) => { const r = st.zoom / prev, z = zIn(t - st.at); sz.push(z); cz *= 1 + (r - 1) * z; prev = st.zoom; wf += (st.band - pb) * z; pb = st.band; });
+          const h0 = C.steps[C.steps.length - 1].at + C.snap.inDur;
+          let push = 1 + C.push * smooth((t - h0) / (C.out.at - h0));
+          const u = clamp((t - C.out.at) / C.out.dur, 0, 1), o = 1 - Math.pow(1 - u, 2.5);
+          cz = 1 + (cz - 1) * (1 - o); push = 1 + (push - 1) * (1 - o);
+          wf = 1 + (wf - 1) * (1 - o);
+          const creep = t < cut1 ? 1 + C.creep * smooth(t / cut1) : (t >= cut2 ? 1 + C.tailCreep * smooth((t - cut2) / (C.end - cut2)) : 1);
+          return { cz, wf, cp: creep * push, sz, o };
+        }
+        function camera(t) {
+          const zm = zoom(t), p = detail(t), s = C.base * zm.cz * zm.cp, sh = shotAt(t);
+          const Hw = Math.min(SH * C.base * zm.wf, s * SH), top = C.bandY - Hw / 2;   // the band never outgrows the image
+          const a = clamp((zm.cz - 1) / 0.25, 0, 1);
+          const base = (W - s * SW) * (sh.ax == null ? 0.5 : sh.ax);
+          let Tx = lerp(base, C.faceX - s * p[0], a);
+          Tx = clamp(Tx, Math.min(0, W - s * SW), 0);
+          const Ty = top - (s * SH - Hw) * (p[1] / SH);      // the zoom inside the band is about the face's height
+          return { s, cz: zm.cz, wf: zm.wf, sz: zm.sz, o: zm.o, Hw, top, Tx, Ty, qx: Tx + s * p[0], qy: Ty + s * p[1] };
+        }
+        // crisp, decaying 3-frame shake from each landing: a hard offset, a smaller kick back, a tap, then still
+        const KICK = [1, -0.55, 0.22];
+        const IMPACTS = C.steps.map((st, i) => ({ t: st.at + C.snap.inDur, amp: C.shake.amp[i], rot: C.shake.rot[i], seed: 13 + i * 17 }))
+          .concat([{ t: C.out.at + C.out.dur, amp: C.shake.outAmp, rot: 0.12, seed: 91 }]);
+        function shake(t) {
+          let x = 0, y = 0, r = 0;
+          for (const im of IMPACTS) {
+            const k = Math.floor((t - im.t) * FPS + 1e-4); if (k < 0 || k >= KICK.length) continue;
+            const ang = Look.hash(im.seed) * Math.PI * 2, e = KICK[k] * im.amp;
+            x += Math.cos(ang) * e * 0.8; y += (0.6 + 0.4 * Math.abs(Math.sin(ang))) * e;   // mostly a vertical thump
+            r += (Look.hash(im.seed + 5) > 0.5 ? 1 : -1) * KICK[k] * im.rot;
+          }
+          return { x, y, r };
+        }
+        // 1-frame attack, 2-frame hold, then decay
+        function pop(t, at, decay) {
+          const a = 1 / FPS, h = 2 / FPS, u = t - at;
+          if (u <= 0) return 0; if (u < a) return u / a; if (u < a + h) return 1;
+          return Math.max(0, 1 - quadInOut((u - a - h) / decay));
+        }
+        const onTaps = (t) => t >= cut1 + 1 / FPS && t < cut2 - 1.5 / FPS;
+
+        function render(t) {
+          const c = camera(t), sh = shake(t);
+          // never show the clip's side edges: the horizontal shake is limited to the image's spare width; rotation stays tiny
+          const room = Math.max(0, Math.min(-c.Tx, c.s * SW + c.Tx - W) - 8);
+          const sx = clamp(sh.x, -room, room), sr = room > 14 ? sh.r : 0;
+          gsap.set(cam, { x: sx, y: sh.y, rotation: sr });
+          // the band window (padded past the canvas sides) and its fx layer
+          const wl = -PAD, ww = W + 2 * PAD;
+          gsap.set(W0, { left: wl, top: c.top, width: ww, height: c.Hw });
+          gsap.set(L0, { x: c.Tx - wl, y: c.Ty - c.top, scale: c.s });
+          gsap.set(fx, { left: wl, top: c.top, width: ww, height: c.Hw });
+          // sharpen the band from step 2 until the snap-out (constant kernel; off well before the cut)
+          W0.style.filter = (t >= C.steps[C.sharpen.from].at && t < C.out.at) ? "url(#sharp)" : "none";
+
+          // zoom blur: each tap = the same frame scaled a little further about the face, clipped to the band
+          const hh = 0.5 / FPS, ds = Math.abs(camera(t + hh).s - camera(t - hh).s) / (2 * hh) / FPS / c.s;
+          const d = Math.min(C.blur.max, ds * C.blur.k), N = taps.length, live = onTaps(t) && d >= 0.004;
+          taps.forEach((tp, i) => {
+            if (!live) { tp.w.style.opacity = 0; return; }
+            const k = i + 1, f = 1 + d * k / N;
+            gsap.set(tp.w, { left: wl, top: c.top, width: ww, height: c.Hw });
+            gsap.set(tp.l, { x: c.qx + f * (c.Tx - c.qx) - wl, y: c.qy + f * (c.Ty - c.qy) - c.top, scale: f * c.s });
+            tp.w.style.opacity = (1 / (k + 1)).toFixed(4);
+            tp.l.style.filter = `blur(${(Math.min(8, (d / N) * 460 * (0.6 + 0.4 * k / N)) / (f * c.s)).toFixed(2)}px)`;
+            const r0 = 95 * c.s, r1 = 340 * c.s, mx = (c.qx - wl).toFixed(1), my = (c.qy - c.top).toFixed(1);
+            const m = `radial-gradient(circle at ${mx}px ${my}px, rgba(0,0,0,0) ${r0.toFixed(0)}px, rgba(0,0,0,1) ${r1.toFixed(0)}px)`;
+            tp.w.style.webkitMaskImage = m; tp.w.style.maskImage = m;
+          });
+
+          // light: a band-local contrast/saturation kick on every landing, with a small exposure lift
+          let e = 0; C.steps.forEach((st, i) => { e = Math.max(e, C.light.amp[i] * pop(t, st.at + C.snap.inDur - 1 / FPS, C.light.decay)); });
+          const Lt = C.light;
+          grade.style.filter = e > 0.002 ? `brightness(${(1 + Lt.brightness * e).toFixed(3)}) contrast(${(1 + Lt.contrast * e).toFixed(3)}) saturate(${(1 + Lt.saturate * e).toFixed(3)})` : "none";
+          // vignette tightens a notch on each step, centred on the face
+          const fxX = c.qx - wl, fxY = c.qy - c.top;
+          let v = 0, rx = 84, ry = 70;
+          c.sz.forEach((z, i) => { const k = clamp(z, 0, 1); v = lerp(v, C.vignette[i], k); rx = lerp(rx, 84 - 10 * (i + 1), k); ry = lerp(ry, 70 - 8 * (i + 1), k); });
+          v *= 1 - c.o;
+          vig.style.background = v > 0.004 ? `radial-gradient(ellipse ${rx.toFixed(1)}% ${ry.toFixed(1)}% at ${fxX.toFixed(0)}px ${fxY.toFixed(0)}px, rgba(0,0,0,0) 40%, rgba(2,2,4,${(v * 0.55).toFixed(3)}) 72%, rgba(2,2,4,${v.toFixed(3)}) 100%)` : "none";
+        }
+
+        gsap.set(cam, { transformOrigin: "540px 960px" });
+        Promise.all(["900 100px Archivo"].map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          // ---------- the payoff word ----------
+          const WD = C.word, G = window.SFX_GLYPHS, cap = G.cap * WD.size / G.upm, base0 = WD.cy + cap / 2;
+          const S = SFX3D({
+            W, H, glyphs: G, pcx: WD.cx, pcy: WD.cy, fov: 10,
+            lines: [{ text: WD.text, cx: WD.cx, base: base0, size: WD.size, maxInk: 790 }],
+            tracking: -0.012, depth: WD.depth, bevel: WD.bevel, tilt: WD.tilt, yaw: WD.yaw,
+            inkPx: WD.ink, inkColor: WD.inkColor, shadow: 0.7, shadowOff: [7, 16], curveSeg: 16, bevelSeg: 5, specW: 0.24, hotW: 9, hot: WD.hot,
+            sets: { base: { face: WD.face, side: WD.side, lip: WD.lip, metal: [0.0, 0.7], rough: [0.24, 0.26], emis: [0.30, 0.05], tint: [1.0, 0.4] } }
+          });
+          $("#word").appendChild(S.canvas);
+          const Ls = S.letters, T3 = C.steps[2].at, land = T3 + C.snap.inDur, WS = T3 + 0.5 / FPS, H2 = Look.hash;   // WS: the word's first frame is the band's first burst frame
+          const E = (n) => gsap.parseEase(n), eOut = E("power3.out"), eIn = E("power3.in"), eIO = E("power2.inOut"), eBack = E("back.out(2.2)");
+          const spin = Ls.map((L, i) => (H2(i * 7 + 5) - 0.5) * 0.5), jitR = Ls.map((L, i) => (H2(i * 7 + 3) - 0.5) * 0.06), jitY = Ls.map((L, i) => (H2(i * 7 + 1) - 0.5) * 8);
+          const dl = Ls.map((L, i) => Math.abs(i - (Ls.length - 1) / 2) * 0.012);   // the centre letters hit first, the edges a hair later
+
+          function wordState(t) {
+            const st = { letters: [], word: { px: WD.cx, py: WD.cy } };
+            const v = t - land, D = WD.dock, xo = t - WD.out;
+            // the hit: the whole word squashes onto its baseline and springs back; a slow push through the hold
+            let sx = 1, sy = 1;
+            if (v >= 0) { const k = Math.exp(-v / 0.07) * Math.cos(v * 34); sy = 1 - 0.10 * k; sx = 1 + 0.05 * k; }
+            const hold = clamp((t - land) / (D.at - land), 0, 1);
+            let g = 1 + 0.03 * eIO(hold);
+            // dock: on the snap-out it rides down onto the band's lower edge and settles a size smaller
+            const dk = clamp((t - D.at) / D.dur, 0, 1), dke = eBack(dk);
+            g *= lerp(1, D.s, dke);
+            const dy = (D.cy - WD.cy) * dke;
+            // exit: a 2-frame pop, then a stomp flat into its baseline with a vertical motion blur; cut on the zero frame
+            let ink = 1, gone = false;
+            if (xo >= 0) {
+              const pp = clamp(xo / 0.067, 0, 1), cl = clamp((xo - 0.067) / 0.13, 0, 1);
+              g *= 1 + 0.06 * Math.sin(Math.PI * pp * 0.5) * (1 - cl);
+              sy *= 1 - eIn(cl); sx *= 1 - 0.35 * eIn(cl);
+              ink = clamp((1 - eIn(cl)) * 1.4, 0, 1); gone = cl >= 1 || sy < 0.02;
+            }
+            // crisp shake with the landing punch (its own, 70% of the band's)
+            let wx = 0, wy = 0;
+            const k3 = Math.floor((t - land) * FPS + 1e-4);
+            if (k3 >= 0 && k3 < KICK.length) { const ang = H2(13 + 2 * 17) * Math.PI * 2, e = KICK[k3] * C.shake.amp[2] * 0.7; wx = Math.cos(ang) * e * 0.8; wy = (0.6 + 0.4 * Math.abs(Math.sin(ang))) * e; }
+            Object.assign(st.word, { x: wx, y: wy + dy, sx: g * sx, sy: g * sy, rz: WD.rz, py: WD.cy + cap * 0.5 });   // pivot on the baseline
+            Ls.forEach((L, i) => {
+              const u = t - WS, dur = 0.05 + dl[i];
+              if (u < 0 || gone) { st.letters.push({ vis: false }); return; }
+              let s, r = jitR[i], y = jitY[i];
+              if (u < dur) { const p = u / dur; s = 1.85 - 0.85 * eOut(p); r += spin[i] * (1 - p); }   // slams in from the camera
+              else { const w = u - dur; s = 1 + 0.05 * Math.exp(-w * 12) * Math.sin(w * 28); }
+              y += (s - 1) * L.cap * 0.5;
+              st.letters.push({ vis: true, top: u < dur + 0.034, s, rz: r, y, yaw: -0.05 + 0.1 * eIO(hold) });
+            });
+            // light on the hit: the key rakes across the bevels, one specular sweeps the faces, bloom peaks for 3 frames
+            const rk = eIO(clamp((t - land + 0.03) / 0.6, 0, 1));
+            st.key = { ang: -0.9 + 1.8 * rk, int: 2.0 + 2.2 * Math.exp(-Math.pow((v - 0.06) / 0.14, 2)) };
+            const spP = clamp((t - land - 0.02) / 0.28, 0, 1), x0 = WD.cx - 620, x1 = WD.cx + 760;
+            st.spec = { x: x0 + (x1 - x0) * eIO(spP), amp: spP > 0 && spP < 1 ? 0.65 * Math.sin(Math.PI * spP) : 0 };
+            st.flash = v < 0 ? 0 : v < 0.1 ? 0.2 : 0.2 * Math.exp(-(v - 0.1) / 0.12);
+            st.bloom = 0.12 + (v < 0 ? 0 : v < 0.1 ? 0.5 : 0.5 * Math.exp(-(v - 0.1) / 0.13));
+            st.ink = ink;
+            return st;
+          }
+          const drawWord = (t) => { const on = t >= WS - 0.001 && S.draw(wordState(t)); $("#word").style.visibility = on ? "visible" : "hidden"; };
+
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, C.end, (p) => { const t = p * C.end; render(t); drawWord(t); });
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") { render(e.detail.time); drawWord(e.detail.time); } });
+          Look.mblur(tl, "#word", WD.out + 0.067, 0.13, { x: 0, y: 0, to: [0, 8], ease: "power2.in" });
+          tl.set({}, {}, C.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+          render(0); drawWord(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

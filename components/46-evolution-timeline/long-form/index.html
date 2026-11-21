@@ -1,0 +1,249 @@
+<!doctype html>
+<!-- GTA-niche 46 Evolution timeline, variant A (16:9 long-form, 1920x1080, 30 fps): "3D timeline".
+     The creators' release-year tag (white heavy numerals, thin black stroke, top-right, no box) built as a real Three.js timeline:
+     every year from the first to the last is an extruded, bevelled card standing on a glossy enamel spine that recedes into depth.
+     The camera travels along the spine; each card lifts upright and lights up as it reaches the front slot, the passed one tips
+     forward and drops away. The last year lands as the payoff: it lifts, locks, and fills with gold. See ../DECISIONS.md.
+     Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <script src="media/year3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; pointer-events: none; }
+      #tl3d { position: absolute; inset: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.95" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <!-- each incoming shot starts 2 frames early underneath the outgoing one (DESIGN 11.25): no blank frame at a cut -->
+        <video id="shotA" class="clip shot" style="z-index:3" src="assets/shots/v49-gp-franklin-mural-h.mp4" muted playsinline data-start="0" data-duration="2.55" data-media-start="0.3" data-track-index="0"></video>
+        <video id="shotB" class="clip shot" style="z-index:2" src="assets/shots/v28-tennis-mansion-h.mp4" muted playsinline data-start="2.483" data-duration="2.517" data-media-start="0" data-track-index="2"></video>
+        <video id="shotC" class="clip shot" style="z-index:1" src="assets/shots/v11-yacht-h.mp4" muted playsinline data-start="4.933" data-duration="2.017" data-media-start="0.05" data-track-index="3"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="6.95" data-track-index="1"><div id="tl3d"></div></div>
+    </div>
+    <script>
+      const CONFIG = {
+        stops: [2013, 2015, 2022],            // the years the edit holds on, one clip each; the last is the payoff. Every year between gets a tick on the spine
+        place: { x: 1578, base: 236 },        // the front slot: ink centre x and the card's base line (px). Docked top-right like the creators' tag
+        font: { size: 176 },                  // Inter Black em (cap 128 px): the year is ~470 px wide, about a quarter of the frame
+        scene: { pcx: 1350, pcy: 345, fov: 34, elev: 0.13, yaw: 0.98, step: 1060, gaps: [1.3, 1.15], recede: 0.1, cardYaw: 0, lean: 0 },   // camera + spine geometry: older gaps open wider, older cards recede into depth (no per-card lean)
+        depth: 26, bevel: 4, ink: 6, shadow: 0.62,
+        colors: {
+          white: ["#FFFFFF", "#EEF2F7", "#C3CCDA"], whiteSide: ["#7F889A", "#161A22"], whiteLip: "#E6EBF2",       // the lit card: white enamel
+          dim: ["#F7F9FC", "#E2E8F0", "#C0C9D6"], dimSide: ["#566074", "#0B0E14"], dimLip: "#EEF2F7",            // years behind: the same white enamel, a touch less lit, dark graphite walls (white + ink on any plate)
+          gold: ["#FFF6CC", "#FFD54A", "#9A5207", "#FFC232"], goldSide: ["#B8680C", "#2A1200"], goldLip: "#FFF4C2", // the payoff year: polished gold, top / above the horizon / below it / bottom
+          rail: ["#FFFFFF", "#9FAABC"], hot: "#FFF6D0", ink: "#0B0C10"     // spine: white enamel bar (lit top, cool underside)
+        },
+        timing: {
+          enter: [0.0, 0.3],                     // the first year flies in from camera-right along the spine and settles in the slot (landed by 0.25)
+          travel: [[2.13, 2.55], [4.5, 5.0]],    // the camera travels to the next stop; each new year arcs in, falling, and lands on its cut
+          land: { h: [0, 56, 84], fall: 0.22, sq: [0, 0.1, 0.18] },   // per stop: drop height (px) onto the slot, fall time, contact squash   // per stop: drop height (px) onto the slot, fall time, contact squash
+          out: 6.3,                              // newest first, every card tips back and folds away (0.26 s each, 0.07 s stagger)
+          end: 6.95
+        }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, C = CONFIG.colors, SCN = CONFIG.scene, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x)), PI = Math.PI;
+        const E = (n) => gsap.parseEase(n), eOut = E("power2.out"), eIn = E("power2.in"), eIO = E("power2.inOut"), eTrav = E("power3.inOut"),
+          eArr = E("expo.out"), eSine = E("sine.inOut"), eSpec = E("power3.inOut");
+        const sstep = (a, b, x) => { x = clamp((x - a) / (b - a), 0, 1); return x * x * (3 - 2 * x); };
+        Promise.all(["900 100px Inter"].map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const G = window.YEAR_GLYPHS, P = CONFIG.place;
+          const S = YEAR3D({
+            W: 1920, H: 1080, glyphs: G, size: CONFIG.font.size, pcx: SCN.pcx, pcy: SCN.pcy, fov: SCN.fov,
+            depth: CONFIG.depth, bevel: CONFIG.bevel, curveSeg: 12, bevelSeg: 3, bevelK: 0.9,
+            inkPx: CONFIG.ink, inkColor: C.ink, shadow: CONFIG.shadow, shadowOff: [4, 10], specW: 0.3, specTint: 0.95, hotW: 5, hot: C.hot,
+            bloomClip: 0.85,
+            fill: { set: "gold" },
+            sets: {
+              dim: { face: C.dim, side: C.dimSide, lip: C.dimLip, metal: [0.1, 0.6], rough: [0.34, 0.32], emis: [0.1, 0.03], lit: "white" },
+              white: { face: C.white, side: C.whiteSide, lip: C.whiteLip, metal: [0.0, 0.55], rough: [0.28, 0.3], emis: [0.4, 0.06] },
+              gold: { face: C.gold, side: C.goldSide, lip: C.goldLip, metal: [0.35, 0.8], rough: [0.2, 0.24], emis: [0.5, 0.08], tint: [1.0, 0.45], horizon: 0.44 }
+            },
+            rail: { w: 22, h: 10, colors: C.rail },   // spine: flat white enamel bars (the single rail mesh is unused)
+            prewarm: [["2", "dim", 6], ["0", "dim", 4], ["1", "dim", 3], ["3", "dim", 1], ["5", "dim", 1]]
+          });
+          $("#tl3d").appendChild(S.canvas);
+          const CAP = S.cap, DT = S.depthTot, CELL = S.adv("0");
+          // ---- the spine: a ground line seen from slightly above (elev); the past recedes up-left into depth (yaw) ----
+          const V = (x, y, z) => new THREE.Vector3(x, y, z);
+          const qGround = new THREE.Quaternion().setFromAxisAngle(V(1, 0, 0), SCN.elev);
+          const past = V(-Math.cos(SCN.yaw), 0, -Math.sin(SCN.yaw)).applyQuaternion(qGround);   // r > 0: older years
+          const up = V(0, 1, 0).applyQuaternion(qGround);
+          const H0 = V(S.wx(P.x), S.wy(P.base), 0);                                             // the front slot's hinge (base, back edge)
+          const qYaw = new THREE.Quaternion().setFromAxisAngle(V(0, 1, 0), SCN.cardYaw);
+          const qRail = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(V().crossVectors(up, past).normalize(), up, past));
+          const at = (r, h) => H0.clone().addScaledVector(past, r).addScaledVector(up, h || 0);
+          // ---- stops (cards) and every year between (ticks), one spine step per stop ----
+          const STEP = SCN.step, stops = CONFIG.stops.map(String), US = [0];
+          for (let k = 1; k < stops.length; k++) US.push(US[k - 1] + STEP * (SCN.gaps[k - 1] || 1));   // spine distance per gap, oldest first: perspective closes the far gaps up
+          const ticks = [];
+          for (let k = 0; k < stops.length; k++) {
+            ticks.push({ u: US[k], major: true });
+            if (k < stops.length - 1) { const y0 = +stops[k], y1 = +stops[k + 1]; for (let y = y0 + 1; y < y1; y++) ticks.push({ u: US[k] + STEP * (y - y0) / (y1 - y0), major: false }); }
+          }
+          const layout = (tx) => { const out = []; let L = 1e9, R = -1e9;
+            for (let i = 0; i < tx.length; i++) { const ch = tx[i], c = i * CELL + (S.inkL(ch) + S.inkR(ch)) / 2; out.push({ ch, c });
+              L = Math.min(L, i * CELL + S.inkL(ch)); R = Math.max(R, i * CELL + S.inkR(ch)); }
+            out.forEach((d) => (d.dx = d.c - (L + R) / 2)); return out; };
+          const LAY = stops.map(layout);
+          // camera: the year coordinate sitting in the front slot
+          const arrive = [T.enter[1], T.travel[0][1], T.travel[1][1]], tPay = arrive[arrive.length - 1];
+          // travel: the camera eases into the next stop (power2.inOut) while the incoming year falls onto its slot under gravity
+          // (see landing): horizontal speed dies as vertical speed peaks, so it reads as a drop that lands on the cut; the impact
+          // kicks the camera into a small damped recoil
+          const eGo = E("power1.inOut"), OV = 0.02;
+          const leg = (t, a, b, c0, c1) => {
+            if (t < a) return c0;
+            if (t < b) return c0 + (c1 - c0) * eGo((t - a) / (b - a));
+            const u = t - b; return c1 + (c1 - c0) * OV * Math.sin(u * 15) * Math.exp(-u * 7);
+          };
+          function camAt(t) {
+            const e0 = clamp((t - T.enter[0]) / (T.enter[1] - T.enter[0]), 0, 1);
+            let c = US[0] - STEP + STEP * E("power3.out")(e0);   // the first year decelerates in (no cut to hit)
+            T.travel.forEach(([a, b], k) => { if (t >= a) c = leg(t, a, b, US[k], US[k + 1]); });
+            return c;
+          }
+          const tmpQ = new THREE.Quaternion(), qLift = new THREE.Quaternion(), qUp = qGround.clone().multiply(qYaw);
+          // a card: hinge at spine position r, lifted by phi (0 upright, -PI/2 lying back), scale s, squash sq.
+          // Returns its frame so the year ticks can hang between neighbouring cards.
+          function card(items, i, r, phi, s, lit, sq, fillOn, draw, h) {
+            qLift.setFromAxisAngle(V(1, 0, 0), phi);
+            const q = qGround.clone().multiply(qYaw).multiply(qLift);
+            const cen = at(r, h || 0).sub(V(0, -CAP / 2 * sq[1], -DT).multiplyScalar(s).applyQuaternion(q));
+            if (draw && s > 0.12) LAY[i].forEach((d) => {   // below 12% the ink outline would swallow the card: it leaves (the motion blur softens it)
+              const p = cen.clone().add(V(d.dx * s * sq[0], 0, 0).applyQuaternion(q));
+              items.push({ ch: d.ch, set: "dim", p: [p.x, p.y, p.z], q, s, lit, sx: sq[0], sy: sq[1], fillOn, specOn: fillOn });
+            });
+            const hw = LAY[i].half * s * sq[0], foot = (dx) => cen.clone().add(V(dx, -CAP / 2 * s * sq[1], 0).applyQuaternion(q));
+            const mid = (dx) => cen.clone().add(V(dx, 0, -DT * 0.5 * s).applyQuaternion(q));
+            return { L: foot(-hw), R: foot(hw), Lm: mid(-hw), Rm: mid(hw), s };
+          }
+          LAY.forEach((L) => { L.half = Math.max(...L.map((d) => d.dx + (S.inkR(d.ch) - S.inkL(d.ch)) / 2)); });
+          const spring = (u, a, w, d) => (u < 0 ? 0 : a * Math.sin(u * w) * Math.exp(-u * d));
+          // landing: an arriving year drops onto its slot under gravity (stretching with speed), squashes on contact with its
+          // base pinned, hops once and squashes again into place (weight, overshoot, lock-in). Its shadow waits on the slot.
+          const LD = T.land;
+          function landing(i, t) {
+            const H = LD.h[i] || 0, A = LD.sq[i] || 0, u = t - arrive[i], k = A / 0.18;
+            if (!A) return { h: 0, sx: 1, sy: 1 };
+            if (u < 0) { const v = clamp((u + LD.fall) / LD.fall, 0, 1), sp = (0.3 + 1.4 * v) / 1.7;   // thrown down: starts with speed, gravity adds
+              return { h: H * (1 - (0.3 * v + 0.7 * v * v)), sx: 1 - 0.035 * k * sp, sy: 1 + 0.08 * k * sp }; }
+            if (u < 0.1) { const q = Math.sin(PI * u / 0.1); return { h: 0, sx: 1 + 0.5 * A * q, sy: 1 - A * q }; }               // slam: squash, base pinned
+            if (u < 0.3) { const v = (u - 0.1) / 0.2, q = 4 * v * (1 - v); return { h: 120 * A * q, sx: 1 - 0.1 * A * q, sy: 1 + 0.22 * A * q }; }   // bounce (shadow stays on the slot)
+            if (u < 0.4) { const q = Math.sin(PI * (u - 0.3) / 0.1); return { h: 0, sx: 1 + 0.18 * A * q, sy: 1 - 0.36 * A * q }; }   // lock-in: second, smaller squash
+            return { h: 0, sx: 1, sy: 1 };
+          }
+          function stateAt(t) {
+            const items = [], tks = [], st = { items, ticks: tks };
+            if (t < T.enter[0]) return st;
+            const cam = camAt(t), uo = t - T.out, ul = t - tPay;
+            // exit: newest first, each card tips back over its hinge (back.in) and shrinks to nothing over 0.26 s; 0.07 s stagger
+            const eBi = E("back.in(1.4)");
+            const fold = (i) => (uo <= 0 ? 0 : clamp((uo - (stops.length - 1 - i) * 0.07) / 0.26, 0, 1));
+            const frames = [];
+            stops.forEach((yr, i) => {
+              const r = cam - US[i];
+              let phi, lit, s = 1;
+              if (r < 0) { const l = 1 - clamp(-r / (STEP * 0.95), 0, 1); phi = (-PI / 2) * Math.pow(1 - l, 1.6); lit = sstep(0.3, 0.95, l); }
+              else { const k = sstep(0, STEP * 0.9, r); phi = SCN.lean * k; lit = 1 - 0.78 * k; s = 1 - SCN.recede * Math.min(r / STEP, 2); }
+              phi += i === 0 ? spring(t - arrive[0] + 0.14, 0.1, 15, 6.5) : spring(t - arrive[i], 0.1, 15, 6.5);  // lands with momentum: tips past upright and settles
+              const last = i === stops.length - 1, ld = landing(i, t);
+              const sq = [ld.sx, ld.sy];
+              const fo = fold(i);
+              phi = phi + (-PI / 2 - phi) * eBi(fo); s *= 1 - eIn(fo);
+              frames.push(card(items, i, r, phi, s, lit, sq, last ? 1 : 0, r > -STEP * 1.2 && fo < 1, ld.h));
+            });
+            // the spine: a flat white enamel bar from the older card to the newer one (the dash in "2013—2015"), one engraved groove
+            // per year in between. It unrolls behind the arriving year.
+            const segs = []; st.segs = segs;
+            const NS = stops.length - 1;
+            for (let k = 0; k < NS; k++) {
+              const y0 = +stops[k], y1 = +stops[k + 1], n = y1 - y0 - 1;
+              const A = frames[k].Rm, Bf = frames[k + 1].Lm, sc = frames[k].s, gap = 22 * sc;
+              if (sc <= 0.02) continue;
+              // unrolls behind the arriving year; on the exit it retracts into the older year as the newer one folds
+              const rNew = cam - US[k + 1], grow = eOut(sstep(-STEP * 0.85, -STEP * 0.12, rNew)) * (1 - eIO(clamp(fold(k + 1) * 1.6, 0, 1)));
+              if (grow <= 0.01) continue;
+              const B = A.clone().lerp(Bf, grow);
+              const dir = B.clone().sub(A), D = dir.length(); if (D < 2 * gap + 6) continue;
+              dir.normalize();
+              const yAx = up.clone().addScaledVector(dir, -up.dot(dir)).normalize(), xAx = V().crossVectors(yAx, dir);
+              const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAx, yAx, dir));
+              const p0 = A.clone().addScaledVector(dir, gap);
+              const Dfull = A.distanceTo(Bf), len = D - gap - (grow >= 1 ? gap : 0);
+              if (len < 4) continue;
+              segs.push({ p: [p0.x, p0.y, p0.z], q, thx: 12 * sc, thy: 23 * sc, len, glow: 0,
+                notch: { step: (Dfull - 2 * gap) / (n + 1) / len, n, w: 3.6 * sc } });
+            }
+            // ---- payoff light: gold fill rises through the last year on the lock, the key rakes, one specular band, bloom ----
+            // the impact pumps gold up from the base (0.2 s, on the contact), the key rakes, one gold-tinted specular band crosses the
+            // payoff card only, the gold ignites (flash on the gold region only) and blooms on its faces (clipped: no halo on the sky)
+            // slam (5.0): gold pumps up from the base through the bounce (0.26 s); lock-in (second contact, 5.3): the gold ignites
+            // (flash on the gold region only, held 3 frames), bloom on its faces, the key rakes, one gold-tinted sweep 5.36-5.78
+            const LK = 0.3, ulk = ul - LK;
+            const yB = P.base + 40, yT = P.base - CAP - 60, uf = ul, fp = clamp(uf / 0.26, 0, 1);
+            st.fill = { y: uf < 0 ? yB + 900 : yB + (yT - yB) * eSine(fp) - (uf > 0.26 ? (uf - 0.26) * 900 : 0), amp: uf < 0 ? 0 : 7 * (1 - 0.5 * fp), ph: t * 15, hot: uf < 0 ? 0 : 1.1 + 0.9 * Math.exp(-Math.max(ul, 0) / 0.1) };
+            st.key = { ang: -0.9 + 1.8 * eIO(clamp((ul + 0.05) / 0.8, 0, 1)) + 0.35 * Math.max(ul - 0.75, 0), int: 2.0 + 0.5 * Math.exp(-Math.pow((ulk - 0.03) / 0.12, 2)) };
+            const spP = clamp((ulk - 0.06) / 0.42, 0, 1), sx0 = P.x - 380, sx1 = P.x + 440;
+            st.spec = { x: sx0 + (sx1 - sx0) * eIO(spP), amp: spP > 0 && spP < 1 ? 0.55 * Math.pow(Math.sin(PI * spP), 0.8) : 0 };
+            st.flash = ulk >= 0 ? (ulk < 0.1 ? 0.3 : 0.3 * Math.exp(-(ulk - 0.1) / 0.14)) : 0;
+            st.bloom = 0.08 + (ulk < 0 ? 0 : ulk < 0.1 ? 0.5 : 0.5 * Math.exp(-(ulk - 0.1) / 0.16));
+            // the landing card's shadow (screen region right of the previous year)
+            for (let i = 1; i < stops.length; i++) { const u = t - arrive[i];
+              if (u > -LD.fall - 0.15 && u < 0.45) { const Lm = frames[i].Lm, pr = S.project([Lm.x, Lm.y, Lm.z]);
+                st.shLift = { h: landing(i, t).h * sstep(-LD.fall - 0.15, -LD.fall, u), x0: pr[0] - 85 }; } }
+            return st;
+          }
+          const tl = gsap.timeline({ paused: true });
+          // motion blur: while the camera travels (and on the entrance, the payoff squash and the exit) a frame is the average of
+          // sub-frame renders across a 0.45-frame shutter, so the swing-ins streak along their path instead of strobing
+          const SHUT = 0.45 / 30;
+          const render = (t) => {
+            const st = stateAt(t);
+            const dc = Math.abs(camAt(t) - camAt(t - SHUT));
+            let n = Math.ceil(dc / 1.6);
+            for (let i = 1; i < arrive.length; i++) if (t > arrive[i] - LD.fall - 0.02 && t < arrive[i] + 0.44) n = Math.max(n, t < arrive[i] + 0.03 ? 9 : 5);   // the drop, squash and hop
+            if (t > T.out && t < T.out + 0.5) n = Math.max(n, 6);
+            n = Math.min(n, 28);
+            if (n > 1) { st.subs = []; for (let k = 0; k < n; k++) st.subs.push(stateAt(t - SHUT * k / (n - 1))); }
+            const on = S.draw(st); $("#tl3d").style.visibility = on ? "visible" : "hidden";
+          };
+          Look.drive(tl, 0, T.end, (p) => render(p * T.end));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") render(e.detail.time); });
+          if (plate) {
+            Look.impact(tl, tPay, { shake: "#shake", amp: 10, dur: 0.28, zoom: 1.03, flash: 0 });         // the slam
+            Look.impact(tl, tPay + 0.3, { shake: "#shake", amp: 4, dur: 0.16, zoom: 1.01, flash: 0 });    // the lock-in
+            Look.push(tl, "#push", 0, T.end, { from: 1.0, to: 1.04 });
+          }
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+          render(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,343 @@
+<!doctype html>
+<!-- 24 Blur-fill reframe, variant A "Blur fill" (9:16, 1080x1920, 30 fps, 5.7 s).
+     A horizontal clip on a vertical canvas: the clip plays on the face of a real Three.js slab (a 1:1 crop of the 16:9 clip
+     at <= 1.0x, inside a machined graphite bezel with polished, rounded chamfers, real thickness, PMREM reflections of a
+     studio and of the shot itself) floating over a dark, graded blur of the same clip.
+     It opens tilted in 3D, swings flat and seats on the first cut (rigid-body settle, the shadow tightens), and a light rakes
+     across the chamfers (HDR bloom on the metal only; the footage face is never overlaid). Every later cut jolts the slab.
+     It tips back to its opening pose on the last frame, so the loop closes.
+     Kind "full": it always shows footage; bg:"none" keeps the footage. See gta/DESIGN.md and ../DECISIONS.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #040507; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif; background: #040507; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      /* the bed: the same clip, full-bleed, defocused and graded dark (blacks hold) */
+      #bed { position: absolute; inset: -60px; overflow: hidden; will-change: filter; }
+      #bedPush { position: absolute; inset: 0; }
+      .bw { position: absolute; inset: 0; }
+      #bedShade { position: absolute; inset: 0; pointer-events: none;
+        background:
+          radial-gradient(ellipse 110% 62% at 50% 47%, rgba(2,3,5,0) 52%, rgba(2,3,5,.42) 100%),
+          linear-gradient(180deg, rgba(2,3,5,.38) 0%, rgba(2,3,5,0) 18%, rgba(2,3,5,0) 80%, rgba(2,3,5,.46) 100%); }
+      #bedGrain { position: absolute; inset: 0; pointer-events: none; }
+      #out { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; display: block; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5.7" data-width="1080" data-height="1920">
+      <!-- One copy of each shot: it is the blurred bed, and its frame is the texture on the slab's face.
+           Each incoming shot starts 2 frames before its cut (hidden) so its frame is ready on the cut frame. -->
+      <div id="bed"><div id="bedPush">
+        <div class="bw" id="bw1"><video id="s1" class="clip shot" src="assets/shots/v07-biplane-sunset-h.mp4" muted playsinline data-start="0" data-duration="0.7334" data-media-start="0.3" data-track-index="0"></video></div>
+        <div class="bw" id="bw2"><video id="s2" class="clip shot" src="assets/shots/v11-yacht-h.mp4" muted playsinline data-start="0.6667" data-duration="1.9333" data-media-start="0" data-track-index="1"></video></div>
+        <div class="bw" id="bw3"><video id="s3" class="clip shot" src="assets/shots/v52-gp-police-bridge-h.mp4" muted playsinline data-start="2.5333" data-duration="1.6667" data-media-start="0.5" data-track-index="2"></video></div>
+        <div class="bw" id="bw4"><video id="s4" class="clip shot" src="assets/shots/v17-deluxo-sunset-h.mp4" muted playsinline data-start="4.1333" data-duration="1.5667" data-media-start="0" data-track-index="3"></video></div>
+      </div></div>
+      <div id="bedShade"></div>
+      <div id="bedGrain"></div>
+      <canvas id="out" width="1080" height="1920"></canvas>
+    </div>
+    <script>
+      // Everything a creator edits. Clips: each shot is one <video> above (keep data-start = cut - 2 frames for every shot
+      // after the first, and never run past a clip's length); list the same ids and cuts here.
+      const CONFIG = {
+        shots: [                                   // cut: the frame the shot takes over; focusX: where the 1:1 crop centres (0..1)
+          { id: "s1", cut: 0,      focusX: 0.52 },
+          { id: "s2", cut: 0.7333, focusX: 0.40 },
+          { id: "s3", cut: 2.6,    focusX: 0.56 },
+          { id: "s4", cut: 4.2,    focusX: 0.60 }
+        ],
+        slab: { width: 1040, aspect: "1:1", centerY: 900, radius: 60, bevel: 11, ring: 8, depth: 38 },  // aspect "16:9" | "4:3" | "1:1"
+        metal: { ring: "#24272d", chamfer: "#8d939b" },  // brushed graphite ring, polished chamfers
+        bed: { blur: 38, brightness: 0.6, contrast: 1.2, saturate: 1.15, grain: 0.05 },
+        open: { x: 34, y: 46, z: -150, rx: 0.21, ry: -0.52, rz: -0.035 },   // the tilted opening pose (px, radians)
+        settle: { hz: 2.2, damp: 7.0 },             // rigid-body settle after the seat
+        kick: { rx: 0.05, ry: -0.026, z: 40 },      // jolt on every later cut
+        rake: { dur: 0.66, power: 11.0, bloom: 2.2 },             // the light rake across the chamfers after the seat
+        timing: { land: 0.7333, close: 5.3, end: 5.7 }
+      };
+      (function () {
+        const C = CONFIG, T = C.timing, $ = (s) => document.querySelector(s), FR = 1 / 30;
+        const CW = 1080, CH = 1920;
+        const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+        const c01 = (x) => clamp(x, 0, 1);
+        const sio = (x) => -(Math.cos(Math.PI * c01(x)) - 1) / 2;
+        const lerp = (a, b, k) => a + (b - a) * k;
+
+        // ---------- slab geometry (px; the front face at z = 0 maps 1:1 to canvas pixels) ----------
+        const AR = { "16:9": 9 / 16, "4:3": 3 / 4, "1:1": 1 }[C.slab.aspect] || 1;
+        const S = C.slab, SW = S.width, SH = Math.round(S.width * AR), BV = S.bevel, RING = S.ring, DEP = S.depth;
+        const holeW = SW - 2 * BV - 2 * RING, holeH = SH - 2 * BV - 2 * RING;       // the hole at the front cap
+        const scrW = holeW - 2 * BV, scrH = holeH - 2 * BV;                          // the visible screen (inner chamfer in)
+        const restY = CH / 2 - S.centerY;
+        const topEdgeY = restY + SH / 2 - BV;
+
+        // ---------- renderer ----------
+        const gl = document.createElement("canvas"); gl.width = CW; gl.height = CH;
+        const renderer = new THREE.WebGLRenderer({ canvas: gl, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+        renderer.setPixelRatio(1); renderer.setSize(CW, CH, false); renderer.setClearColor(0x000000, 0);
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+        const out = $("#out"), octx = out.getContext("2d");
+        const scene = new THREE.Scene();
+        const FOV = 28, DIST = (CH / 2) / Math.tan((FOV / 2) * Math.PI / 180);
+        const camera = new THREE.PerspectiveCamera(FOV, CW / CH, 10, DIST * 3);
+        camera.position.set(0, 0, DIST); camera.lookAt(0, 0, 0);
+
+        // ---------- footage frame source (the framework's injected frame at render time, the <video> in preview) ----------
+        function shotAt(t) { let s = C.shots[0]; for (const sh of C.shots) if (t >= sh.cut - 1e-4) s = sh; return s; }
+        function frameSource(sh) {
+          const v = document.getElementById(sh.id); if (!v) return null;
+          const img = v.nextElementSibling;
+          if (img && img.classList && img.classList.contains("__render_frame__") && img.complete && img.naturalWidth > 0) return img;
+          if (v.readyState >= 2 && v.videoWidth > 0) return v;
+          return null;
+        }
+
+        // ---------- the face: the cropped clip at <= 1.0x, with a recessed inner shadow under the bezel ----------
+        const face = document.createElement("canvas"); face.width = scrW; face.height = scrH;
+        const fctx = face.getContext("2d");
+        const faceTex = new THREE.CanvasTexture(face); faceTex.colorSpace = THREE.SRGBColorSpace;
+        faceTex.minFilter = THREE.LinearFilter; faceTex.generateMipmaps = false;
+        const foot = document.createElement("canvas"); foot.width = 256; foot.height = 144;   // small copy for the env reflection
+        const footCtx = foot.getContext("2d");
+        const footTex = new THREE.CanvasTexture(foot); footTex.colorSpace = THREE.SRGBColorSpace;
+        function drawFace(t) {
+          const sh = shotAt(t), src = frameSource(sh); if (!src) return false;
+          const iw = src.naturalWidth || src.videoWidth || 1920, ih = src.naturalHeight || src.videoHeight || 1080;
+          const fa = scrW / scrH; let sw = ih * fa, shh = ih; if (sw > iw) { sw = iw; shh = iw / fa; }
+          const sx = clamp(sh.focusX * iw - sw / 2, 0, iw - sw), sy = (ih - shh) / 2;
+          try { fctx.drawImage(src, sx, sy, sw, shh, 0, 0, scrW, scrH); footCtx.drawImage(src, 0, 0, 256, 144); } catch (e) { return false; }
+          // the bezel's lip shades the glass edge (darkening only)
+          const E = 22, g = (x0, y0, x1, y1) => { const gr = fctx.createLinearGradient(x0, y0, x1, y1); gr.addColorStop(0, "rgba(0,0,0,.42)"); gr.addColorStop(1, "rgba(0,0,0,0)"); return gr; };
+          fctx.fillStyle = g(0, 0, 0, E); fctx.fillRect(0, 0, scrW, E);
+          fctx.fillStyle = g(0, scrH, 0, scrH - E); fctx.fillRect(0, scrH - E, scrW, E);
+          fctx.fillStyle = g(0, 0, E, 0); fctx.fillRect(0, 0, E, scrH);
+          fctx.fillStyle = g(scrW, 0, scrW - E, 0); fctx.fillRect(scrW - E, 0, E, scrH);
+          faceTex.needsUpdate = true; footTex.needsUpdate = true;
+          return true;
+        }
+
+        // ---------- the environment: a dark studio, a top softbox, two strip lights, and the shot itself in front ----------
+        const envScene = new THREE.Scene();
+        envScene.add(new THREE.Mesh(new THREE.SphereGeometry(60, 48, 24), new THREE.ShaderMaterial({
+          side: THREE.BackSide, depthWrite: false,
+          vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 lo = vec3(0.004,0.005,0.007), mid = vec3(0.030,0.034,0.042), hi = vec3(0.16,0.17,0.19);" +
+            " vec3 c = y < 0.0 ? mix(mid, lo, smoothstep(0.0, -0.6, y)) : mix(mid, hi, smoothstep(0.0, 0.9, y)); gl_FragColor = vec4(c, 1.0); }"
+        })));
+        const hdr = (r, g, b) => new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b), side: THREE.DoubleSide });
+        const softTop = new THREE.Mesh(new THREE.PlaneGeometry(34, 10), hdr(1.6, 1.58, 1.52)); softTop.position.set(0, 30, 16); softTop.lookAt(0, 0, 0); envScene.add(softTop);
+        const stripL = new THREE.Mesh(new THREE.PlaneGeometry(3, 26), hdr(0.55, 0.6, 0.7)); stripL.position.set(-36, 4, 14); stripL.lookAt(0, 0, 0); envScene.add(stripL);
+        const stripR = new THREE.Mesh(new THREE.PlaneGeometry(3, 26), hdr(0.7, 0.62, 0.55)); stripR.position.set(36, 4, 14); stripR.lookAt(0, 0, 0); envScene.add(stripR);
+        const footBand = new THREE.Mesh(new THREE.CylinderGeometry(44, 44, 30, 32, 1, true, -Math.PI / 3, 2 * Math.PI / 3),
+          new THREE.MeshBasicMaterial({ map: footTex, side: THREE.BackSide, color: new THREE.Color(0.9, 0.9, 0.9) }));
+        footBand.position.y = -2; envScene.add(footBand);
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 24), hdr(0.16, 0.15, 0.14)); floor.position.set(0, -28, 14); floor.lookAt(0, 0, 0); envScene.add(floor);
+        const pmrem = new THREE.PMREMGenerator(renderer); let envRT = null;
+
+        // ---------- lights ----------
+        const key = new THREE.DirectionalLight(0xfff2e2, 1.1); key.position.set(-900, 1400, 1600); scene.add(key);
+        scene.add(new THREE.HemisphereLight(0xb8c8ff, 0x1a1410, 0.5));
+
+        // ---------- materials: the rake is a moving point light added only to the metal (a Blinn lobe, windowed in x) ----------
+        const RK = { pos: { value: new THREE.Vector3(-9999, 0, 0) }, amt: { value: 0 }, w: { value: 290 }, only: { value: 0 }, win: { value: new THREE.Vector2(0, 100) } };
+        function withRake(mat, pw) {
+          mat.onBeforeCompile = (sh) => {
+            sh.uniforms.uRkPos = RK.pos; sh.uniforms.uRkAmt = RK.amt; sh.uniforms.uRkW = RK.w; sh.uniforms.uRkOnly = RK.only; sh.uniforms.uRkWin = RK.win;
+            sh.vertexShader = "varying vec3 vWP;\n" + sh.vertexShader.replace("#include <worldpos_vertex>",
+              "#include <worldpos_vertex>\n  vWP = (modelMatrix * vec4(transformed, 1.0)).xyz;");
+            sh.fragmentShader = "varying vec3 vWP; uniform vec3 uRkPos; uniform float uRkAmt; uniform float uRkW; uniform float uRkOnly; uniform vec2 uRkWin;\n" + sh.fragmentShader.replace("#include <opaque_fragment>",
+              "  { vec3 Nw = normalize(inverseTransformDirection(normal, viewMatrix));\n" +
+              "    vec3 Lr = normalize(uRkPos - vWP); vec3 Vv = normalize(cameraPosition - vWP); vec3 Hh = normalize(Lr + Vv);\n" +
+              "    float wx = (vWP.x - uRkPos.x) / uRkW, wy = (vWP.y - uRkWin.x) / uRkWin.y;\n" +
+              "    float sp = pow(clamp(dot(Nw, Hh), 0.0, 1.0), " + pw.toFixed(1) + ") * exp(-wx * wx - wy * wy);\n" +
+              "    vec3 rk = mix(diffuseColor.rgb, vec3(1.0, 0.96, 0.9), 0.55) * sp * uRkAmt;\n    outgoingLight = uRkOnly > 0.5 ? rk : outgoingLight + rk; }\n#include <opaque_fragment>");
+          };
+          return mat;
+        }
+        const ringMat = withRake(new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.metal.ring), metalness: 1, roughness: 0.34, clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 1.25 }), 240);
+        const chamMat = withRake(new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.metal.chamfer), metalness: 1, roughness: 0.18, clearcoat: 0.6, clearcoatRoughness: 0.05, envMapIntensity: 1.0 }), 60);
+        const faceMat = new THREE.MeshBasicMaterial({ map: faceTex, toneMapped: false });
+        const blackMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+
+        // ---------- the slab ----------
+        function rr(w, h, r, path) {
+          const s = path ? new THREE.Path() : new THREE.Shape(), x = -w / 2, y = -h / 2;
+          s.moveTo(x + r, y); s.lineTo(x + w - r, y); s.absarc(x + w - r, y + r, r, -Math.PI / 2, 0, false);
+          s.lineTo(x + w, y + h - r); s.absarc(x + w - r, y + h - r, r, 0, Math.PI / 2, false);
+          s.lineTo(x + r, y + h); s.absarc(x + r, y + h - r, r, Math.PI / 2, Math.PI, false);
+          s.lineTo(x, y + r); s.absarc(x + r, y + r, r, Math.PI, 1.5 * Math.PI, false);
+          return s;
+        }
+        function smoothSides(geo) {            // smooth normals across the rounded chamfers and walls (group 1 only)
+          const pos = geo.attributes.position, nor = geo.attributes.normal, g1 = geo.groups.find((g) => g.materialIndex === 1);
+          if (!g1) return; const acc = new Map(), key = (i) => Math.round(pos.getX(i) * 4) + "," + Math.round(pos.getY(i) * 4) + "," + Math.round(pos.getZ(i) * 4);
+          for (let i = g1.start; i < g1.start + g1.count; i++) { const k = key(i); const a = acc.get(k) || [0, 0, 0]; a[0] += nor.getX(i); a[1] += nor.getY(i); a[2] += nor.getZ(i); acc.set(k, a); }
+          for (let i = g1.start; i < g1.start + g1.count; i++) { const a = acc.get(key(i)), l = Math.hypot(a[0], a[1], a[2]) || 1; nor.setXYZ(i, a[0] / l, a[1] / l, a[2] / l); }
+          nor.needsUpdate = true;
+        }
+        const R0 = S.radius - BV;
+        const outer = rr(SW - 2 * BV, SH - 2 * BV, R0); outer.holes.push(rr(holeW, holeH, R0 - RING, true));
+        const bodyGeo = new THREE.ExtrudeGeometry(outer, { depth: DEP, bevelEnabled: true, bevelThickness: BV, bevelSize: BV, bevelSegments: 10, curveSegments: 28, steps: 1 });
+        bodyGeo.computeVertexNormals(); smoothSides(bodyGeo);
+        bodyGeo.translate(0, 0, -(DEP + BV));                                    // front cap at z = 0
+        const body = new THREE.Mesh(bodyGeo, [ringMat, chamMat]);
+        const scrGeo = new THREE.ShapeGeometry(rr(scrW + 3, scrH + 3, Math.max(4, R0 - RING - BV + 1.5)), 24);
+        { const p = scrGeo.attributes.position, uv = scrGeo.attributes.uv; for (let i = 0; i < p.count; i++) uv.setXY(i, (p.getX(i) + scrW / 2) / scrW, (p.getY(i) + scrH / 2) / scrH); uv.needsUpdate = true; }
+        const screen = new THREE.Mesh(scrGeo, faceMat); screen.position.z = -BV - 0.6;
+        const HALF = (DEP + 2 * BV) / 2;
+        const slab = new THREE.Group(), inner = new THREE.Group();
+        inner.position.z = HALF; inner.add(body); inner.add(screen); slab.add(inner); scene.add(slab);   // pivot at the centre of mass
+
+        // the soft shadow on the bed (darkening only), far enough back that the tilted slab never passes behind it
+        const SHZ = 1400, SHK = (DIST + SHZ) / DIST;
+        const shC = document.createElement("canvas"); shC.width = 512; shC.height = Math.round(512 * (SH + 260) / (SW + 260));
+        { const x = shC.getContext("2d"), k = 512 / (SW + 260); x.filter = "blur(" + Math.round(46 * k) + "px)"; x.fillStyle = "#000";
+          x.beginPath(); x.roundRect(130 * k, 130 * k, SW * k, SH * k, S.radius * k); x.fill(); }
+        const shTex = new THREE.CanvasTexture(shC);
+        const shadow = new THREE.Mesh(new THREE.PlaneGeometry(SW + 260, SH + 260), new THREE.MeshBasicMaterial({ map: shTex, transparent: true, depthWrite: false, toneMapped: false }));
+        shadow.renderOrder = -1; scene.add(shadow);
+
+        // ---------- HDR bloom on the hot metal only (the face renders black in this pass) ----------
+        const BLOOM_OK = renderer.capabilities.isWebGL2 && renderer.extensions.has("EXT_color_buffer_float");
+        const RTO = { type: THREE.HalfFloatType, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter };
+        const rtMain = new THREE.WebGLRenderTarget(CW / 2, CH / 2, Object.assign({ samples: 4 }, RTO));
+        const LV = [4, 8, 16].map((d) => [new THREE.WebGLRenderTarget(CW / d, CH / d, Object.assign({ depthBuffer: false }, RTO)), new THREE.WebGLRenderTarget(CW / d, CH / d, Object.assign({ depthBuffer: false }, RTO))]);
+        const postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), postScene = new THREE.Scene();
+        const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2)); quad.frustumCulled = false; postScene.add(quad);
+        const VS = "varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }";
+        const post = (u, fs, extra) => new THREE.ShaderMaterial(Object.assign({ uniforms: u, vertexShader: VS, fragmentShader: fs, depthTest: false, depthWrite: false, blending: THREE.NoBlending }, extra || {}));
+        const brightMat = post({ tSrc: { value: null }, uTh: { value: 0.5 } },
+          "uniform sampler2D tSrc; uniform float uTh; varying vec2 vUv; void main(){ vec4 c = texture2D(tSrc, vUv); float l = max(c.r, max(c.g, c.b)); float k = smoothstep(uTh, uTh + 1.2, l); gl_FragColor = vec4(c.rgb * k, 1.0); }");
+        const blurMat = post({ tSrc: { value: null }, uDir: { value: new THREE.Vector2() } },
+          "uniform sampler2D tSrc; uniform vec2 uDir; varying vec2 vUv; void main(){ vec3 c = texture2D(tSrc, vUv).rgb * 0.2270270270;" +
+          " c += (texture2D(tSrc, vUv + uDir * 1.3846153846).rgb + texture2D(tSrc, vUv - uDir * 1.3846153846).rgb) * 0.3162162162;" +
+          " c += (texture2D(tSrc, vUv + uDir * 3.2307692308).rgb + texture2D(tSrc, vUv - uDir * 3.2307692308).rgb) * 0.0702702703; gl_FragColor = vec4(c, 1.0); }");
+        // additive light over the frame: rgb adds, alpha = its brightness (so it adds over the DOM bed as light, never a sheet)
+        const compMat = post({ t1: { value: null }, t2: { value: null }, t3: { value: null }, uStr: { value: 0 } },
+          "uniform sampler2D t1, t2, t3; uniform float uStr; varying vec2 vUv; void main(){ vec3 b = (texture2D(t1, vUv).rgb + texture2D(t2, vUv).rgb * 0.8 + texture2D(t3, vUv).rgb * 0.6) * uStr;" +
+          " b = b / (1.0 + b); b = pow(b, vec3(1.0 / 2.2)); gl_FragColor = vec4(b, max(b.r, max(b.g, b.b))); }",
+          { blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor,
+            blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor });
+        function runPass(mat, target) { quad.material = mat; renderer.setRenderTarget(target); renderer.render(postScene, postCam); }
+        function bloomPass(str) {
+          if (!BLOOM_OK || str < 0.01) return;
+          screen.material = blackMat; shadow.visible = false; RK.only.value = 1;
+          renderer.setRenderTarget(rtMain); renderer.clear(); renderer.render(scene, camera);
+          screen.material = faceMat; shadow.visible = true; RK.only.value = 0;
+          brightMat.uniforms.tSrc.value = rtMain.texture; runPass(brightMat, LV[0][0]);
+          let src = LV[0][0];
+          LV.forEach(([A, B]) => {      // H into B (at this level's size), V back into A
+            blurMat.uniforms.tSrc.value = src.texture; blurMat.uniforms.uDir.value.set(1 / A.width, 0); runPass(blurMat, B);
+            blurMat.uniforms.tSrc.value = B.texture; blurMat.uniforms.uDir.value.set(0, 1 / A.height); runPass(blurMat, A);
+            src = A;
+          });
+          compMat.uniforms.t1.value = LV[0][0].texture; compMat.uniforms.t2.value = LV[1][0].texture; compMat.uniforms.t3.value = LV[2][0].texture;
+          compMat.uniforms.uStr.value = str;
+          renderer.autoClear = false; runPass(compMat, null); renderer.autoClear = true;
+        }
+
+        // ---------- motion: the pose is a pure function of time ----------
+        const O = C.open, REST = { x: 0, y: restY, z: 0, rx: 0, ry: 0, rz: 0 }, KEYS = ["x", "y", "z", "rx", "ry", "rz"];
+        const VLAND = 1.7 / T.land, W0 = 2 * Math.PI * C.settle.hz;
+        const LAST = (Math.ceil(T.end * 30 - 1e-6) - 1) / 30;
+        const cutsAfter = C.shots.slice(2).map((s) => s.cut);
+        function openF(t) {                  // 1 = the tilted pose, 0 = seated
+          if (t <= T.land) { const u = c01(t / T.land); return 1 - (0.3 * u + 0.7 * u * u); }   // moving from frame 0, arriving with speed
+          return -(VLAND / W0) * Math.exp(-C.settle.damp * (t - T.land)) * Math.sin(W0 * (t - T.land));   // the settle past the seat
+        }
+        function closeF(t) { if (t <= T.close) return 0; const u = c01((t - T.close) / (LAST - T.close)); return u * u; }
+        function kickF(t) {                  // a jolt on the cut frame, sprung home
+          let k = 0; cutsAfter.forEach((c) => { const a = t - c; if (a >= -1e-4) k += Math.exp(-8 * a) * Math.cos(2 * Math.PI * 2.4 * a); }); return k;
+        }
+        function poseAt(t) {
+          const f = openF(t), cf = closeF(t), k = kickF(t), p = {};
+          KEYS.forEach((q) => { p[q] = REST[q] + (O[q] - REST[q]) * (f + cf - f * cf); });
+          p.rx += C.kick.rx * k; p.ry += C.kick.ry * k; p.z += C.kick.z * k;
+          const hold = sio((t - T.land) / (T.close - T.land));   // a slow float through the hold (gone by the last frame: the loop closes)
+          p.y += 10 * hold * (1 - cf); p.ry += 0.012 * Math.sin(Math.PI * hold);
+          return p;
+        }
+        function applyPose(p) {
+          slab.position.set(p.x, p.y, p.z - HALF); slab.rotation.set(p.rx, p.ry, p.rz, "XYZ");
+          // shadow: on the bed plane behind, offset down and spread with the slab's lift
+          const lift = clamp((p.z + 160) / 400, 0, 1.5);
+          shadow.position.set((p.x * 0.8 + 6) * SHK, (p.y - 44 - 30 * lift) * SHK, -SHZ);
+          const sc = SHK * (1.0 + 0.06 * lift + Math.abs(p.ry) * 0.25);
+          shadow.scale.set(sc, sc * (1 + Math.abs(p.rx) * 0.2), 1);
+          shadow.material.opacity = 0.82 - 0.22 * lift;
+        }
+        const _v = new THREE.Vector3();
+        function cornersAt(t) {
+          applyPose(poseAt(t)); slab.updateMatrixWorld(true);
+          return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => { _v.set(a * SW / 2, b * SH / 2, HALF); inner.localToWorld(_v); _v.project(camera); return [_v.x * CW / 2, _v.y * CH / 2]; });
+        }
+        function rakeAt(t) {                 // after the seat: a hot light travels left -> right above and in front of the slab
+          const u = (t - T.land - 2 * FR) / C.rake.dur; if (u <= 0 || u >= 1) return 0;
+          const e = sio(u);
+          RK.pos.value.set(lerp(-SW * 0.85, SW * 0.85, e), restY + SH * 0.5 + 520, 620); RK.win.value.set(topEdgeY, 120);
+          return Math.pow(Math.sin(Math.PI * u), 0.7);
+        }
+
+        // ---------- the bed ----------
+        const bed = $("#bed"), bedPush = $("#bedPush"), bws = C.shots.map((s) => document.getElementById(s.id).parentElement);
+        function renderBed(t, p) {
+          const cur = shotAt(t); bws.forEach((w, i) => (w.style.opacity = C.shots[i] === cur ? "1" : "0"));
+          let pulse = 0; C.shots.slice(1).forEach((s) => { const a = t - s.cut; if (a >= 0 && a < 0.5) pulse = Math.max(pulse, a < 3 * FR ? 1 : 1 - sio((a - 3 * FR) / 0.3)); });
+          const b = C.bed;
+          bed.style.filter = "blur(" + (b.blur + 14 * pulse).toFixed(1) + "px) brightness(" + b.brightness + ") contrast(" + b.contrast + ") saturate(" + b.saturate + ")";
+          // parallax: the bed drifts against the slab's tilt and pushes in slowly
+          bedPush.style.transform = "translate(" + (-p.ry * 60).toFixed(2) + "px," + (p.rx * 50).toFixed(2) + "px) scale(" + (1.02 + 0.04 * sio(t / T.end)).toFixed(4) + ")";
+        }
+
+        // ---------- render a frame: sub-frame motion blur when the slab moves fast ----------
+        function renderAt(t) {
+          const p = poseAt(t);
+          renderBed(t, p);
+          drawFace(t);
+          const rt = pmrem.fromScene(envScene, 0, 0.1, 200); scene.environment = rt.texture; if (envRT) envRT.dispose(); envRT = rt;
+          key.position.set(lerp(-1100, -500, sio(t / T.end)), 1400, 1600);
+          const a = cornersAt(t), b = cornersAt(t - 0.5 * FR);
+          let d = 0; for (let i = 0; i < 4; i++) d = Math.max(d, Math.hypot(a[i][0] - b[i][0], a[i][1] - b[i][1]));
+          const K = clamp(1 + Math.floor(d / 4), 1, 10);
+          octx.clearRect(0, 0, CW, CH);
+          octx.globalCompositeOperation = K > 1 ? "lighter" : "source-over"; octx.globalAlpha = 1 / K;
+          for (let i = 0; i < K; i++) {
+            const ts = K > 1 ? t - 0.5 * FR * (1 - i / (K - 1)) : t;
+            applyPose(poseAt(ts));
+            const rk = rakeAt(ts); RK.amt.value = C.rake.power * rk;
+            renderer.setRenderTarget(null); renderer.render(scene, camera);
+            bloomPass(rk * C.rake.bloom);
+            octx.drawImage(gl, 0, 0);
+          }
+          octx.globalAlpha = 1; octx.globalCompositeOperation = "source-over";
+        }
+        window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+
+        const FACES = ["700 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const tl = gsap.timeline({ paused: true });
+          Look.install(tl, { root: "#bedGrain", duration: T.end, grain: C.bed.grain, vignette: 0 });
+          Look.drive(tl, 0, T.end, (q) => renderAt(q * T.end));
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

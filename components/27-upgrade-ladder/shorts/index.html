@@ -1,0 +1,498 @@
+<!doctype html>
+<!-- 27 Upgrade ladder, variant B: horizontal tier-token row at the top of a Short (9:16, 1080x1920, 30 fps).
+     Tokens are real Three.js coins (metal rim + bezel, portrait / locked faces, 3D "?" and crown). See ../DECISIONS.md.
+     Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      #gl { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; }
+
+      /* frosted glass track */
+      #track { position: absolute; border-radius: 28px; overflow: hidden;
+        background: linear-gradient(180deg, rgba(255,255,255,.88) 0%, rgba(250,252,255,.8) 24%, rgba(232,238,245,.72) 52%, rgba(200,210,224,.7) 78%, rgba(160,172,188,.74) 100%);
+        box-shadow: inset 0 0 0 3px rgba(255,255,255,.95), inset 0 4px 7px rgba(255,255,255,.6), inset 0 -5px 9px rgba(40,52,70,.28),
+          0 0 0 1.5px rgba(12,16,24,.5), 0 6px 16px rgba(0,0,0,.34); }
+      #track.blur { -webkit-backdrop-filter: blur(7px) saturate(1.15); backdrop-filter: blur(7px) saturate(1.15); }
+      #fill { position: absolute; border-radius: 22px; overflow: hidden;
+        background: linear-gradient(180deg, #0E6A20 0%, #22B23B 18%, #5CF070 34%, #B6FFAA 42%, #47E35F 56%, #1FA537 80%, #0C5E1C 100%);
+        box-shadow: 0 0 12px rgba(80,255,120,.55), inset 0 0 0 1px rgba(10,80,25,.5); }
+      #streaks { position: absolute; inset: 0 -200px; opacity: .55;
+        background: repeating-linear-gradient(100deg, rgba(255,255,255,0) 0 26px, rgba(230,255,225,.55) 26px 31px, rgba(255,255,255,0) 31px 58px); }
+      #head { position: absolute; top: -6px; bottom: -6px; width: 18px; border-radius: 50%;
+        background: radial-gradient(50% 50% at 50% 50%, rgba(250,255,240,1) 0%, rgba(190,255,180,.85) 40%, rgba(80,240,110,0) 100%); }
+
+      /* payoff label: rolls out of the token */
+      #label { position: absolute; left: 72px; width: 864px; text-align: center; }
+      .lm { overflow: hidden; padding: 8px 20px; margin: -8px -20px; }
+      .lm > div { will-change: transform; }
+      #lk { font: 800 34px/1.1 "Inter"; letter-spacing: .16em; color: #FFD45C; white-space: nowrap;
+        -webkit-text-stroke: 4px rgba(10,10,14,.85); paint-order: stroke fill; text-shadow: 0 2px 8px rgba(0,0,0,.5); }
+      #ln { font-family: "Archivo"; font-weight: 900; font-stretch: 68%; font-size: 104px; line-height: .98; letter-spacing: -0.012em;
+        color: #FFFFFF; white-space: nowrap; -webkit-text-stroke: 6px rgba(8,10,14,.92); paint-order: stroke fill;
+        text-shadow: 0 5px 16px rgba(0,0,0,.45); }
+      #ln .k { color: #FFD23C; }
+      .chk { position: absolute; left: 0; top: 0; width: 56px; height: 56px; border-radius: 50%; transform-origin: 50% 50%; visibility: hidden;
+        background: radial-gradient(circle at 34% 28%, #A6FFA0 0%, #3BDC52 42%, #129A2C 100%);
+        box-shadow: inset 0 0 0 3px #FFFFFF, inset 0 -4px 6px rgba(0,60,15,.45), 0 0 0 2px rgba(8,30,14,.6), 0 4px 10px rgba(0,0,0,.42), 0 0 16px rgba(60,255,110,.45); }
+      .chk svg { position: absolute; inset: 0; width: 100%; height: 100%; filter: drop-shadow(0 1px 1px rgba(0,50,10,.6)); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.4" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <video id="s1" class="clip shot" src="assets/shots/v06-franklin-lamar-portrait-v.mp4" muted playsinline data-start="0" data-duration="1.6" data-media-start="0" data-track-index="0"></video>
+        <video id="s2" class="clip shot" src="assets/shots/v33-trio-kitchen-v.mp4" muted playsinline data-start="1.6" data-duration="1.38" data-media-start="0" data-track-index="0"></video>
+        <video id="s3" class="clip shot" src="assets/shots/v28-tennis-mansion-v.mp4" muted playsinline data-start="2.98" data-duration="2.52" data-media-start="0" data-track-index="0"></video>
+        <video id="s4" class="clip shot" src="assets/shots/v36-hills-city-view-v.mp4" muted playsinline data-start="5.5" data-duration="0.9" data-media-start="0" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="6.4" data-track-index="1">
+        <div id="track"><div id="fill"><div id="streaks"></div><div id="head"></div></div></div>
+        <canvas id="gl" width="1080" height="1920"></canvas>
+        <div id="label">
+          <div class="lm"><div id="lk"></div></div>
+          <div class="lm"><div id="ln"></div></div>
+        </div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        // left (tier 1) to right. state: "done" (portrait), "locked" (red ?), crown: milestone tier (gold + crown)
+        tiers: [
+          { name: "FRANKLIN", img: "media/p_franklin.jpg", state: "done" },
+          { name: "LAMAR", img: "media/p_lamar.jpg", state: "done" },
+          { name: "TREVOR", img: "media/p_trevor.jpg", state: "locked" },
+          { name: "MICHAEL", img: "media/p_michael.jpg", state: "locked", crown: true },
+          { name: "", img: null, state: "locked" }
+        ],
+        start: 1,                                   // current tier when the ladder appears (0 = bottom)
+        steps: [1.62, 3.0],                         // each step: the ring climbs one tier and that tier unlocks; the last one is the payoff
+        label: { kicker: "TIER {n} · MILESTONE", name: "{name} <span class=\"k\">UNLOCKED</span>" },
+        layout: { orient: "h", x0: 149, y: 380, pitch: 177.5, R: 66, D: 19, track: 54, enter: [0, -110], checks: true, checkSize: 56 },
+        colors: { ring: "#33D84A", ringGlow: "#3CFF6A", gold: "#FFC54A", silver: "#E9EDF3", q: "#E3102A" },
+        timing: { in: 0.15, stagger: 0.055, coin: 0.55, travel: 0.32, flip: 0.5, labelIn: 3.56, labelOut: 5.12, out: 5.42, outStagger: 0.035, end: 6.4 }
+      };
+
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const C = CONFIG, T = C.timing, L = C.layout, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        if (plate) $("#track").classList.add("blur");
+        const W = 1080, H = 1920, N = C.tiers.length, R = L.R, D = L.D, VERT = L.orient === "v";
+        const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+        const seg = (t, a, d) => clamp((t - a) / d);
+        const lerp = (a, b, k) => a + (b - a) * k;
+        const E = (n) => gsap.parseEase(n);
+        const eO3 = E("power3.out"), eI3 = E("power3.in"), eIO3 = E("power3.inOut"), eIO2 = E("power2.inOut"), eO2 = E("power2.out");
+        const eBack = E("back.out(1.7)"), eFlip = E("back.out(1.25)"), eEl = E("elastic.out(1,0.45)"), eExpo = E("expo.out");
+        const tierPos = (i) => VERT ? [L.x, L.y0 - i * L.pitch] : [L.x0 + i * L.pitch, L.y];
+        const wx = (x) => x - W / 2, wy = (y) => H / 2 - y;
+
+        // ---------- step bookkeeping ----------
+        const STEPS = C.steps.map((at, k) => ({ at, from: C.start + k, to: C.start + k + 1, payoff: k === C.steps.length - 1 }));
+        const unlockAt = {}; STEPS.forEach((s) => (unlockAt[s.to] = s));
+        const PAY = STEPS[STEPS.length - 1];
+        const TLAND = PAY.at + T.travel;
+
+        // ---------- DOM track ----------
+        const p0 = tierPos(0), pN = tierPos(N - 1), TW = L.track;
+        const track = $("#track"), fill = $("#fill"), head = $("#head"), streaks = $("#streaks");
+        if (VERT) Object.assign(track.style, { left: (p0[0] - TW / 2) + "px", top: (pN[1] - TW / 2) + "px", width: TW + "px", height: (p0[1] - pN[1] + TW) + "px" });
+        else Object.assign(track.style, { left: (p0[0] - TW / 2) + "px", top: (p0[1] - TW / 2) + "px", width: (pN[0] - p0[0] + TW) + "px", height: TW + "px" });
+        const trackLen = (VERT ? p0[1] - pN[1] : pN[0] - p0[0]);
+
+        // ---------- check badges on completed tiers (optional) ----------
+        const checks = L.checks ? C.tiers.map((tr, i) => {
+          const d = document.createElement("div"); d.className = "chk";
+          d.innerHTML = '<svg viewBox="0 0 40 40"><path d="M11 20.5l6 6 12-13" fill="none" stroke="#fff" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+          $("#ov").appendChild(d); return d;
+        }) : [];
+        const doneAt = (i) => i < C.start ? -1 : (STEPS.find((s) => s.from === i) ? STEPS.find((s) => s.from === i).at + 0.12 : Infinity);
+
+        // ---------- label ----------
+        const lab = $("#label"), lk = $("#lk"), ln = $("#ln");
+        const payTier = C.tiers[PAY.to];
+        lk.textContent = C.label.kicker.replace("{n}", PAY.to + 1);
+        ln.innerHTML = C.label.name.replace("{name}", payTier.name);
+
+        function loadImg(src) {
+          return new Promise((res) => { if (!src) return res(null); const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
+        }
+
+        // ---------- face art (canvas textures) ----------
+        const TX = 320;
+        function drawCover(ctx, im, s, filter, alpha) {
+          ctx.save(); ctx.filter = filter || "none"; ctx.globalAlpha = alpha == null ? 1 : alpha;
+          const k = Math.max(s / im.width, s / im.height), w = im.width * k, h = im.height * k;
+          ctx.drawImage(im, (s - w) / 2, (s - h) / 2, w, h); ctx.restore();
+        }
+        function silhouette(ctx, s) {
+          ctx.save(); ctx.filter = "blur(10px)"; ctx.fillStyle = "rgba(92,104,122,.75)";
+          ctx.beginPath(); ctx.ellipse(s * .5, s * .42, s * .17, s * .21, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(s * .5, s * 1.0, s * .38, s * .3, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+        }
+        function faceTex(kind, im) {
+          const cv = document.createElement("canvas"); cv.width = cv.height = TX; const ctx = cv.getContext("2d"), s = TX;
+          ctx.save(); ctx.beginPath(); ctx.arc(s / 2, s / 2, s / 2, 0, Math.PI * 2); ctx.clip();
+          if (kind === "portrait") {
+            ctx.fillStyle = "#3a4250"; ctx.fillRect(0, 0, s, s);
+            if (im) drawCover(ctx, im, s, "brightness(1.08) contrast(1.08) saturate(1.1)");
+            const v = ctx.createRadialGradient(s / 2, s / 2, s * .3, s / 2, s / 2, s * .52);
+            v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(.8, "rgba(0,0,0,.12)"); v.addColorStop(1, "rgba(0,0,0,.42)");
+            ctx.fillStyle = v; ctx.fillRect(0, 0, s, s);
+          } else {
+            const g = ctx.createRadialGradient(s * .42, s * .36, s * .05, s / 2, s / 2, s * .55);
+            g.addColorStop(0, "#FFFFFF"); g.addColorStop(.6, "#F1F4F8"); g.addColorStop(1, "#CDD5E0");
+            ctx.fillStyle = g; ctx.fillRect(0, 0, s, s);
+            if (im) drawCover(ctx, im, s, "blur(9px) grayscale(.85) contrast(.7) brightness(1.18)", .62); else silhouette(ctx, s);
+            ctx.fillStyle = "rgba(200,214,236,.22)"; ctx.fillRect(0, 0, s, s);
+            const v = ctx.createRadialGradient(s / 2, s / 2, s * .36, s / 2, s / 2, s * .52);
+            v.addColorStop(0, "rgba(30,40,60,0)"); v.addColorStop(1, "rgba(30,40,60,.3)");
+            ctx.fillStyle = v; ctx.fillRect(0, 0, s, s);
+          }
+          ctx.restore();
+          const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4; return tex;
+        }
+        function radialTex(stops, size = 128) {
+          const cv = document.createElement("canvas"); cv.width = cv.height = size; const ctx = cv.getContext("2d");
+          const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+          stops.forEach(([o, c]) => g.addColorStop(o, c)); ctx.fillStyle = g; ctx.fillRect(0, 0, size, size);
+          const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; return tex;
+        }
+
+        function build(imgs) {
+          // ---------- Three.js: z = 0 maps 1:1 to page px ----------
+          const canvas = $("#gl");
+          const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+          renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 0);
+          renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
+          const scene = new THREE.Scene();
+          const FOV = 24, DIST = (H / 2) / Math.tan((FOV / 2) * Math.PI / 180);
+          const camera = new THREE.PerspectiveCamera(FOV, W / H, 10, DIST * 3);
+          camera.position.set(0, 0, DIST); camera.lookAt(0, 0, 0);
+
+          // studio environment: a big softbox top-left, a strip on the right, a cool rim behind, dark floor
+          const envScene = new THREE.Scene();
+          envScene.add(new THREE.Mesh(new THREE.SphereGeometry(50, 48, 24), new THREE.ShaderMaterial({
+            side: THREE.BackSide, depthWrite: false,
+            vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+            fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 top = vec3(0.92,0.94,1.0), hor = vec3(0.22,0.24,0.28), low = vec3(0.03,0.035,0.045);" +
+              " vec3 c = y > 0.0 ? mix(hor, top, smoothstep(0.0, 0.9, y)) : mix(hor, low, smoothstep(0.0, 0.45, -y)); gl_FragColor = vec4(c, 1.0); }"
+          })));
+          const panel = (w, h, x, y, z, c) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); envScene.add(m); };
+          panel(36, 14, -14, 26, 26, new THREE.Color(4.2, 4.1, 4.0));
+          panel(5, 34, 30, 2, 18, new THREE.Color(2.6, 2.7, 3.0));
+          panel(40, 6, 0, 14, -32, new THREE.Color(2.2, 2.4, 2.8));
+          panel(26, 8, -6, -24, 24, new THREE.Color(0.9, 0.85, 0.8));
+          const pmrem = new THREE.PMREMGenerator(renderer);
+          scene.environment = pmrem.fromScene(envScene, 0.02, 0.1, 200).texture;
+
+          const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(-0.55, 0.85, 1.0); scene.add(key);
+          const rimL = new THREE.DirectionalLight(0xcfe2ff, 0.9); rimL.position.set(0.9, -0.3, 0.4); scene.add(rimL);
+          scene.add(new THREE.HemisphereLight(0xffffff, 0x2a3242, 0.9));
+          const sweep = new THREE.PointLight(0xfff4dc, 0, 0, 0); scene.add(sweep);
+
+          // materials
+          const metal = (hex, rough) => new THREE.MeshPhysicalMaterial({ color: new THREE.Color(hex), metalness: 1, roughness: rough, clearcoat: 0.5, clearcoatRoughness: 0.08, envMapIntensity: 1.35 });
+          const qMat = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.colors.q), roughness: 0.2, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 1.15 });
+          const goldMat = metal(C.colors.gold, 0.17);
+          const gemMat = new THREE.MeshPhysicalMaterial({ color: 0xE0182E, roughness: 0.08, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.6 });
+          const domeMat = new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 0.06, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 1.5,
+            transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+          const shadowTex = radialTex([[0, "rgba(0,0,0,.62)"], [.45, "rgba(0,0,0,.34)"], [1, "rgba(0,0,0,0)"]]);
+          const greenGlowTex = radialTex([[0, "rgba(60,255,110,0)"], [.52, "rgba(60,255,110,0)"], [.66, "rgba(70,255,120,.75)"], [.78, "rgba(60,255,110,.28)"], [1, "rgba(60,255,110,0)"]], 256);
+          const goldGlowTex = radialTex([[0, "rgba(255,244,200,1)"], [.3, "rgba(255,226,120,1)"], [.42, "rgba(255,200,70,.7)"], [.6, "rgba(255,178,46,.26)"], [.8, "rgba(255,165,35,.07)"], [1, "rgba(255,160,30,0)"]], 256);
+          const emberTex = radialTex([[0, "rgba(255,250,220,1)"], [.35, "rgba(255,214,110,.9)"], [1, "rgba(255,180,60,0)"]], 64);
+
+          // geometry
+          const bz = R * 0.115, fr = R - bz;                               // bezel tube radius, face radius
+          const rimGeo = new THREE.CylinderGeometry(R, R, D, 80, 1, true); rimGeo.rotateX(Math.PI / 2);
+          const bezGeo = new THREE.TorusGeometry(R - bz, bz, 20, 96);
+          const faceGeo = new THREE.CircleGeometry(fr, 80);
+          const domeH = R * 0.11, Rs = (fr * fr + domeH * domeH) / (2 * domeH), th = Math.asin(fr / Rs);
+          const domeGeo = new THREE.SphereGeometry(Rs, 72, 10, 0, Math.PI * 2, 0, th); domeGeo.rotateX(Math.PI / 2); domeGeo.translate(0, 0, -Rs * Math.cos(th));
+          const shadowGeo = new THREE.PlaneGeometry(R * 2.9, R * 2.9);
+
+          function qmark() {
+            const g = new THREE.Group(), k = R / 48;
+            const r = 12.6 * k, tb = 5.6 * k, Ls = 8.5 * k, gap = 5.6 * k, dr = 6.4 * k, a0 = -Math.PI / 2, arc = Math.PI * 1.62;
+            const hook = new THREE.Mesh(new THREE.TorusGeometry(r, tb, 18, 56, arc), qMat); hook.rotation.z = a0; g.add(hook);
+            const endA = a0 + arc, cap = new THREE.Mesh(new THREE.SphereGeometry(tb, 20, 14), qMat); cap.position.set(r * Math.cos(endA), r * Math.sin(endA), 0); g.add(cap);
+            const stem = new THREE.Mesh(new THREE.CylinderGeometry(tb, tb, Ls, 20), qMat); stem.position.set(0, -r - Ls / 2, 0); g.add(stem);
+            const sc = new THREE.Mesh(new THREE.SphereGeometry(tb, 20, 14), qMat); sc.position.set(0, -r - Ls, 0); g.add(sc);
+            const dot = new THREE.Mesh(new THREE.SphereGeometry(dr, 24, 16), qMat); dot.position.set(0, -r - Ls - tb - gap - dr, 0); g.add(dot);
+            const top = r + tb, bot = -r - Ls - tb - gap - 2 * dr; g.children.forEach((m) => (m.position.y -= (top + bot) / 2));
+            return g;
+          }
+          function crown() {
+            const g = new THREE.Group(), w = R * 1.2, h = R * 0.82;
+            const s = new THREE.Shape();
+            const tips = [[-w / 2, h * .8], [-w / 4, h * .9], [0, h], [w / 4, h * .9], [w / 2, h * .8]], vy = h * .42;
+            s.moveTo(-w / 2 + 2, 0); s.lineTo(w / 2 - 2, 0); s.lineTo(tips[4][0], tips[4][1]);
+            s.lineTo(w * .375, vy); s.lineTo(tips[3][0], tips[3][1]); s.lineTo(w * .125, vy); s.lineTo(tips[2][0], tips[2][1]);
+            s.lineTo(-w * .125, vy); s.lineTo(tips[1][0], tips[1][1]); s.lineTo(-w * .375, vy); s.lineTo(tips[0][0], tips[0][1]); s.closePath();
+            const body = new THREE.Mesh(new THREE.ExtrudeGeometry(s, { depth: R * .1, bevelEnabled: true, bevelThickness: R * .05, bevelSize: R * .04, bevelSegments: 3, curveSegments: 4 }), goldMat);
+            g.add(body);
+            tips.forEach(([x, y], i) => { const b = new THREE.Mesh(new THREE.SphereGeometry(R * (i === 2 ? .085 : .07), 18, 12), goldMat); b.position.set(x * .97, y, R * .05); g.add(b); });
+            const bs = new THREE.Shape(), bw = w * 1.04, bh = h * .3, rr = bh * .35;
+            bs.moveTo(-bw / 2 + rr, 0); bs.lineTo(bw / 2 - rr, 0); bs.quadraticCurveTo(bw / 2, 0, bw / 2, rr); bs.lineTo(bw / 2, bh - rr); bs.quadraticCurveTo(bw / 2, bh, bw / 2 - rr, bh);
+            bs.lineTo(-bw / 2 + rr, bh); bs.quadraticCurveTo(-bw / 2, bh, -bw / 2, bh - rr); bs.lineTo(-bw / 2, rr); bs.quadraticCurveTo(-bw / 2, 0, -bw / 2 + rr, 0);
+            const band = new THREE.Mesh(new THREE.ExtrudeGeometry(bs, { depth: R * .14, bevelEnabled: true, bevelThickness: R * .04, bevelSize: R * .035, bevelSegments: 3, curveSegments: 6 }), goldMat);
+            band.position.set(0, -bh * .15, R * .0); g.add(band);
+            const gem = new THREE.Mesh(new THREE.SphereGeometry(R * .085, 20, 14), gemMat); gem.scale.set(1, 1, .6); gem.position.set(0, bh * .35, R * .2); g.add(gem);
+            [-1, 1].forEach((sx) => { const gm = new THREE.Mesh(new THREE.SphereGeometry(R * .05, 16, 10), gemMat); gm.scale.set(1, 1, .6); gm.position.set(sx * w * .3, bh * .35, R * .19); g.add(gm); });
+            g.children.forEach((m) => (m.position.y -= h * .45));                // centre the crown on its own origin
+            return g;
+          }
+
+          // ---------- coins ----------
+          const coins = C.tiers.map((tier, i) => {
+            const im = imgs[i], grp = new THREE.Group(), flip = new THREE.Group(); grp.add(flip);
+            const unl = unlockAt[i], isGold = !!tier.crown;
+            const rimMat = isGold ? metal(C.colors.gold, 0.17) : metal(C.colors.silver, 0.2);
+            rimMat.emissive = new THREE.Color(isGold ? 0xffc040 : 0x7dff9a); rimMat.emissiveIntensity = 0;
+            flip.add(new THREE.Mesh(rimGeo, rimMat));
+            const bf = new THREE.Mesh(bezGeo, rimMat); bf.position.z = D / 2; flip.add(bf);
+            const bb = new THREE.Mesh(bezGeo, rimMat); bb.position.z = -D / 2; flip.add(bb);
+            const frontKind = tier.state === "done" ? "portrait" : "locked", domes = [];
+            const mkFace = (kind, back) => {
+              const m = new THREE.MeshBasicMaterial({ map: faceTex(kind, im), toneMapped: false });
+              const f = new THREE.Mesh(faceGeo, m); f.position.z = back ? -D / 2 + bz * .2 : D / 2 - bz * .2; if (back) f.rotation.y = Math.PI; flip.add(f);
+              if (kind === "portrait") { const d = new THREE.Mesh(domeGeo, domeMat.clone()); domes.push(d.material); d.position.z = f.position.z + 0.3 * (back ? -1 : 1); if (back) d.rotation.y = Math.PI; flip.add(d); }
+              return m;
+            };
+            const faces = [mkFace(frontKind, false), mkFace(unl ? "portrait" : frontKind, true)];
+            let q = null, cr = null;
+            if (tier.state !== "done" && !isGold) { q = qmark(); q.position.z = D / 2 + bz * .9; flip.add(q); }
+            if (isGold) { cr = crown(); cr.position.set(0, -R * .02, D / 2 + R * .12); grp.add(cr); }
+            const sh = new THREE.Mesh(shadowGeo, new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false, opacity: .8 }));
+            sh.position.set(R * .07, -R * .14, -D / 2 - 6); sh.renderOrder = -2; grp.add(sh);
+            const p = tierPos(i); grp.position.set(wx(p[0]), wy(p[1]), 0); scene.add(grp);
+            return { i, tier, grp, flip, rimMat, faces, domes, q, cr, sh, base: [wx(p[0]), wy(p[1])], unl, isGold,
+              tIn: T.in + 0.05 + i * T.stagger, tOut: T.out + 0.08 + (N - 1 - i) * T.outStagger };
+          });
+
+          // ---------- current ring ----------
+          const ring = new THREE.Group(); scene.add(ring);
+          const ringR = R + R * .19, ringT = R * .095;
+          const ringMat = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.colors.ring), emissive: new THREE.Color(C.colors.ring), emissiveIntensity: .55,
+            metalness: .25, roughness: .16, clearcoat: 1, clearcoatRoughness: .04, envMapIntensity: 1.2 });
+          const ringMesh = new THREE.Mesh(new THREE.TorusGeometry(ringR, ringT, 22, 128), ringMat); ring.add(ringMesh);
+          const cometMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 2.0, 1.6), transparent: true, opacity: .9, depthWrite: false, toneMapped: false });
+          const comet = new THREE.Mesh(new THREE.TorusGeometry(ringR, ringT * 1.06, 12, 48, 0.9), cometMat); ring.add(comet);
+          const cometTail = new THREE.Mesh(new THREE.TorusGeometry(ringR, ringT * 1.04, 12, 48, 0.9), new THREE.MeshBasicMaterial({ color: new THREE.Color(.7, 1.5, .8), transparent: true, opacity: .4, depthWrite: false, toneMapped: false })); ring.add(cometTail);
+          const glowMat = new THREE.MeshBasicMaterial({ map: greenGlowTex, transparent: true, depthWrite: false, opacity: .8, toneMapped: false });
+          const glow = new THREE.Mesh(new THREE.PlaneGeometry(ringR * 3.0, ringR * 3.0), glowMat); glow.position.z = -D; glow.renderOrder = -1; ring.add(glow);
+
+          // ---------- payoff light: gold halo + embers ----------
+          const halo = new THREE.Mesh(new THREE.PlaneGeometry(R * 6.6, R * 6.6), new THREE.MeshBasicMaterial({ map: goldGlowTex, transparent: true, depthWrite: false, opacity: 0, toneMapped: false }));
+          halo.renderOrder = -3; scene.add(halo);
+          const EMB = 14, embers = [];
+          for (let k = 0; k < EMB; k++) {
+            const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: emberTex, transparent: true, depthWrite: false, opacity: 0, toneMapped: false }));
+            scene.add(m); embers.push({ m, a: Look.hash(k * 3 + 1), b: Look.hash(k * 3 + 2), c: Look.hash(k * 3 + 3) });
+          }
+
+          // ---------- time functions ----------
+          function ringIndex(t) {                                           // continuous tier index of the ring
+            let idx = C.start;
+            STEPS.forEach((s) => { idx += eIO3(seg(t, s.at, T.travel)); });
+            return idx;
+          }
+          function fillIndex(t) {
+            let idx = C.start * eO3(seg(t, T.in + 0.15, 0.75));
+            STEPS.forEach((s) => { idx += eIO2(seg(t, s.at - 0.05, T.travel + 0.08)); });
+            return idx;
+          }
+          const posAt = (fi) => { const a = Math.floor(clamp(fi, 0, N - 1)), b = Math.min(N - 1, a + 1), k = fi - a, pa = tierPos(a), pb = tierPos(b); return [lerp(pa[0], pb[0], k), lerp(pa[1], pb[1], k)]; };
+
+          function renderAt(t) {
+            // track grow / retract
+            const tg = eO3(seg(t, T.in, 0.6)), tr = eI3(seg(t, T.out + 0.1, 0.42));
+            const showTrack = tg > 0 && tr < 1;
+            track.style.visibility = showTrack ? "visible" : "hidden";
+            const cut = ((1 - tg) * 100 + tr * 100).toFixed(2) + "%";
+            track.style.clipPath = VERT ? "inset(" + cut + " 0 0 0)" : "inset(0 " + cut + " 0 0)";
+            // liquid
+            const fi = fillIndex(t), fp = posAt(fi), pad = 4;
+            const flen = VERT ? (p0[1] - fp[1]) : (fp[0] - p0[0]);
+            const tot = flen + TW / 2 - pad;
+            if (VERT) Object.assign(fill.style, { left: pad + "px", right: pad + "px", bottom: pad + "px", height: Math.max(0, tot).toFixed(1) + "px" });
+            else Object.assign(fill.style, { top: pad + "px", bottom: pad + "px", left: pad + "px", width: Math.max(0, tot).toFixed(1) + "px" });
+            fill.style.visibility = showTrack && tot > 2 ? "visible" : "hidden";
+            if (VERT) { head.style.top = "-5px"; head.style.left = "-6px"; head.style.right = "-6px"; head.style.width = ""; head.style.height = "16px"; }
+            else { head.style.right = "-5px"; head.style.left = "auto"; head.style.top = "-6px"; head.style.bottom = "-6px"; head.style.width = "16px"; head.style.height = "auto"; }
+            streaks.style.transform = VERT ? "translateY(" + (-((t * 70) % 58)).toFixed(1) + "px)" : "translateX(" + (((t * 70) % 60)).toFixed(1) + "px)";
+
+            // coins
+            coins.forEach((c) => {
+              const pe = seg(t, c.tIn, T.coin), px = seg(t, c.tOut, 0.34);
+              const vis = t >= c.tIn && px < 1;
+              c.grp.visible = vis; if (!vis) return;
+              const ein = eBack(pe), eo = eO3(pe), ex = eI3(px);
+              let rotY = -Math.PI / 2 * (1 - ein) + Math.PI / 2 * ex;
+              let rotX = 0, sc = (0.6 + 0.4 * eo) * (1 - 0.55 * ex), lift = 0, dx = L.enter[0] * (1 - eo), dy = L.enter[1] * (1 - eo);
+              // idle sway so the light moves across the metal
+              const sw = Math.sin(2 * Math.PI * (0.32 * t + c.i * 0.137)), sw2 = Math.sin(2 * Math.PI * (0.27 * t + c.i * 0.211 + .3));
+              rotY += 0.075 * sw * eo; rotX += 0.05 * sw2 * eo;
+              // unlock flip
+              let flipA = 0;
+              if (c.unl) {
+                const big = c.unl.payoff, tf = c.unl.at + T.travel + 0.04, dur = big ? T.flip : T.flip * 0.85, pf = seg(t, tf, dur);
+                flipA = Math.PI * eFlip(pf);
+                const arc = eO3(seg(t, tf - 0.07, 0.22)) * (1 - eIO2(seg(t, tf + (big ? 0.62 : 0.4), big ? 0.5 : 0.38)));
+                lift = (big ? 110 : 60) * arc; sc *= 1 + (big ? 0.34 : 0.16) * arc;
+                // landing punch + settle
+                const pl = seg(t, tf + (big ? 1.12 : 0.78), 0.4); if (pl > 0 && pl < 1) sc *= 1 - (big ? 0.05 : 0.03) * Math.sin(Math.PI * pl) * (1 - pl);
+                // rim flare on the landing
+                const fl = seg(t, tf + dur * 0.55, 0.5), flare = fl > 0 && fl < 1 ? (fl < 0.12 ? 1 : 1 - eO2((fl - 0.12) / 0.88)) : 0;
+                c.rimMat.emissiveIntensity = (big ? 1.25 : 0.7) * flare;
+              }
+              c.lift = lift; c.pop = sc / Math.max(0.001, (0.6 + 0.4 * eo) * (1 - 0.55 * ex));
+              c.flip.rotation.set(rotX, rotY + flipA, 0);
+              const fx = rotY + flipA, shade = 0.62 + 0.38 * Math.abs(Math.cos(fx));
+              c.faces.forEach((m) => m.color.setScalar(shade));
+              const gl = Math.pow(Math.abs(Math.cos(fx)), 3); c.domes.forEach((m) => (m.opacity = gl));
+              const kz = (DIST - lift) / DIST;
+              c.grp.position.set((c.base[0] + dx) * kz, (c.base[1] - dy) * kz, lift);
+              c.grp.scale.setScalar(Math.max(0.001, sc));
+              c.sh.material.opacity = 0.8 * eo * (1 - ex) * (1 - 0.5 * clamp(lift / 110));
+              c.sh.position.set(R * .07 + lift * .25, -R * .14 - lift * .35, -D / 2 - 6 - lift);
+              // crown: sits on the locked face; on unlock it hops off, spins and lands on the portrait's head
+              if (c.cr) {
+                let cy = -R * .02, cz = D / 2 + R * .12, cs = 1, cry = rotY * .6, crz = 0;
+                if (c.unl) {
+                  const tf = c.unl.at + T.travel - 0.06, ph = seg(t, tf, 0.6), land = seg(t, tf + 0.6, 0.4);
+                  const y1 = R * .96, s1 = .8;
+                  cy = lerp(-R * .02, y1, eIO2(ph)) + R * 1.15 * Math.sin(Math.PI * ph);
+                  cz = D / 2 + R * .12 + R * 1.7 * Math.sin(Math.PI * Math.min(1, ph * 1.0));
+                  cs = lerp(1, s1, eIO2(ph)) * (1 + 0.3 * Math.sin(Math.PI * ph));
+                  cry = 0.55 * Math.sin(2 * Math.PI * ph) * (1 - ph) + rotY * .6; crz = lerp(0, -0.16, eIO2(ph)) + 0.35 * Math.sin(Math.PI * ph);
+                  if (land > 0 && land < 1) cs *= 1 + 0.12 * Math.sin(Math.PI * land) * (1 - land);
+                  cy += lift * 0; // crown rides with the coin group (grp) already
+                }
+                c.cr.position.set(0, cy, cz); c.cr.rotation.set(rotX * .6, cry, crz); c.cr.scale.setScalar(cs);
+              }
+            });
+
+            // ring
+            const rIn = seg(t, T.in + 0.42, 0.42), rOut = seg(t, T.out - 0.02, 0.28);
+            ring.visible = rIn > 0 && rOut < 1;
+            if (ring.visible) {
+              const ri = ringIndex(t), rp = posAt(ri);
+              let rs = lerp(2.2, 1, eO3(rIn)) * (1 - eI3(rOut));
+              // stretch along travel, squash on land
+              let sa = 1, sp = 1;
+              STEPS.forEach((s) => {
+                const pt = seg(t, s.at, T.travel); if (pt > 0 && pt < 1) { const k = Math.sin(Math.PI * pt); sa *= 1 + 0.22 * k; sp *= 1 - 0.08 * k; }
+                const pl = seg(t, s.at + T.travel, 0.42); if (pl > 0 && pl < 1) { const k = (1 - eEl(pl)); sp *= 1 + 0.16 * k * (s.payoff ? 1.3 : 1); sa *= 1 - 0.1 * k; }
+              });
+              const tierAt = Math.round(ri), cc = coins[clamp(tierAt, 0, N - 1)], onTok = Math.abs(ri - tierAt) < 0.002 && cc && cc.grp.visible;
+              const rz = D * .2 + (onTok ? cc.lift || 0 : 0), rk = (DIST - rz) / DIST;
+              ring.position.set(wx(rp[0]) * rk, wy(rp[1]) * rk, rz);
+              if (onTok) rs *= cc.pop || 1;
+              if (VERT) ring.scale.set(rs * sp, rs * sa, rs); else ring.scale.set(rs * sa, rs * sp, rs);
+              ring.rotation.z = -2.4 * (1 - eO3(rIn)) - 3 * eI3(rOut);
+              let pulse = 0; STEPS.forEach((s) => { const pl = seg(t, s.at + T.travel, 0.45); if (pl > 0 && pl < 1) pulse = Math.max(pulse, pl < 0.1 ? 1 : 1 - eO2((pl - 0.1) / 0.9)); });
+              ringMat.emissiveIntensity = 0.55 + 0.1 * Math.sin(t * 6.2) + 0.6 * pulse;
+              const gpk = seg(t, TLAND + 0.1, 0.5), gold = gpk > 0 && gpk < 1 ? Math.sin(Math.PI * gpk) : 0;
+              glowMat.opacity = (0.72 + 0.12 * Math.sin(t * 6.2) + 0.3 * pulse) * eO3(rIn) * (1 - 0.65 * gold);
+              const ca = -t * 4.2; comet.rotation.z = ca; cometTail.rotation.z = ca + 0.75;
+              cometMat.opacity = 0.9 * eO3(rIn);
+            }
+
+            // payoff halo, embers, raking light
+            const pc = coins[PAY.to], hp = seg(t, TLAND + 0.1, 1.6);
+            if (hp > 0 && pc.grp.visible) {
+              const pk = hp < 0.05 ? hp / 0.05 : (hp < 0.09 ? 1 : 0.32 + 0.68 * (1 - eO2((hp - 0.09) / 0.91)));
+              halo.material.opacity = pk * (1 - eI3(seg(t, T.out, 0.3)));
+              halo.position.set(pc.grp.position.x, pc.grp.position.y, pc.grp.position.z - D * 2);
+              halo.scale.setScalar(0.85 + 0.25 * eO3(clamp(hp * 4)));
+            } else halo.material.opacity = 0;
+            embers.forEach((e) => {
+              const st = TLAND + 0.3 + e.a * 0.35, pe = seg(t, st, 0.75 + e.b * 0.5);
+              if (pe <= 0 || pe >= 1 || !pc.grp.visible) { e.m.material.opacity = 0; return; }
+              const ang = Math.PI * (0.1 + 0.8 * e.c), rr = R * (0.75 + 0.4 * e.b) + R * 0.9 * eO2(pe);
+              e.m.position.set(pc.base[0] + Math.cos(ang) * rr * 0.95 + (VERT ? -R * .3 : 0), pc.base[1] + Math.sin(ang) * rr * 0.6 + R * 1.1 * eO2(pe), pc.grp.position.z + 30);
+              const sz = (R / 48) * (7 + 8 * e.a) * (1 - pe * .55); e.m.scale.set(sz, sz, 1);
+              e.m.material.opacity = (pe < 0.1 ? pe / 0.1 : 1 - (pe - 0.1) / 0.9) * 0.95;
+            });
+            const sp = seg(t, TLAND - 0.02, 0.55);
+            if (sp > 0 && sp < 1) {
+              const sa = Math.PI * (0.95 - 1.25 * eIO2(sp));
+              sweep.intensity = 6 * Math.sin(Math.PI * sp);
+              sweep.position.set(pc.grp.position.x + Math.cos(sa) * R * 2.1, pc.grp.position.y + Math.sin(sa) * R * 2.1, pc.grp.position.z + R * 1.2);
+            } else sweep.intensity = 0;
+
+            renderer.render(scene, camera);
+
+            checks.forEach((d, i) => {
+              const c = coins[i], ta = doneAt(i), pe = seg(t, c.tIn + 0.15, 0.4), px = seg(t, c.tOut - 0.06, 0.2);
+              const pk = ta < 0 ? eBack(pe) : E("back.out(2.6)")(seg(t, ta, 0.36));
+              const s2 = pk * (1 - eI3(px)), p = tierPos(i), cs = L.checkSize;
+              d.style.visibility = s2 > 0.01 ? "visible" : "hidden";
+              d.style.transform = "translate(" + (p[0] + R * .66 - cs / 2).toFixed(1) + "px," + (p[1] + R * .62 - cs / 2).toFixed(1) + "px) scale(" + s2.toFixed(3) + ")";
+            });
+
+            // label: rolls out of the payoff token, holds, rolls back in
+            const li = seg(t, T.labelIn, 0.42), lo = seg(t, T.labelOut, 0.3);
+            const lvis = li > 0 && lo < 1;
+            lab.style.visibility = lvis ? "visible" : "hidden";
+            if (lvis) {
+              const k1 = eExpo(li), k2 = eExpo(seg(t, T.labelIn + 0.07, 0.42)), o1 = eI3(lo), o2 = eI3(seg(t, T.labelOut - 0.04, 0.3));
+              if (VERT) {
+                lk.style.transform = "translateX(" + ((1 - k1) * 105 + o1 * 105).toFixed(2) + "%)";
+                ln.style.transform = "translateX(" + ((1 - k2) * 105 + o2 * 105).toFixed(2) + "%)";
+              } else {
+                lk.style.transform = "translateY(" + ((1 - k1) * -110 + o1 * -110).toFixed(2) + "%)";
+                ln.style.transform = "translateY(" + ((1 - k2) * -110 + o2 * -110).toFixed(2) + "%)";
+              }
+              const mb = Math.max((1 - k2) * 14, o2 * 14);
+              ln.style.filter = mb > 0.3 ? "blur(" + (mb * .5).toFixed(1) + "px)" : "none";
+            }
+          }
+
+          // label placement
+          const pp = tierPos(PAY.to);
+          if (VERT) { lab.style.right = (W - (pp[0] - R - 34)) + "px"; lab.style.top = (pp[1] - 70) + "px"; }
+          else lab.style.top = (pp[1] + R + 46) + "px";
+
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+          const tl = gsap.timeline({ paused: true });
+          renderAt(0);
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          if (plate) {
+            STEPS.forEach((s) => Look.impact(tl, s.at + T.travel, { shake: "#shake", amp: s.payoff ? 6 : 3, dur: s.payoff ? 0.3 : 0.2, flash: 0, zoom: s.payoff ? 1.014 : 1.006 }));
+            Look.push(tl, "#push", 0, T.end, { to: 1.04 });
+          }
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        }
+
+        const FACES = ["900 100px Archivo", "800 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f)))
+          .then(() => document.fonts.ready)
+          .then(() => Promise.all(C.tiers.map((tr) => loadImg(tr.img))))
+          .then(build);
+      })();
+    </script>
+  </body>
+</html>

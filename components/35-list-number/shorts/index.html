@@ -1,0 +1,238 @@
+<!doctype html>
+<!-- GTA-niche 35 List number, variant B: "Number stack" (9:16 Shorts, 1080x1920, 30 fps, 4.1 s).
+     The big entry number of a top-10 Short, stacked over the entry name in the top of the frame. A giant "#5" (real
+     Three.js geometry: extruded, bevelled Archivo outlines) slams in as white enamel showing the previous entry's 6, the
+     counter drum rolls 6 -> 5 and locks, and the lock floods it into pink-violet candy metal behind a hot light front, with
+     a raking key and a neon bloom. The two-line entry name rises in under it with the top-10 progress. After the read the
+     name drops away and the number swells and collapses into its centre with a spin, cut on the zero frame.
+     See ../DECISIONS.md. Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <script src="media/num3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push, #ov { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #shade, #bounce { position: absolute; pointer-events: none; opacity: 0; }
+      #shade { inset: 0; }
+      #bounce { mix-blend-mode: screen; }
+      #t3d { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; }
+      #card { position: absolute; left: 0; top: 0; width: 1008px; display: flex; flex-direction: column; align-items: center;
+        filter: drop-shadow(0 6px 16px rgba(14, 0, 30, .66)); }
+      .win { overflow: hidden; padding: 0 30px; }
+      .tl { margin-top: -6px; }
+      .ti { display: block; font: 900 108px/1.06 "Inter"; letter-spacing: -0.045em; color: #fff; white-space: nowrap; padding-bottom: 6px; text-align: center; }
+      #dots { display: flex; align-items: center; margin-top: 24px; height: 12px; }
+      .dot { height: 9px; width: 26px; border-radius: 5px; margin: 0 5px; background: rgba(255, 255, 255, .92); }
+      .dot.f { background: rgba(255, 255, 255, .36); }
+      .dot.c { background: linear-gradient(90deg, #FF8AEA, #E048E6 55%, #A93BF5); box-shadow: 0 0 12px rgba(255, 79, 216, .85), inset 0 1px 0 rgba(255,255,255,.55); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="4.1" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <video id="s1" class="clip shot" src="assets/shots/v12-heli-city-dusk-v.mp4" muted playsinline data-start="0" data-duration="1.6" data-media-start="0" data-track-index="0"></video>
+        <video id="s2" class="clip shot" src="assets/shots/v38-freeway-dusk-v.mp4" muted playsinline data-start="1.6" data-duration="1.9" data-media-start="0" data-track-index="0"></video>
+        <video id="s3" class="clip shot" src="assets/shots/v36-hills-city-view-v.mp4" muted playsinline data-start="3.5" data-duration="0.6" data-media-start="0.3" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="4.1" data-track-index="1">
+        <div id="shade"></div>
+        <div id="bounce"></div>
+        <div id="t3d"></div>
+        <div id="card">
+          <div class="win tl" id="tl1"><span class="ti" id="ti1"></span></div>
+          <div class="win tl" id="tl2"><span class="ti" id="ti2"></span></div>
+          <div id="dots"></div>
+        </div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        // The counter drum shows the previous entry (`from`), rolls to this entry (`to`, 0-9) and locks in colour.
+        number: { from: 6, to: 5, prefix: "#" },
+        title: ["fly over", "los santos"],      // two lines under the number; the line index in `accent` takes the accent gradient
+        accent: 1,
+        progress: { total: 10, done: 5 },         // a top-10 countdown at #5: five entries done, this one lit
+        // giant number: cap height (px), block centre x (the Shorts safe zone's centre), cap top; the '#' is a superscript
+        type: { set: "wide", cap: 380, cx: 504, top: 252, hashScale: 0.46, gap: 0.05, depth: 0.3, bevel: 0.07, tilt: 0.2 },
+        card: { gap: 62 },                        // number ink bottom -> first title line
+        colors: {
+          white: { face: ["#FFFFFF", "#D6D0E4"], side: ["#9790AE", "#201B2E"] },     // white enamel, lilac steel walls
+          state: { face: ["#FFA6F0", "#FF46D6", "#B314C4", "#FF7AE4", "#7A2BFF"], facePos: [0, 0.4, 0.5, 0.56, 1], lip: "#FF9AEB", side: ["#8A1ED8", "#1A0236"], hot: "#FFE3FA" },
+          glow: "255,79,216", shadow: "#0C0016"
+        },
+        timing: { in: 0.22, inDur: 0.22, tick: 0.64, rollDur: 0.3, out: 3.26, end: 4.1 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const $ = (s) => document.querySelector(s);
+        const C = CONFIG, TY = C.type, TM = C.timing, FR = 1 / 30;
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+        const lerp = (a, b, k) => a + (b - a) * k;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        $("#ti1").textContent = C.title[0]; $("#ti2").textContent = C.title[1];
+        const dotsEl = $("#dots"), dots = [];
+        for (let i = 0; i < C.progress.total; i++) {
+          const d = document.createElement("div"); d.className = "dot" + (i < C.progress.done ? "" : i === C.progress.done ? " c" : " f");
+          dotsEl.appendChild(d); dots.push(d);
+        }
+        const FACES = ["900 100px Archivo", "900 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const F = window.CARD_GLYPHS[TY.set];
+          // ---------- number geometry: the numeral (a drum, '%') and the superscript '#', top-aligned, centred as one block ----------
+          const size = TY.cap * F.upm / F.cap, hsize = size * TY.hashScale;
+          const mN = Num3D.measure(F, "%", size, 0), mH = Num3D.measure(F, C.number.prefix, hsize, 0);
+          const capN = mN.cap, capH = mH.cap;
+          const blockW = mH.inkW + TY.gap * capN + mN.inkW, blockL = TY.cx - blockW / 2, blockT = TY.top;
+          const nCX = blockL + blockW - mN.inkW / 2, nCY = blockT + capN / 2;
+          const hCX = blockL + mH.inkW / 2, hCY = blockT + capH / 2;
+          const bCX = TY.cx, bCY = nCY;                                // the block's centre: the exit collapses into it
+          const eBack = gsap.parseEase("back.out(1.5)"), eRoll = gsap.parseEase("back.out(1.6)"), eExpo = gsap.parseEase("expo.out"),
+            eSine = gsap.parseEase("sine.inOut"), eRec = gsap.parseEase("back.out(2.5)"), eP3io = gsap.parseEase("power3.inOut"),
+            eP2i = gsap.parseEase("power2.in"), eP2io = gsap.parseEase("power2.inOut"), eP3i = gsap.parseEase("power3.in"), eP2o = gsap.parseEase("power2.out");
+          const WB = 0.07, span = C.number.to - C.number.from, dir = Math.sign(span) || 1;
+          function drumIdx(t) {
+            const a = TM.tick - 2 * FR;
+            if (t < a) return C.number.from;
+            if (t < TM.tick) return C.number.from - dir * WB * Math.sin((Math.PI / 2) * (t - a) / (2 * FR));
+            const p = clamp((t - TM.tick) / TM.rollDur, 0, 1);
+            return C.number.from - dir * WB + (span + dir * WB) * eRoll(p);
+          }
+          let ignite = TM.tick;
+          for (let t = TM.tick; t < TM.tick + TM.rollDur; t += 0.002) { if ((drumIdx(t) - C.number.to) * dir >= -0.002) { ignite = t; break; } }
+          const H = (n) => Look.hash(n) * 2 - 1;
+          const landN = TM.in + TM.inDur, inH = TM.in + 0.07;
+          // ---------- the exit: a 2-frame swell, then a spinning collapse into the block centre; gone on the zero frame ----------
+          const xA = TM.out + 0.1, xDur = 0.2, xB = xA + xDur;
+          function rig(t) {
+            let S = 1, ry = 0;
+            if (t >= TM.out + 0.04 && t < xA) S = 1 + 0.05 * Math.sin(((t - TM.out - 0.04) / (xA - TM.out - 0.04)) * Math.PI / 2);
+            else if (t >= xA) { const u = clamp((t - xA) / xDur, 0, 1); S = 1.05 * (1 - eP3i(u)); ry = 0.9 * eP3i(u); }
+            return { S, ry };
+          }
+          const lineAt = (R, cx, cy) => ({ x: (bCX + (cx - bCX) * R.S) - cx, y: (bCY + (cy - bCY) * R.S) - cy });
+          function slam(t, tf, t0, seed, z0) {
+            if (tf < t0 || tf >= xB) return { hide: true };   // hidden by frame time: no see-through first frame, nothing after the collapse
+            let up = Math.max(0, (t - t0) / TM.inDur);
+            if (up < 1) { const k = eBack(up); return { z: z0 * (1 - k), rx: 0.36 * (1 - k), ry: 0.22 * H(seed) * (1 - k), rz: 0.05 * H(seed + 3) * (1 - k), y: -26 * (1 - k) }; }
+            const w = (t - t0 - TM.inDur) / 0.18;
+            if (w < 1) { const s = 0.075 * Math.cos(w * Math.PI * 1.5) * Math.exp(-3.2 * w); return { sy: 1 - s, sx: 1 + s * 0.45 }; }
+            return {};
+          }
+          const N3 = Num3D({
+            W: 1080, H: 1920, glyphs: window.CARD_GLYPHS, fov: 20, px: bCX, py: bCY,
+            lines: [
+              { id: "n", set: TY.set, text: "%", size, tracking: 0, cx: nCX, cy: nCY, depth: TY.depth, bevel: TY.bevel, tilt: TY.tilt, drumR: 2.15, winTop: 0.05, winBot: 0.06, winFeather: 0.08 },
+              { id: "h", set: TY.set, text: C.number.prefix, size: hsize, tracking: 0, cx: hCX, cy: hCY, depth: TY.depth * capN / capH, bevel: 0.06, tilt: TY.tilt, state: true }
+            ],
+            colors: { white: C.colors.white, state: C.colors.state, material: { faceMetal: 0.3, faceRough: 0.28, clearcoat: 0.6, faceEnv: 0.38, sideMetal: 1.0 }, faceEmissive: 0.8, preEmissive: 0.5, tint: 0.85 },
+            shadow: 0.62, shadowOff: [7, 11], wideShadow: 0.36, shadowColor: C.colors.shadow,
+            shutter: (t) => (t > TM.in - 0.04 && t < inH + TM.inDur + 0.1 ? 1 / 90 : t > TM.tick - 0.1 && t < TM.tick + TM.rollDur ? 1 / 120 : t > xA && t < xB ? 1 / 90 : 0),
+            subframes: (t) => (t > xA && t < xB ? 20 : t > TM.tick - 0.1 && t < TM.tick + TM.rollDur ? 16 : 14),
+            pose: (t, tf) => {
+              const P = { lines: {}, glyphs: {}, drums: {}, state: {}, drumMin: { n: [Math.min(C.number.from, C.number.to)] }, drumMax: { n: [Math.max(C.number.from, C.number.to)] } };
+              const u = t - ignite, R = rig(t);
+              let s = 1;
+              if (u >= 0 && u < 0.07) s = 1 + 0.05 * eExpo(u / 0.07);
+              else if (u >= 0.07 && u < 0.34) s = 1 + 0.05 * (1 - eBack((u - 0.07) / 0.27));
+              const rc = u >= 0 && u < 0.2 ? 8 * (1 - eRec(u / 0.2)) : 0;
+              const hold = clamp((t - landN) / (TM.out - landN), 0, 1);
+              const ryL = -0.07 + 0.12 * eSine(hold);
+              const pn = lineAt(R, nCX, nCY), ph = lineAt(R, hCX, hCY);
+              P.lines.n = { x: pn.x, y: pn.y + rc, s: s * R.S, ry: ryL + R.ry, rx: 0.015 * Math.sin(hold * Math.PI) };
+              P.lines.h = { x: ph.x, y: ph.y + rc * 0.6, s: s * R.S, ry: ryL + R.ry, rx: 0.015 * Math.sin(hold * Math.PI) };
+              P.glyphs.n = () => slam(t, tf, TM.in, 11, 1050);
+              P.glyphs.h = () => slam(t, tf, inH, 29, 480);
+              P.drums.n = [drumIdx(t)];
+              if (t >= ignite) P.state.n = { p: eExpo(clamp(u / 0.24, 0, 1)), hot: 3.0 * (1 - eP2i(clamp(u / 0.36, 0, 1))) };
+              if (t >= ignite + 0.05) { const v = u - 0.05; P.state.h = { p: eExpo(clamp(v / 0.2, 0, 1)), hot: 2.6 * (1 - eP2i(clamp(v / 0.3, 0, 1))) }; }
+              const rk = eP2io(clamp((t - (ignite - 0.05)) / 0.75, 0, 1));
+              const kd = eSine(clamp((t - (ignite + 0.7)) / (TM.out - ignite - 0.7), 0, 1));
+              P.keyAngle = -0.95 + 1.75 * rk - 1.1 * kd;
+              P.key = 2.3 + 3.2 * Math.exp(-Math.pow((u - 0.14) / 0.16, 2));
+              const half = mN.inkW / 2;
+              const sp = clamp((t - (ignite + 0.03)) / 0.4, 0, 1);
+              const sd = clamp((t - (ignite + 0.75)) / (TM.out - ignite - 0.75), 0, 1);
+              if (sp > 0 && sp < 1) { const a = -half - 0.5 * capN, b = half + 0.5 * capN; P.specX = a + (b - a) * eP3io(sp); P.specAmp = 0.9 * Math.pow(Math.sin(Math.PI * Math.min(1, sp * 1.2)), 0.6); P.specW = 0.4; }
+              else if (sd > 0 && sd < 1) { const a = -half - 1.2 * capN, b = half + 1.2 * capN; P.specX = a + (b - a) * sd; P.specAmp = 0.22 * Math.sin(Math.PI * sd); P.specW = 1.2; }
+              const env = u < 0 ? 0 : u < 0.1 ? 1 : Math.exp(-(u - 0.1) / 0.3);
+              P.bloom = (t < ignite ? 0.1 : 0.34) + 0.8 * env;
+              P.bloomTh = t < ignite ? 1.3 : 0.95;
+              return P;
+            }
+          });
+          $("#t3d").appendChild(N3.canvas);
+          // ---------- the entry name, centred under the number ----------
+          const card = $("#card");
+          card.style.left = Math.round(TY.cx - 504) + "px";
+          card.style.top = Math.round(blockT + capN + C.card.gap) + "px";
+          const acc = C.accent === 0 ? $("#ti1") : $("#ti2");
+          Look.fill(acc, "linear-gradient(180deg, #FFB0F2 0%, #FF5FDC 46%, #E33FE0 70%, #B34BFF 100%)");
+          $("#shade").style.background = "radial-gradient(ellipse 620px 640px at " + TY.cx + "px " + (blockT + 360) + "px, rgba(10,0,24,.48) 0%, rgba(10,0,24,.28) 52%, rgba(10,0,24,0) 100%)";
+          const bnc = $("#bounce");
+          bnc.style.cssText += ";left:" + (bCX - 540) + "px;top:" + (bCY - 480) + "px;width:1080px;height:960px;background:radial-gradient(closest-side, rgba(" + C.colors.glow + ",.5) 0%, rgba(" + C.colors.glow + ",.2) 45%, rgba(" + C.colors.glow + ",0) 100%)";
+          document.querySelectorAll("#root *").forEach((n) => { n.setAttribute("data-layout-allow-overlap", ""); n.setAttribute("data-layout-allow-occlusion", ""); });
+
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, TM.end, (p) => N3.renderAt(p * TM.end));
+          // ---------- the name rises out of its windows, the progress lights ----------
+          const c0 = ignite + 0.04;
+          [["#ti1", c0], ["#ti2", c0 + 0.08]].forEach(([el, at]) => {
+            gsap.set(el, { yPercent: 108, rotation: 2.5, transformOrigin: "0% 100%" });
+            tl.fromTo(el, { yPercent: 108, rotation: 2.5 }, { yPercent: 0, rotation: 0, duration: 0.5, ease: "expo.out", immediateRender: false }, at);
+          });
+          dots.forEach((d, i) => {
+            const at = c0 + 0.24 + i * 0.022;
+            gsap.set(d, { scaleX: 0, transformOrigin: "50% 50%" });
+            tl.fromTo(d, { scaleX: 0 }, { scaleX: 1, duration: 0.24, ease: "back.out(2)", immediateRender: false }, at);
+          });
+          const cur = dots[C.progress.done];
+          tl.fromTo(cur, { width: 26 }, { width: 78, duration: 0.42, ease: "elastic.out(1, 0.6)", immediateRender: false }, c0 + 0.5);
+          // ---------- exit: the name drops back up into its windows, the dots fold, then the number collapses ----------
+          const O = TM.out;
+          [["#ti2", O], ["#ti1", O + 0.04]].forEach(([el, at]) => {
+            tl.fromTo(el, { yPercent: 0 }, { yPercent: -112, duration: 0.22, ease: "power3.in", immediateRender: false }, at);
+          });
+          dots.forEach((d, i) => tl.fromTo(d, { scaleX: 1 }, { scaleX: 0, duration: 0.14, ease: "power3.in", immediateRender: false }, O + Math.abs(i - C.progress.done) * 0.012));
+          tl.set("#card", { visibility: "hidden" }, O + 0.3);
+          if (plate) {
+            Look.push(tl, "#push", 0, TM.end, { to: 1.05 });
+            Look.drive(tl, 0, TM.end, (p) => {
+              const t = p * TM.end;
+              const k = eP2o(clamp((t - TM.in) / 0.3, 0, 1)) * (1 - eP2i(clamp((t - O) / 0.35, 0, 1)));
+              $("#shade").style.opacity = k.toFixed(3);
+            });
+            Look.drive(tl, ignite, TM.end - ignite, (p) => {
+              const u = p * (TM.end - ignite); let k = 0;
+              if (p > 0 && p < 1) k = u < 2 * FR ? u / (2 * FR) : u < 5 * FR ? 1 : 0.3 + 0.7 * Math.exp(-(u - 5 * FR) / 0.22);
+              const off = 1 - eP2i(clamp((ignite + u - xA) / (xDur), 0, 1));
+              bnc.style.opacity = (0.85 * k * off).toFixed(3);
+            });
+            Look.expose(tl, ignite, { target: "#push", peak: 1.16, hold: 3 / 30, dur: 0.35, saturate: 1.1 });
+            Look.impact(tl, ignite, { shake: "#shake", amp: 9, dur: 0.3, zoom: 1.016, flash: 0 });
+            Look.impact(tl, landN - 0.02, { shake: "#shake", amp: 6, dur: 0.22, zoom: 1.01, flash: 0 });
+          }
+          N3.renderAt(0);
+          tl.set({}, {}, TM.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

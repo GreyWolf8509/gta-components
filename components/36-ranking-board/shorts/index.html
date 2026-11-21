@@ -1,0 +1,293 @@
+<!doctype html>
+<!-- 36 Ranking board, variant B: "Rank board" (16:9, 1920x1080, 30 fps, 7.5 s).
+     The 1-5 ranking board laid out along the top of a long-form frame. Each rank fills in after its clip: its thick 3D slot
+     flips over to the clip's thumbnail and the percentage rolls in under it. #1 is the payoff: a gold slot, a raking light, 100%.
+     Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). See gta/DESIGN.md and ../DECISIONS.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/rank3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      #bloom { position: absolute; width: 640px; height: 340px; opacity: 0; pointer-events: none;
+        background: radial-gradient(closest-side, rgba(255,214,110,.78) 0%, rgba(255,170,40,.42) 38%, rgba(255,140,20,.14) 68%, rgba(255,130,20,0) 100%); }
+      #gl { position: absolute; inset: 0; }
+      .num, .pct { position: absolute; left: 0; top: 0; white-space: nowrap; font-weight: 900; line-height: 1; }
+      .num { letter-spacing: 0; transform-origin: 100% 50%; }
+      .pct { overflow: hidden; padding: 20px 30px 28px 30px; }
+      .pct .roll { position: relative; display: block; }
+      .pct .lay { width: 100%; text-align: right; }
+      .pct, .pct .roll { font-variant-numeric: tabular-nums lining-nums; font-feature-settings: "tnum" 1, "lnum" 1; letter-spacing: -0.02em; }
+      .lay { display: block; }
+      .lay.face { position: absolute; left: 0; top: 0; }
+      .num .lay.face { left: 0; top: 0; }
+      .ink { color: #090A0E; -webkit-text-stroke: 13px #090A0E; paint-order: stroke fill;
+        text-shadow: 0 9px 22px rgba(0,0,0,.55), 0 2px 5px rgba(0,0,0,.6); }
+      .face { color: #FFFFFF; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="7.5" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="shot1" class="clip shot" src="assets/shots/v26-bridge-explosion-h.mp4" muted playsinline data-start="0" data-duration="1.45" data-media-start="0.25" data-track-index="0"></video>
+        <video id="shot2" class="clip shot" src="assets/shots/v32-skydive-towers-h.mp4" muted playsinline data-start="1.45" data-duration="1.2" data-media-start="0.03" data-track-index="0"></video>
+        <video id="shot3" class="clip shot" src="assets/shots/v30-street-explosion-h.mp4" muted playsinline data-start="2.65" data-duration="1.45" data-media-start="0.15" data-track-index="0"></video>
+        <video id="shot4" class="clip shot" src="assets/shots/v11-yacht-h.mp4" muted playsinline data-start="4.1" data-duration="2.0" data-media-start="0.08" data-track-index="0"></video>
+        <video id="shot5" class="clip shot" src="assets/shots/v36-hills-city-view-h.mp4" muted playsinline data-start="6.1" data-duration="1.4" data-media-start="0.4" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="7.5" data-track-index="1">
+        <div id="bloom"></div>
+        <div id="gl"></div>
+        <div id="type"></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        // top to bottom. pct = the score that fills in; thumb = a still of that rank's clip (any 16:9 image)
+        ranks: [
+          { rank: 1, pct: 100, thumb: "media/thumbs/rank1.jpg", color: "gold" },
+          { rank: 2, pct: 88, thumb: "media/thumbs/rank2.jpg", color: "red" },
+          { rank: 3, pct: 74, thumb: "media/thumbs/rank3.jpg", color: "slate" },
+          { rank: 4, pct: 61, thumb: "media/thumbs/rank4.jpg", color: "white" },
+          { rank: 5, pct: 47, thumb: "media/thumbs/rank5.jpg", color: "white" }
+        ],
+        prefilled: [5, 4],                                         // ranks already revealed when the column enters
+        reveals: [{ rank: 3, at: 1.45 }, { rank: 2, at: 2.65 }, { rank: 1, at: 4.10 }],   // put each on the cut after that rank's clip
+        layout: { top: 76, numSize: 80, numGap: 24, tileW: 204, tileH: 115, gap: 38, pctSize: 60, pctGap: 12, winRoom: 0.1 },
+        colors: {
+          gold:  { num: "linear-gradient(180deg,#FFF7CF 0%,#FFE36B 20%,#FFC423 56%,#E38C00 100%)", rim: "#FFC54A", q: "#FFD23C" },
+          red:   { num: "linear-gradient(180deg,#FFC9D2 0%,#FF6F88 22%,#EE2D52 60%,#B5112F 100%)", rim: "#FF4A68", q: "#FF4F6E" },
+          slate: { num: "linear-gradient(180deg,#F2F7FC 0%,#BDD0E2 24%,#88A6C0 62%,#5E7993 100%)", rim: "#A3BAD0", q: "#A9C3DA" },
+          white: { num: "linear-gradient(180deg,#FFFFFF 0%,#FFFFFF 48%,#E6EBF1 78%,#C8D0DB 100%)", rim: "#E6EAF0", q: "#E6EAF0" }
+        },
+        pctFill: "linear-gradient(180deg,#FFFFFF 0%,#FFFFFF 50%,#E4E9EF 80%,#C9D1DC 100%)",
+        glintAt: 5.55,                                             // a light pass along the settled board
+        timing: { in: 0.12, out: 6.72, end: 7.5 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const C = CONFIG, T = C.timing, L = C.layout, W = 1920, H = 1080, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const E = (n) => gsap.parseEase(n);
+        const seg = (t, a, d) => Math.min(1, Math.max(0, (t - a) / d));
+        const loadImg = (src) => new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
+
+        // ---------- face textures ----------
+        function rr(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+        function frontTex(img, fw, fh) {
+          const S = 3, cv = document.createElement("canvas"); cv.width = Math.round(fw * S); cv.height = Math.round(fh * S);
+          const c = cv.getContext("2d"), w = cv.width, h = cv.height;
+          c.fillStyle = "#111"; c.fillRect(0, 0, w, h);
+          if (img) { const k = Math.max(w / img.width, h / img.height), iw = img.width * k, ih = img.height * k; c.drawImage(img, (w - iw) / 2, (h - ih) / 2, iw, ih); }
+          // lens falloff + an inner edge shadow under the rim lip
+          let g = c.createRadialGradient(w / 2, h * 0.45, h * 0.3, w / 2, h / 2, w * 0.62);
+          g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.1)"); c.fillStyle = g; c.fillRect(0, 0, w, h);
+          g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, "rgba(0,0,0,.14)"); g.addColorStop(0.08, "rgba(0,0,0,0)"); g.addColorStop(0.88, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.1)");
+          c.fillStyle = g; c.fillRect(0, 0, w, h);
+          // glass: a soft top-left reflection under the clearcoat (survives phone size)
+          g = c.createLinearGradient(0, 0, w * 0.55, h * 1.1); g.addColorStop(0, "rgba(255,255,255,.2)"); g.addColorStop(0.42, "rgba(255,255,255,.07)"); g.addColorStop(0.43, "rgba(255,255,255,0)");
+          c.fillStyle = g; c.fillRect(0, 0, w, h);
+          return cv;
+        }
+        function backTex(col, fw, fh) {
+          const S = 3, cv = document.createElement("canvas"); cv.width = Math.round(fw * S); cv.height = Math.round(fh * S);
+          const c = cv.getContext("2d"), w = cv.width, h = cv.height;
+          let g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, "#232731"); g.addColorStop(0.45, "#111318"); g.addColorStop(1, "#060709");
+          c.fillStyle = g; c.fillRect(0, 0, w, h);
+          // brushed grain (deterministic)
+          for (let i = 0; i < 220; i++) {
+            const y = Look.hash(i * 7 + 3) * h, a = 0.012 + Look.hash(i * 11 + 5) * 0.026;
+            c.fillStyle = "rgba(255,255,255," + a.toFixed(3) + ")"; c.fillRect(0, y, w, 1 + Look.hash(i + 99) * 1.5);
+          }
+          g = c.createRadialGradient(w / 2, h * 0.5, 4, w / 2, h * 0.5, h * 0.75);
+          g.addColorStop(0, col + "55"); g.addColorStop(1, col + "00"); c.fillStyle = g; c.fillRect(0, 0, w, h);
+          const fs = Math.round(h * 0.74);
+          c.font = "900 " + fs + "px Inter"; c.textAlign = "center"; c.textBaseline = "alphabetic";
+          const m = c.measureText("?"), cy = h / 2 + (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2;
+          c.lineJoin = "round"; c.lineWidth = fs * 0.09; c.strokeStyle = "rgba(0,0,0,.7)"; c.strokeText("?", w / 2, cy + fs * 0.03);
+          g = c.createLinearGradient(0, cy - fs * 0.75, 0, cy); g.addColorStop(0, "#FFFFFF"); g.addColorStop(0.35, col); g.addColorStop(1, col);
+          c.fillStyle = g; c.fillText("?", w / 2, cy);
+          // lit top lip, dark bottom lip
+          c.fillStyle = "rgba(255,255,255,.22)"; c.fillRect(0, 0, w, 3); c.fillStyle = "rgba(0,0,0,.5)"; c.fillRect(0, h - 4, w, 4);
+          return cv;
+        }
+
+        function build(imgs) {
+          const type = $("#type"), mc = document.createElement("canvas").getContext("2d");
+          mc.font = "900 " + L.numSize + "px Inter";
+          const metrics = C.ranks.map((r) => mc.measureText(r.rank + "."));
+          const inkW = Math.max.apply(null, metrics.map((m) => m.actualBoundingBoxRight + m.actualBoundingBoxLeft));
+          // five slots across the top, centred: [numeral][slot]; numerals right-aligned on their ink to a fixed gap
+          // slot 1 gets extra room on its right: the winner's slot grows (anchored at its left edge) without crowding "2."
+          const E0 = Math.round(L.tileW * L.winRoom);
+          const slotW = inkW + L.numGap + L.tileW, total = C.ranks.length * slotW + (C.ranks.length - 1) * L.gap + E0, x0 = (W - total) / 2;
+          const y = L.top + L.tileH / 2;
+          const rows = C.ranks.map((r, i) => {
+            const inkR = x0 + i * (slotW + L.gap) + (i > 0 ? E0 : 0) + inkW, tileX = inkR + L.numGap, cx = tileX + L.tileW / 2, col = C.colors[r.color] || C.colors.white;
+            const pre = C.prefilled.indexOf(r.rank) >= 0, rv = C.reveals.find((v) => v.rank === r.rank);
+            const pay = r.rank === 1;
+            // numeral: ink layer (outline + shadow) under a lacquer face; ink-left optically on x
+            const num = document.createElement("div"); num.className = "num"; num.style.fontSize = L.numSize + "px";
+            num.innerHTML = '<span class="lay ink" aria-hidden="true" data-layout-allow-occlusion></span><span class="lay face" data-layout-allow-occlusion></span>';
+            num.children[0].textContent = num.children[1].textContent = r.rank + ".";
+            num.style.left = (inkR - metrics[i].actualBoundingBoxRight) + "px"; num.style.top = (y - L.numSize / 2) + "px";
+            type.appendChild(num);
+            Look.fill(num.children[1], col.num, { sheen: pay });
+            // percentage: rolls in through its own window, counts in tabular figures
+            const pct = document.createElement("div"); pct.className = "pct"; pct.style.fontSize = L.pctSize + "px";
+            pct.innerHTML = '<span class="roll"><span class="lay ink" aria-hidden="true" data-layout-allow-occlusion></span><span class="lay face" data-layout-allow-occlusion></span></span>';
+            const roll = pct.firstChild, pInk = roll.children[0], pFace = roll.children[1];
+            pInk.textContent = pFace.textContent = r.pct + "%";
+            pct.style.left = (cx + (pay ? 0.03 * L.tileW : 0)) + "px"; pct.style.top = (L.top + L.tileH * (pay ? 1.06 : 1) + L.pctGap - 20) + "px";
+            type.appendChild(pct);
+            // the count runs in a fixed box sized to the final figure, right-aligned: the % stays put while digits roll in
+            roll.style.width = roll.offsetWidth + "px";
+            Look.fill(pFace, pay ? C.colors.gold.num : C.pctFill, { sheen: pay });
+            gsap.set(roll, { yPercent: 165 }); gsap.set(pct, { xPercent: -50, transformOrigin: "50% 40%" });
+            return { r, i, y, cx, col, pre, ta: rv ? rv.at : null, pay, num, pct, roll, pInk, pFace,
+              te: T.in + i * 0.07, tx: T.out + (C.ranks.length - 1 - i) * 0.05 };
+          });
+
+          // ---------- 3D slots ----------
+          const ins = 5 + 5, fw = L.tileW - 2 * ins, fh = L.tileH - 2 * ins;
+          const R3 = Rank3D({ W, H, fov: 30, tiles: rows.map((R, i) => ({
+            cx: R.cx, cy: R.y, w: L.tileW, h: L.tileH, r: 17, depth: 20, bt: 5, bs: 5, lip: 5,
+            rim: R.col.rim, rimOpt: R.pay ? { rough: 0.18, env: 1.3, glowColor: "#FFB627" } : { rough: R.r.color === "white" ? 0.2 : 0.28 },
+            front: frontTex(imgs[i], fw, fh), back: backTex(R.col.q, fw, fh), backOpt: { env: 0.32 }, shadowOff: [7, 13]
+          })) });
+          $("#gl").appendChild(R3.canvas);
+
+          const eIn = E("back.out(1.6)"), eSwing = E("back.out(1.45)"), eFlip = E("back.out(1.3)"), eP2o = E("power2.out"),
+            eP3i = E("power3.in"), eSw = E("power2.inOut"), FLIP = 0.52, FLIP1 = 0.62, EXIT = 0.36;
+          // ripple: the #1 lock-in knocks through the rest of the board (damped, staggered away from #1)
+          const RIP = 14, ripAt = (R) => (C.reveals.find((v) => v.rank === 1) || { at: -99 }).at + 0.3 + R.i * 0.045;
+          const ripple = (R, t) => { if (R.pay) return 0; const u = t - ripAt(R); return u <= 0 || u > 0.8 ? 0 : RIP * Math.sin(u * 22) * Math.exp(-u * 7); };
+          function pose(R, t) {
+            if (t < R.te || t >= R.tx + EXIT) return { vis: false };
+            const base = R.pre ? 0 : Math.PI, pin = seg(t, R.te, 0.55);
+            // entrance: the slot drops in from above and tips down from near edge-on onto its face
+            let ry = base, x = 0, y = -90 * (1 - eIn(pin)), s = 0.8 + 0.2 * eSwing(pin);
+            let z = 0, sx = 1, sy = 1, spec = -9, specAmp = 0, glow = 0;
+            // at rest the board is square to the type; only a breath of drift (the gloss is kept alive by light sweeps, not by turning slabs)
+            let rx = 0.03 - 1.35 * (1 - eSwing(pin)) + 0.012 * Math.sin(1.3 * t + R.i * 0.9);
+            ry += 0.015 * Math.sin(1.1 * t + R.i * 1.3) * pin;
+            // the face-down plaque catches a light as it lands
+            let backSpec = -0.5 + 2.2 * eSw(seg(t, R.te + 0.12, 0.6)), backSpecAmp = 0.45;
+            if (R.pre) { spec = backSpec; specAmp = 0.55; }
+            if (R.ta != null && t >= R.ta - 0.14) {
+              const D = R.pay ? FLIP1 : FLIP, pw = eP2o(seg(t, R.ta - 0.14, 0.14)), pf = seg(t, R.ta, D), ef = eFlip(pf);
+              const bump = Math.sin(Math.PI * Math.min(1, pf * 1.12));
+              ry = (Math.PI + 0.11 * pw) * (1 - ef) + 0.015 * Math.sin(1.1 * t + R.i * 1.3);
+              const sEnd = R.pay ? 1.06 : 1;
+              s = (1 + 0.05 * pw) + (sEnd - 1 - 0.05 * pw) * Math.min(1, ef) + (R.pay ? 0.04 : 0.1) * bump;
+              z = 40 * pw * (1 - Math.min(1, pf * 3)) + (R.pay ? 40 : 90) * bump;
+              if (R.pay) { x += (s - 1) * L.tileW / 2; y += (s - 1) * L.tileH / 2; }   // the winner grows from its top-left corner
+              const pl = seg(t, R.ta + D * 0.6, 0.16), sq = Math.sin(Math.PI * pl);
+              sy = 1 - (R.pay ? 0.09 : 0.07) * sq; sx = 1 + (R.pay ? 0.05 : 0.04) * sq;
+              spec = -0.5 + 2.3 * eSw(seg(t, R.ta + 0.16, R.pay ? 0.85 : 0.7)); specAmp = R.pay ? 0.95 : 0.6;
+              if (R.pay) {
+                const a = R.ta + 0.30, k = t < a ? 0 : t < a + 0.04 ? (t - a) / 0.04 : t < a + 0.14 ? 1 : Math.max(0, 1 - (t - a - 0.14) / 0.5);
+                glow = 1.6 * k + 0.06 * seg(t, a, 0.2);   // the payoff light lives in the gold rim: 3-frame peak, 0.5 s decay
+              }
+            }
+            // a glint pass runs along the settled board after the lock-in
+            const G0 = C.glintAt + R.i * 0.08;
+            if (t >= G0 && t <= G0 + 0.65) { spec = -0.5 + 2.3 * eSw(seg(t, G0, 0.65)); specAmp = 0.42; }
+            y += ripple(R, t) * 0.6;
+            if (t >= R.tx) {
+              const pe = eP3i(seg(t, R.tx, EXIT));
+              rx += 1.4 * pe; s *= 1 - 0.55 * pe; y += -80 * pe;
+            }
+            return { x, y, z, rx, ry, s, sx, sy, spec, specAmp, backSpec, backSpecAmp, glow, shadow: Math.min(1, pin * 1.4) };
+          }
+          const PAY = rows.find((R) => R.pay);
+          function renderAt(t) {
+            rows.forEach((R, i) => R3.set(i, pose(R, t)));
+            // payoff: the key light rakes across the gold slot
+            if (PAY && PAY.ta != null) {
+              const k = seg(t, PAY.ta + 0.05, 0.95), e = eSw(k), on = k > 0 && k < 1 ? Math.sin(Math.PI * k) : 0;
+              R3.key.position.set(-0.55 + 2.0 * e * (k > 0 ? 1 : 0), 0.85 - 0.3 * on, 1.0);
+              R3.key.intensity = 2.2 + 1.4 * on;
+            }
+            R3.render();
+          }
+
+          // ---------- DOM timeline ----------
+          const tl = gsap.timeline({ paused: true });
+          const countTo = (R, at, dur) => {
+            const fmt = (v) => Math.round(v) + "%", Ec = E("expo.out");
+            Look.drive(tl, at, dur, (p) => { const s = fmt(R.r.pct * Ec(p)); if (R.pInk.textContent !== s) { R.pInk.textContent = s; R.pFace.textContent = s; } });
+          };
+          rows.forEach((R) => {
+            gsap.set(R.num, { opacity: 0 });
+            tl.fromTo(R.num, { y: -90, filter: "blur(10px)" }, { y: 0, filter: "blur(0px)", duration: 0.5, ease: "back.out(1.6)", immediateRender: false }, R.te);
+            tl.fromTo(R.num, { opacity: 0 }, { opacity: 1, duration: 0.06, ease: "none", immediateRender: false }, R.te);
+            tl.set(R.num, { filter: "none" }, R.te + 0.5);
+            const rollIn = (at) => tl.fromTo(R.roll, { yPercent: 165 }, { yPercent: 0, duration: 0.42, ease: "expo.out", immediateRender: false }, at);
+            if (R.pre) { rollIn(R.te + 0.22); countTo(R, R.te + 0.22, 0.5); }
+            if (R.ta != null) {
+              const land = R.ta + (R.pay ? 0.36 : 0.3);
+              tl.to(R.num, { scale: R.pay ? 1.2 : 1.13, duration: 0.07, ease: "power2.out" }, land - 0.03);
+              tl.to(R.num, { scale: 1, duration: 0.6, ease: "elastic.out(1,0.45)" }, land + 0.04);
+              const pin = R.ta + (R.pay ? 0.4 : 0.24);
+              rollIn(pin); countTo(R, pin, R.pay ? 0.6 : 0.55);
+              if (R.pay) {
+                tl.fromTo(R.pct, { scale: 1 }, { scale: 1.2, duration: 0.07, ease: "power2.out", immediateRender: false }, R.ta + 0.98);
+                tl.to(R.pct, { scale: 1, duration: 0.5, ease: "elastic.out(1,0.5)" }, R.ta + 1.05);
+                Look.sheen(tl, R.num, R.ta + 0.42, { dur: 0.75 });
+                Look.sheen(tl, R.roll, R.ta + 0.98, { dur: 0.7 });
+              }
+            }
+            // exit: type slides into the left edge while a clip wipe eats it from the right; percentages roll out of their window
+            tl.fromTo(R.roll, { yPercent: 0 }, { yPercent: -165, duration: 0.3, ease: "power3.in", immediateRender: false }, R.tx - 0.04);
+            tl.fromTo(R.num, { y: 0, filter: "blur(0px)", clipPath: "inset(-40px -40px -40px -40px)" }, { y: -80, clipPath: "inset(-40px -40px 130px -40px)", filter: "blur(7px)", duration: EXIT, ease: "power3.in", immediateRender: false }, R.tx);
+            tl.set(R.num, { opacity: 0 }, R.tx + EXIT);
+          });
+
+          rows.filter((R) => !R.pay).forEach((R) => Look.drive(tl, ripAt(R), 0.8, (p) => { const d = "0px " + (ripple(R, ripAt(R) + p * 0.8) * 0.6).toFixed(2) + "px"; R.num.style.translate = d; R.pct.style.translate = d; }));
+          // payoff light: a gold bloom behind the #1 slot (local, not frame-wide), 3-frame peak, low sustain
+          if (PAY) {
+            const b = $("#bloom"), cx = PAY.cx, a = PAY.ta + 0.3;
+            b.style.left = (cx - 320) + "px"; b.style.top = (PAY.y - 170) + "px";
+            if (plate) b.style.mixBlendMode = "screen";
+            tl.fromTo(b, { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1.05, duration: 0.12, ease: "power2.out", immediateRender: false }, a - 0.06);
+            tl.to(b, { opacity: 0.3, scale: 1, duration: 0.7, ease: "power2.out" }, a + 0.16);
+            tl.to(b, { opacity: 0, scale: 0.7, duration: 0.3, ease: "power3.in" }, PAY.tx);
+            if (plate) Look.impact(tl, a, { shake: "#shake", amp: 7, dur: 0.3, flash: 0, zoom: 1.012 });
+          }
+          if (plate) rows.filter((R) => R.ta != null && !R.pay).forEach((R) => Look.impact(tl, R.ta + 0.3, { shake: "#shake", amp: 3, dur: 0.18, flash: 0, zoom: 1.004 }));
+          if (plate) Look.push(tl, "#push", 0, T.end, { to: 1.04 });
+
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+          renderAt(0);
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        }
+
+        const FACES = ["900 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f)))
+          .then(() => document.fonts.ready)
+          .then(() => Promise.all(C.ranks.map((r) => loadImg(r.thumb))))
+          .then(build);
+      })();
+    </script>
+  </body>
+</html>

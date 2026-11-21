@@ -1,0 +1,239 @@
+<!doctype html>
+<!-- GTA-niche 28 Level counter, variant B (9:16 Shorts, 1080x1920, 30 fps): "Level slam".
+     A big level number in the middle of the Shorts frame, built as real geometry: extruded, bevelled Inter Black glyphs
+     (Three.js) in one thick ink outline with a drop shadow. The digits are mechanical counter drums: the number rolls up to
+     LVL 99, holds and trembles, then slams to 100: the nines carry over, a new 1 drops in, the block squashes on the landing
+     with a shake, the digits fill with gold behind a hot meniscus, and the small LVL label turns over into a green
+     "LEVEL UP!" kicker. See ../DECISIONS.md. Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <script src="media/lvl3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; pointer-events: none; }
+      #counter { position: absolute; inset: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="4.45" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <video id="shotA" class="clip shot" src="assets/shots/v37-tower-looking-up-v.mp4" muted playsinline data-start="0" data-duration="1.25" data-media-start="0.3" data-track-index="0"></video>
+        <video id="shotB" class="clip shot" src="assets/shots/v32-skydive-towers-v.mp4" muted playsinline data-start="1.25" data-duration="0.85" data-media-start="0.2" data-track-index="0"></video>
+        <video id="shotC" class="clip shot" src="assets/shots/v36-hills-city-view-v.mp4" muted playsinline data-start="2.1" data-duration="1.9" data-media-start="0" data-track-index="0"></video>
+        <video id="shotD" class="clip shot" src="assets/shots/v45-beach-aerial-v.mp4" muted playsinline data-start="4.0" data-duration="0.45" data-media-start="0.1" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="4.45" data-track-index="1"><div id="counter"></div></div>
+    </div>
+    <script>
+      const CONFIG = {
+        label: "LVL",                 // the small label above the number
+        kicker: "LEVEL UP!",          // what the label turns over into on the slam
+        climbTo: 98,                  // the number rolls 1 -> climbTo
+        tick: 99,                     // ticks to this, holds and trembles...
+        max: 100,                     // ...then slams to this (one more digit column)
+        place: { cx: 504, capTop: 640 },               // number: centre x (middle of the Shorts safe zone x 72-936), cap top (px)
+        font: { size: 344, label: 0.384, gap: 46, space: 0.1 },   // Inter Black em for the digits (cap 250 px), label scale (cap 96), label-number gap (px), extra word space (em)
+        depth: 62, bevel: 7, tilt: 0.26, yaw: -0.16,   // extrusion (px) and its direction: down and to the right
+        ink: 13, shadow: 0.62,                          // ink outline (px) and drop-shadow strength
+        colors: {
+          face: ["#FFFFFF", "#EEF2F7", "#C3CCDA"], side: ["#7F889A", "#161A22"], lip: "#E6EBF2",            // white enamel digits
+          gold: ["#FFF1A8", "#FFD23C", "#E59A1C", "#B5650E"], goldSide: ["#A85A08", "#241000"], goldLip: "#FFF4C2",   // polished gold: hard horizon, lit chamfer
+          green: ["#C8FFDA", "#38E07B", "#109447"], greenSide: ["#0B6B33", "#021A0C"], greenLip: "#86F7B0",   // LEVEL UP! kicker
+          hot: "#FFF6D0", ink: "#0C0D11"
+        },
+        timing: {
+          enter: 0.3,           // the number slams in, LVL label drops in
+          climb: [0.55, 1.45],  // rolls 1 -> 98
+          tick: 1.6,            // 98 -> 99, then a trembling hold
+          land: 2.1,            // the new 1 lands on the cut: the slam (squash, shake, gold, LEVEL UP!)
+          out: 3.62,            // exit: everything turns away left to right, gone on the 4.0 cut
+          end: 4.45
+        }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, C = CONFIG.colors, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x)), Hh = Look.hash, PI = Math.PI;
+        const E = (n) => gsap.parseEase(n), eOut = E("power2.out"), eIO = E("power2.inOut"), eIn = E("power2.in"), eBack = E("back.out(1.9)"),
+          eBack2 = E("back.out(2.6)"), eExpo = E("expo.out"), eClimb = E("power2.inOut"), eSine = E("sine.inOut"), eSpec = E("power3.inOut"), eTick = E("power3.out"), eFlip = E("back.out(1.4)");
+        const sstep = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+        Promise.all(["900 100px Inter"].map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const G = window.LVL_GLYPHS, SZ = CONFIG.font.size, P = CONFIG.place;
+          const S = LVL3D({
+            W: 1080, H: 1920, glyphs: G, size: SZ, pcx: P.cx, pcy: 740, fov: 10,
+            depth: CONFIG.depth, bevel: CONFIG.bevel, tilt: CONFIG.tilt, yaw: CONFIG.yaw, curveSeg: 14, bevelSeg: 3, bevelK: 0.9,
+            inkPx: CONFIG.ink, inkColor: C.ink, shadow: CONFIG.shadow, shadowOff: [7, 16], specW: 0.11, hotW: 9, hot: C.hot,
+            fill: { set: "gold" },
+            sets: {
+              base: { face: C.face, side: C.side, lip: C.lip, metal: [0.0, 0.55], rough: [0.28, 0.3], emis: [0.4, 0.06] },
+              gold: { face: C.gold, side: C.goldSide, lip: C.goldLip, metal: [0.35, 0.8], rough: [0.2, 0.24], emis: [0.26, 0.06], tint: [1.0, 0.45], horizon: 0.5 },
+              green: { face: C.green, side: C.greenSide, lip: C.greenLip, metal: [0.0, 0.7], rough: [0.24, 0.26], emis: [0.3, 0.06], tint: [1.0, 0.45], nofill: true }
+            },
+            prewarm: [["0", "base", 3], ["9", "base", 3], ["1", "base", 2], ["L", "gold", 2], ["V", "gold", 1], ["E", "green", 2], ["L", "green", 1]]
+          });
+          $("#counter").appendChild(S.canvas);
+          const CAP = S.cap, CELL = S.adv("0"), SL = CONFIG.font.label;
+          const yc = P.capTop + CAP / 2, base = P.capTop + CAP;
+          const capL = CAP * SL, baseL = P.capTop - CONFIG.font.gap, ycL = baseL - capL / 2;
+          // ---- a centred, kerned row of glyphs at the label size ----
+          function row(tx) {
+            const out = []; let pen = 0;
+            for (let i = 0; i < tx.length; i++) { const ch = tx[i];
+              if (ch !== " ") out.push({ ch, x: pen + (S.inkL(ch) + S.inkR(ch)) / 2 * SL, l: pen + S.inkL(ch) * SL, r: pen + S.inkR(ch) * SL });
+              pen += (S.adv(ch) + (i < tx.length - 1 ? S.kern(ch, tx[i + 1]) : 0) + (ch === " " ? CONFIG.font.space * SZ : 0)) * SL; }
+            const L = out[0].l, Rr = out[out.length - 1].r, off = P.cx - (L + Rr) / 2;
+            out.forEach((o) => (o.x += off)); return out;
+          }
+          const lab = row(CONFIG.label), kick = row(CONFIG.kicker);
+          const ax = P.cx, ay = (P.capTop - CONFIG.font.gap - capL + base) / 2;   // group anchor: the block's centre
+          // a digit column is a counter reel: digits stacked PITCH apart, each tilted TPD per step off the window (a drum's curvature),
+          // seen through a window of +-HW, so the neighbours are fully hidden at rest and rolling digits show their bevels and walls
+          // every digit change is a flip of the real glyph on a short drum: the old digit tips back over the top (its bevel and
+          // walls catch the light) and the new one turns up from below into its place. Always whole glyphs, never a window or a
+          // half-digit; a face is skipped only in the instant it is edge-on.
+          const TL = CONFIG.tilt;
+          // a flip turns a square drum (radius half a cap) by 90 degrees: mid-turn both faces show, so no frame is ever empty;
+          // faces are [digit, turn (rad), drum radius (cap)]; f > 1 settles slightly past rest
+          const flip = (a, b, f) => {
+            if (f <= 0) return [[a, 0, 0.5]];
+            if (f >= 1) return [[b, (1 - f) * PI / 2, 0.5]];
+            const out = [], ra = -f * PI / 2; if (ra > -(PI / 2 - TL) + 0.03) out.push([a, ra, 0.5]);
+            out.push([b, (1 - f) * PI / 2, 0.5]); return out;
+          };
+          const ROLL = (p) => { const n0 = Math.floor(p + 1e-9); return flip(n0, n0 + 1, p - n0); };
+          const turnUp = (d, e) => [[d, (1 - e) * (PI / 2 + TL), 0.3]];                 // a lone glyph turning up into place
+          // ---- the count ----
+          const vClimb = (t) => (t < T.climb[0] ? 1 : 1 + (CONFIG.climbTo - 1) * eClimb(clamp((t - T.climb[0]) / (T.climb[1] - T.climb[0]), 0, 1)));
+          const vAt = (t) => (t < T.climb[1] ? vClimb(t) : t >= T.tick ? CONFIG.tick : CONFIG.climbTo);
+          const tReach = (v) => { let a = T.climb[0], b = T.climb[1]; for (let i = 0; i < 32; i++) { const m = (a + b) / 2; if (vClimb(m) >= v) b = m; else a = m; } return b; };
+          const FD = 0.12, eSlot = E("back.out(1.6)");
+          const tc = [0, tReach(10), 0];
+          // the payoff converges on the land (the cut): the nines carry, the new 1 slams in from the camera, the number makes room,
+          // the gold fills and LVL turns over into LEVEL UP!, all completing on T.land
+          const STAG = 0.04, tRoll = T.land - 0.24, tDrop = T.land - 0.1; tc[2] = tDrop;   // nines flip to 0 by land - 0.08; the 1 slams in over the last 0.1 s
+          const pulse = (u, a) => (u < 0 ? 0 : a * Math.sin(u * 22) * Math.exp(-u * 8));
+          function stateAt(t) {
+            const items = [], st = { items };
+            const fc = [], vis = [], scl = [1, 1, 1];
+            if (t < tRoll) {
+              const vC = vAt(t), tickPh = t >= T.climb[1], nd = String(Math.floor(vC + 1e-6)).length;
+              const rate = tickPh ? 0 : Math.abs(vClimb(t + 1 / 60) - vClimb(t - 1 / 60)) * 30;
+              // a column flips each time it changes, from the moment the climb crossed that value; faster than 9 a second: whole digits
+              for (let k = 0; k < 3; k++) {
+                const p10 = Math.pow(10, k), n = Math.floor(vC / p10 + 1e-9);
+                vis[k] = k < nd; fc[k] = [[n, 0, 0.5]];
+                if (!tickPh && rate / p10 <= 9 && n >= 1 && t >= T.climb[0]) { const dt = t - tReach(n * p10); if (dt < FD) fc[k] = flip(n - 1, n, eFlip(clamp(dt / FD, 0, 1))); }
+              }
+              if (tickPh && t >= T.tick && t - T.tick < FD) fc[0] = flip(CONFIG.climbTo, CONFIG.tick, eFlip((t - T.tick) / FD));   // the tick
+              const u1 = t - tc[1]; if (u1 >= 0 && u1 < FD) fc[1] = turnUp(Math.floor(vC / 10 + 1e-9), eFlip(u1 / FD));   // the tens digit turns up into view, full size
+            } else {
+              for (let k = 0; k < 2; k++) { fc[k] = flip(9, 0, eFlip(clamp((t - (tRoll + k * STAG)) / FD, 0, 1))); vis[k] = true; }
+              fc[2] = [[1, 0, 0.5]]; vis[2] = t >= tDrop;
+              const u = t - tDrop; scl[2] = u < 0.1 ? 1.28 - 0.28 * eIn(u / 0.1) : 1;   // slams in from the camera
+            }
+            // width: the number re-centres as a column arrives (a back.out spring from the moment it arrives, never an empty slot)
+            let Wcur = CELL + CELL * eSlot(clamp((t - tc[1]) / 0.16, 0, 1)) + CELL * eOut(clamp((t - tc[2]) / 0.08, 0, 1));
+            const xL = P.cx - Wcur / 2;
+            // --- group: entrance, level-up pulse, tremble before the slam, landing squash + shake, slow push in the hold ---
+            const ue = t - T.enter, ul = t - T.land;
+            let g = ue < 0 ? 0 : 1 + 0.3 * (1 - eBack(clamp(ue / 0.45, 0, 1)));
+            g += pulse(t - tc[1], 0.06) + pulse(t - T.tick, 0.04) + pulse(ul - 0.04, 0.05);
+            let gx = g, gy = g, shx = 0, shy = 0;
+            const ch0 = clamp((t - T.tick - 0.15) / (tRoll - T.tick - 0.15), 0, 1);
+            if (t < tRoll && ch0 > 0) { const fr = Math.floor(t * 30); shx = (Hh(fr * 5 + 3) * 2 - 1) * 3.5 * ch0; shy = (Hh(fr * 5 + 4) * 2 - 1) * 3.5 * ch0; gx *= 1 + 0.025 * eIn(ch0); gy *= 1 + 0.025 * eIn(ch0); }
+            if (t >= tRoll && ul < 0) { gx *= 1.025; gy *= 1.025; }
+            if (ul >= 0) {
+              const sq = ul < 0.05 ? eOut(ul / 0.05) : Math.exp(-(ul - 0.05) * 9) * Math.cos((ul - 0.05) * 28);
+              gy *= 1 - 0.18 * sq; gx *= 1 + 0.09 * sq;
+              if (ul < 0.32) { const fr = Math.floor(ul * 30), e2 = Math.pow(1 - ul / 0.32, 2); shx = (Hh(fr * 3 + 11) * 2 - 1) * 10 * e2; shy = (Hh(fr * 3 + 12) * 2 - 1) * 10 * e2; }
+              const hp = clamp((ul - 0.35) / (T.out - T.land - 0.35), 0, 1); gx *= 1 + 0.025 * eSine(hp); gy *= 1 + 0.025 * eSine(hp);
+            }
+            if (ue < 0) return st;
+            const grp = (it) => {
+              it.x = ax + (it.x - ax) * gx + shx; it.y = ay + (it.y - ay) * gy + shy; it.z = (it.z || 0) * g;
+              it.sx = (it.sx == null ? 1 : it.sx) * gx; it.sy = (it.sy == null ? 1 : it.sy) * gy;
+              if (it.clip) it.clip = [ay + (it.clip[0] - ay) * gy + shy, ay + (it.clip[1] - ay) * gy + shy];
+              items.push(it);
+            };
+            // --- one glyph face on its drum: a small lift with the turn; skipped only while edge-on ---
+            const face = (ch, set, x, y, s, rx, capH, fr) => {
+              if (Math.abs(-TL + rx) > PI / 2 - 0.03 || s < 0.06) return;
+              fr = fr == null ? 0.3 : fr;
+              grp({ ch, set, x, y: y + fr * capH * s * Math.sin(rx), z: -fr * capH * s * (1 - Math.cos(rx)), rx, s, clip: null });
+            };
+            // --- exit, left to right: every glyph tips back over the top of its drum and is gone ---
+            const xo = (i) => eIn(clamp((t - T.out - i * 0.018) / 0.16, 0, 1));
+            const XA = -0.75 * (PI / 2 - TL), UP = PI / 2 + TL;
+            // --- label: gold LVL turns up into place with the first digit; before the land it tips back and away ---
+            lab.forEach((L, i) => {
+              const ui = t - T.enter - i * 0.035; if (ui < 0) return;
+              const sw = eIn(clamp((t - (T.land - 0.36) - i * 0.02) / 0.12, 0, 1)); if (sw >= 1) return;
+              face(L.ch, "gold", L.x, ycL, SL, UP * (1 - eFlip(clamp(ui / 0.26, 0, 1))) + XA * sw, capL / SL);
+            });
+            // --- kicker: LEVEL UP! turns up into place right behind it, centre-out, settled on the land ---
+            const mid = (kick.length - 1) / 2;
+            kick.forEach((L, i) => {
+              const ui = t - (T.land - 0.19) - Math.abs(i - mid) * 0.01; if (ui < 0) return;
+              const ex = xo(i); if (ex >= 1) return;
+              face(L.ch, "green", L.x, ycL, SL * (1 - ex), UP * (1 - eFlip(clamp(ui / 0.16, 0, 1))) + XA * ex, capL / SL);
+            });
+            // --- digits ---
+            const nd = vis.filter(Boolean).length;
+            for (let k = 0; k < 3; k++) {
+              if (!vis[k]) continue;
+              const left = xL + Wcur - (k + 1) * CELL, slot = nd - 1 - k;
+              let f = fc[k];
+              if (k === 0 && ue < 0.45) f = ROLL(-1 + 2 * eOut(clamp((ue - 0.05) / 0.4, 0, 1)));      // entrance: 0 turns up, the drum turns on to 1
+              const ex = xo(3.5 + slot * 2); if (ex >= 1) continue;
+              const s = scl[k] * (1 - ex);
+              f.forEach((F) => { if (F[0] < 0) return; const ch = String(((F[0] % 10) + 10) % 10);
+                const gw = (s - 1) * (S.inkR(ch) - S.inkL(ch)) / 2 * (k === 2 ? 1 : 0);        // the slamming 1 grows to the left: never over the 0
+                face(ch, "base", left + (S.inkL(ch) + S.inkR(ch)) / 2 - Math.max(gw, 0), yc, s, F[1] + XA * ex, CAP, ex > 0 ? 0.3 : F[2]); });
+            }
+            // --- gold fill on the landing, hot meniscus ---
+            const uf = ul + 0.14, fp = clamp(uf / 0.14, 0, 1), yB = base + 60, yT = P.capTop - 60;    // rises with the slam, full on the land
+            st.fill = { y: uf < 0 ? yB + 600 : yB + (yT - yB) * eSine(fp) - (uf > 0.14 ? (uf - 0.14) * 1400 : 0), amp: uf < 0 ? 0 : 10 * (1 - 0.5 * fp), ph: t * 15, hot: uf < 0 ? 0 : 2.0 + 1.6 * Math.exp(-Math.max(ul, 0) / 0.08) };
+            // --- light: key creeps up through the tremble, rakes on the slam; one specular sweep; bloom peaks 3 frames ---
+            st.key = { ang: -0.9 + 1.8 * eIO(clamp((ul + 0.05) / 0.7, 0, 1)), int: 2.0 + 0.6 * ch0 * (t < T.land ? 1 : 0) + 1.8 * Math.exp(-Math.pow((ul - 0.08) / 0.15, 2)) };
+            const spP = clamp((ul - 0.15) / 0.35, 0, 1), sx0 = P.cx - 700, sx1 = P.cx + 900;          // one clean band, 0.15 s after the fill
+            st.spec = { x: sx0 + (sx1 - sx0) * eSpec(spP), amp: spP > 0 && spP < 1 ? 0.7 * Math.sin(PI * spP) : 0 };
+            let fl = 0; { const u = t - tc[1]; if (u >= 0 && u < 0.2) fl = 0.12 * Math.exp(-u / 0.06); }
+            if (ul >= 0) fl = Math.max(fl, ul < 0.1 ? 0.18 : 0.18 * Math.exp(-(ul - 0.1) / 0.12));
+            st.flash = fl;
+            st.bloom = 0.12 + (ul < 0 ? fl * 1.2 : ul < 0.1 ? 0.45 : 0.45 * Math.exp(-(ul - 0.1) / 0.14));
+            return st;
+          }
+          const tl = gsap.timeline({ paused: true });
+          const render = (t) => { const on = S.draw(stateAt(t)); $("#counter").style.visibility = on ? "visible" : "hidden"; };
+          Look.drive(tl, 0, T.end, (p) => render(p * T.end));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") render(e.detail.time); });
+          if (plate) {
+            Look.impact(tl, T.land, { shake: "#shake", amp: 14, dur: 0.3, zoom: 1.04, flash: 0 });
+            Look.push(tl, "#push", 0, T.end, { from: 1.0, to: 1.04 });
+          }
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+          render(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

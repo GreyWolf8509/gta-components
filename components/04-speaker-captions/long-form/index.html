@@ -1,0 +1,360 @@
+<!doctype html>
+<!-- GTA-niche 04 Speaker captions, variant A (16:9 long-form RP dialogue, 1920x1080, 30 fps).
+     Lower-centre sentence captions for a 3-person RP scene. Each line is set in its speaker's colour as a glossy, bevelled
+     caption (ink edge, graded extrusion, top-edge highlight, contact shadow). At the line start sits the speaker's avatar
+     badge: a real Three.js medallion (steel rim, enamel ring in the speaker colour, portrait under a glass dome) with a
+     name plate. On every speaker change the badge flips on its real edge to the next speaker while it travels to the new
+     line start, the plate rolls to the new name, and the new line rises word by word through a mask. Dispatch lines arrive
+     with a radio tear. The payoff (Lamar's reply) lands on the cut with a light rake across the medallion and a specular
+     sweep across the line. See ../DECISIONS.md. Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/coin3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; pointer-events: none; }
+      .line { position: absolute; left: 0; top: 0; }
+      .row { position: absolute; white-space: nowrap; clip-path: inset(0px -420px 0px -420px); }
+      .set { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+      .glow { mix-blend-mode: screen; opacity: 0; }
+      .w { position: relative; display: inline-block; vertical-align: top; text-transform: uppercase; white-space: nowrap; }
+      .wi { position: relative; display: block; }
+      .l { display: block; white-space: nowrap; line-height: 1; padding: 0 0.04em; }
+      .abs { position: absolute; left: 0; top: 0; }
+      .spec { mix-blend-mode: screen; }
+      #token { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+      #token canvas { filter: drop-shadow(0 0 1px rgba(4,5,9,.95)) drop-shadow(0 0 1.2px rgba(4,5,9,.9)) drop-shadow(0 8px 12px rgba(0,0,0,.5)); }
+      .chip { position: absolute; left: 0; top: 0; height: 52px; padding: 0 24px; border-radius: 26px; border: 3.5px solid #fff;
+        font: 800 31px/45px "Inter"; letter-spacing: 0.07em; text-transform: uppercase; white-space: nowrap; color: #0B0D14;
+        box-shadow: 0 0 0 2px #06070B, 0 7px 12px rgba(0,0,0,.45), inset 0 2px 0 rgba(255,255,255,.8), inset 0 -3px 0 rgba(0,0,0,.18); }
+      .fx { position: absolute; width: 0; height: 0; overflow: hidden; }
+    </style>
+  </head>
+  <body>
+    <!-- the bevel on the caption face: a highlight along every upward-facing edge and a darker seam along every downward edge -->
+    <svg class="fx" aria-hidden="true">
+      <filter id="bevel" x="-5%" y="-10%" width="110%" height="120%" color-interpolation-filters="sRGB">
+        <feOffset in="SourceAlpha" dx="-0.6" dy="2.4" result="dn" />
+        <feComposite in="SourceAlpha" in2="dn" operator="out" result="topE" />
+        <feGaussianBlur in="topE" stdDeviation="0.6" result="topB" />
+        <feFlood flood-color="#FFFFFF" flood-opacity="0.95" />
+        <feComposite in2="topB" operator="in" result="hiC" />
+        <feComposite in="hiC" in2="SourceAlpha" operator="in" result="hi" />
+        <feOffset in="SourceAlpha" dx="0" dy="-1.8" result="up" />
+        <feComposite in="SourceAlpha" in2="up" operator="out" result="botE" />
+        <feGaussianBlur in="botE" stdDeviation="0.5" result="botB" />
+        <feFlood flood-color="#000000" flood-opacity="0.32" />
+        <feComposite in2="botB" operator="in" result="seamC" />
+        <feComposite in="seamC" in2="SourceAlpha" operator="in" result="seam" />
+        <feMerge><feMergeNode in="SourceGraphic" /><feMergeNode in="seam" /><feMergeNode in="hi" /></feMerge>
+      </filter>
+    </svg>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.9" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="shotA" class="clip shot" src="assets/shots/v52-gp-police-bridge-h.mp4" muted playsinline data-start="0" data-duration="2.25" data-media-start="0.35" data-track-index="0"></video>
+        <video id="shotB" class="clip shot" src="assets/shots/v03-franklin-street-h.mp4" muted playsinline data-start="2.25" data-duration="1.2" data-media-start="0" data-track-index="0"></video>
+        <video id="shotC" class="clip shot" src="assets/shots/v52-gp-police-bridge-h.mp4" muted playsinline data-start="3.45" data-duration="0.9" data-media-start="2.6" data-track-index="0"></video>
+        <video id="shotD" class="clip shot" src="assets/shots/v06-franklin-lamar-portrait-h.mp4" muted playsinline data-start="4.35" data-duration="1.6" data-media-start="0" data-track-index="0"></video>
+        <video id="shotE" class="clip shot" src="assets/shots/v05-franklin-lamar-street-h.mp4" muted playsinline data-start="5.95" data-duration="0.95" data-media-start="0.1" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="6.9" data-track-index="1"></div>
+    </div>
+    <script>
+      const CONFIG = {
+        // The cast. face: a portrait image (media/*.jpg) or "radio" (our drawn dispatch radio). colour = the line, ring and plate.
+        speakers: [
+          { name: "Franklin", face: "media/franklin.jpg", colour: "white" },
+          { name: "Lamar",    face: "media/lamar.jpg",    colour: "yellow" },
+          { name: "Dispatch", face: "radio",              colour: "cyan" }
+        ],
+        // The dialogue. t = when the line starts (the badge flips to its speaker just before). rows = the line breaks.
+        // radio:1 = transmitted over the radio (arrives with a tear). pay:1 = the payoff line: it lands white-hot and, from `ignite`,
+        // catches light word by word (2 frames apart) into the speaker's colour, with a bloom, a medallion squash and one specular sweep.
+        lines: [
+          { spk: 2, t: 0.22, rows: ["ALL UNITS: RED PICKUP", "REPORTED STOLEN!"], radio: 1 },
+          { spk: 0, t: 2.25, rows: ["LAMAR... WHERE'D YOU", "GET THIS TRUCK?"] },
+          { spk: 1, t: 4.35, rows: ["RELAX, HOMIE.", "I FOUND IT."], pay: 1, ignite: 4.72 }
+        ],
+        out: 6.42,            // everything exits here (cut on the zero frame)
+        end: 6.9,
+        type: { family: "Inter", weight: 900, size: 84, tracking: -0.01, gap: 0.2, rowStep: 88, capY: [846, 934], edge: 5, rim: 1.4, depth: 7, ink: "#07080C" },
+        badge: { R: 100, cy: 872, gap: 38, canvas: 320, plateY: 98 },
+        palette: {
+          white:  { face: ["#FFFFFF", "#FFFFFF", "#E8EDF4", "#CDD6E2"], side: ["#5A6272", "#0B0D12"], lip: "#A9B2C2", ring: "#F3F6FA", plate: ["#FFFFFF", "#F6F8FB", "#DDE3EB", "#C3CCD8"] },
+          yellow: { face: ["#FFF8C8", "#FFE466", "#FFC21E", "#EC9600"], side: ["#B66C00", "#391D00"], lip: "#F7B53A", glow: "#FFB000", hot: "#FFF6D0", ring: "#FFC51F", plate: ["#FFF6BE", "#FFE15A", "#FFC21E", "#E99400"] },
+          cyan:   { face: ["#E4FBFF", "#93ECFF", "#33D6FF", "#0898D6"], side: ["#08679C", "#031F38"], lip: "#4CCBF2", glow: "#22C4FF", hot: "#E8FDFF", ring: "#22C4FF", plate: ["#DDFAFF", "#8EEBFF", "#33D6FF", "#0A96D2"] }
+        },
+        shots: ["#shotA", "#shotB", "#shotC", "#shotD", "#shotE"]
+      };
+
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const $ = (s) => document.querySelector(s);
+        const C = CONFIG, T = C.type, B = C.badge, FR = 1 / 30;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+        const E = (n) => gsap.parseEase(n);
+        const px = (v) => v.toFixed(1) + "px";
+        const mix = (a, b, k) => { const p = (h) => [1, 3, 5].map((i) => parseInt(h.substr(i, 2), 16)); const A = p(a), Bq = p(b);
+          return "rgb(" + A.map((v, i) => Math.round(v + (Bq[i] - v) * k)).join(",") + ")"; };
+
+        // ---------- the caption word: glossy bevelled block (ink edge + graded extrusion + rim + glossy face + specular) ----------
+        function metrics(size) {
+          // baseline from the DOM (a zero-size inline-block sits on the baseline of a line-height:1 box), cap height from the glyph
+          const sp = document.createElement("span"); sp.style.cssText = "position:absolute;left:0;top:0;visibility:hidden;white-space:nowrap;font:" + T.weight + " " + size + "px/1 '" + T.family + "'";
+          sp.textContent = "H"; const mk = document.createElement("span"); mk.style.cssText = "display:inline-block;width:0;height:0;vertical-align:baseline"; sp.appendChild(mk);
+          document.body.appendChild(sp); const base = mk.offsetTop; sp.remove();
+          const cv = document.createElement("canvas").getContext("2d"); cv.font = T.weight + " " + size + "px " + T.family;
+          const m = cv.measureText("H"), cap = m.actualBoundingBoxAscent > 0 ? m.actualBoundingBoxAscent : size * 0.727;
+          return { cap: cap, base: base, top: base - cap };
+        }
+        function textW(s, size) {
+          const cv = document.createElement("canvas").getContext("2d");
+          cv.font = T.weight + " " + size + "px " + T.family;
+          return cv.measureText(s.toUpperCase()).width + T.tracking * size * s.length;
+        }
+        const inkChain = (n, c) => Array.from({ length: n }, () => "drop-shadow(0 1px 0 " + c + ")").join(" ");
+        // extrusion: a 1 px lit lip under the face, then each depth pixel its own shade from near to far
+        const sideChain = (n, c, lip) => Array.from({ length: n }, (_, k) => "drop-shadow(0 1px 0 " + (lip && k === 0 ? lip : mix(c[0], c[1], n > 2 ? (k - 1) / (n - 2) : 1)) + ")").join(" ");
+        // glossy two-tone face: a light top half, a fast turn at 50% cap height, the saturated body darkening into the baseline
+        const faceGrad = (M, f) => "linear-gradient(180deg, " + f[0] + " " + px(M.top - 3) + ", " + f[1] + " " + px(M.top + M.cap * 0.46) + ", " +
+          f[2] + " " + px(M.top + M.cap * 0.56) + ", " + f[3] + " " + px(M.top + M.cap + 2) + ")";
+        const band = (X, hw) => "linear-gradient(112deg, rgba(255,252,240,0) " + px(X - hw - 16) + ", rgba(255,252,240,.18) " + px(X - hw * 0.5) + ", rgba(255,252,240,.4) " + px(X) + ", rgba(255,252,240,.18) " + px(X + hw * 0.5) + ", rgba(255,252,240,0) " + px(X + hw + 16) + ")";
+
+        // a word = ink edge + set (side with lit lip, rim, glossy face) [+ an ignition set, its hot light front and a bloom] + specular
+        function buildWord(text, pal, M, size, hotPal) {
+          const w = document.createElement("span"); w.className = "w";
+          w.style.cssText = "font:" + T.weight + " " + size + "px/1 '" + T.family + "';letter-spacing:" + T.tracking + "em;margin-right:" + T.gap + "em";
+          const wi = document.createElement("span"); wi.className = "wi"; w.appendChild(wi);
+          const mk = (cls, parent) => { const s = document.createElement("span"); s.className = "l " + cls; s.textContent = text; (parent || wi).appendChild(s); return s; };
+          const k = size / 84, out = { w, wi, pal, M };
+          const ink = mk("ink");
+          ink.style.cssText = "color:" + T.ink + ";-webkit-text-stroke:" + (2 * T.edge * k).toFixed(1) + "px " + T.ink + ";filter:" + inkChain(T.depth, T.ink) +
+            " drop-shadow(0 " + Math.round(6 * k) + "px " + Math.round(8 * k) + "px rgba(0,0,0,.5)) drop-shadow(0 " + Math.round(14 * k) + "px " + Math.round(26 * k) + "px rgba(0,0,0,.32))";
+          const set = (P) => {
+            const st = document.createElement("span"); st.className = "set"; wi.appendChild(st);
+            const side = mk("abs side", st); side.style.cssText = "color:" + P.side[0] + ";filter:" + sideChain(T.depth, P.side, P.lip);
+            const rim = mk("abs rim", st); rim.style.cssText = "color:" + T.ink + ";-webkit-text-stroke:" + (2 * T.rim * k).toFixed(1) + "px " + T.ink;
+            const face = mk("abs face", st); face.style.filter = "url(#bevel)";
+            return { el: st, face, P };
+          };
+          out.cold = set(pal);
+          if (hotPal) {
+            out.hot = set(hotPal);
+            out.front = mk("abs front"); out.front.style.cssText = "color:" + hotPal.hot + ";opacity:0;filter:blur(" + (1.5 * k).toFixed(1) + "px) drop-shadow(0 0 " + Math.round(10 * k) + "px " + hotPal.glow + ")";
+          }
+          // bloom sits over the face (screen): at its peak the letters run white-hot and spill light past the ink edge
+          if (hotPal) { out.glow = mk("abs glow"); out.glow.style.cssText = "color:" + hotPal.glow + ";filter:blur(" + Math.round(12 * k) + "px) drop-shadow(0 0 " + Math.round(18 * k) + "px " + hotPal.glow + ")"; }
+          out.spec = mk("abs spec");
+          return out;
+        }
+        // the ignition: a feathered hot light front wipes the colour in, the bloom attacks in 2 frames, holds 3, settles to a glint
+        function ignite(tl, o, at, glowRest) {
+          gsap.set(o.hot.el, { clipPath: "inset(-30% 101% -30% -2%)" });
+          tl.fromTo(o.hot.el, { clipPath: "inset(-30% 101% -30% -2%)" }, { clipPath: "inset(-30% -2% -30% -2%)", duration: 0.16, ease: "expo.out", immediateRender: false }, at);
+          const eX = E("expo.out");
+          Look.drive(tl, at, 0.22, (p) => {
+            const kk = p <= 0 || p >= 1 ? 0 : Math.sin(Math.PI * Math.min(1, p * 1.15));
+            o.front.style.opacity = (kk * 0.92).toFixed(3);
+            const e = eX(clamp(p / 0.75, 0, 1)) * 100;
+            o.front.style.clipPath = "inset(-30% " + Math.max(-2, 100 - e - 1).toFixed(1) + "% -30% " + Math.max(-2, e - 26).toFixed(1) + "%)";
+          });
+          const A = 2 * FR, H = 3 * FR, D = 0.42, eD = E("power2.out");
+          Look.drive(tl, at, A + H + D, (p) => {
+            const t = p * (A + H + D);
+            const g = p <= 0 ? 0 : t < A ? t / A : t < A + H ? 1 : 1 - (1 - glowRest) * eD((t - A - H) / D);
+            o.glow.style.opacity = g.toFixed(3);
+          });
+        }
+
+        // ---------- avatar faces (portraits + the drawn dispatch radio) ----------
+        function loadImg(src) { return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; }); }
+        function drawRadio(ring) {
+          const N = 512, cv = document.createElement("canvas"); cv.width = cv.height = N; const g = cv.getContext("2d");
+          const bg = g.createRadialGradient(N * 0.42, N * 0.32, 20, N / 2, N / 2, N * 0.56);
+          bg.addColorStop(0, "#2B7FD0"); bg.addColorStop(0.55, "#12467F"); bg.addColorStop(1, "#071C38");
+          g.fillStyle = bg; g.fillRect(0, 0, N, N);
+          const rr = (x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
+          // signal arcs
+          g.lineCap = "round"; g.strokeStyle = "#8FEAFF";
+          [[46, 16], [84, 15]].forEach(([r, lw]) => { g.lineWidth = lw;
+            g.beginPath(); g.arc(300, 128, r, -Math.PI * 0.42, Math.PI * 0.02); g.stroke();
+            g.beginPath(); g.arc(300, 128, r, Math.PI * 0.98, Math.PI * 1.42); g.stroke(); });
+          // antenna
+          g.fillStyle = "#06101E"; rr(282, 96, 36, 110, 16); g.fill();
+          g.fillStyle = "#E9EFF6"; rr(289, 104, 22, 96, 11); g.fill();
+          // body: ink outline, then a lit two-tone shell
+          g.fillStyle = "#06101E"; rr(176, 176, 160, 262, 34); g.fill();
+          const sh = g.createLinearGradient(0, 184, 0, 430); sh.addColorStop(0, "#FFFFFF"); sh.addColorStop(0.48, "#F1F5FA"); sh.addColorStop(0.53, "#D4DEEA"); sh.addColorStop(1, "#B6C3D3");
+          g.fillStyle = sh; rr(186, 186, 140, 242, 26); g.fill();
+          // grille + screen + push-to-talk key
+          g.fillStyle = "#0E2A4A"; for (let i = 0; i < 4; i++) { rr(210, 216 + i * 26, 92, 12, 6); g.fill(); }
+          g.fillStyle = "#06101E"; rr(206, 330, 100, 56, 12); g.fill();
+          const sc = g.createLinearGradient(0, 336, 0, 380); sc.addColorStop(0, "#B8F4FF"); sc.addColorStop(1, ring); g.fillStyle = sc; rr(213, 337, 86, 42, 8); g.fill();
+          g.fillStyle = "#06101E"; rr(160, 230, 22, 70, 9); g.fill();
+          return Coin3D.portrait(cv, ring, { filter: "none" });
+        }
+
+        const fontsReady = Promise.all([document.fonts.load(T.weight + " 84px Inter", "ALL UNITS"), document.fonts.load("800 31px Inter", "LAMAR")]).then(() => document.fonts.ready);
+        const imgsReady = Promise.all(C.speakers.map((s) => s.face === "radio" ? Promise.resolve(null) : loadImg(s.face)));
+        Promise.all([fontsReady, imgsReady]).then(([_, imgs]) => {
+          const ov = $("#ov"), tl = gsap.timeline({ paused: true });
+          const M = metrics(T.size);
+          const pals = C.speakers.map((s) => C.palette[s.colour]);
+
+          // ---------- layout: badge + gap + rows, centred as a group; rows left-aligned at the line start ----------
+          const padX = 0.3 * T.size, padT = 0.3 * T.size, padB = 0.8 * T.size;
+          const lines = C.lines.map((ln, li) => {
+            const pal = pals[ln.spk];
+            const wRows = ln.rows.map((r) => r.split(" ").reduce((a, wd, i, arr) => a + textW(wd, T.size) + 0.08 * T.size + (i < arr.length - 1 ? T.gap * T.size : 0), 0));
+            const maxW = Math.max.apply(null, wRows), groupW = 2 * B.R + B.gap + maxW;
+            const left = Math.round(960 - groupW / 2), textL = left + 2 * B.R + B.gap;
+            const el = document.createElement("div"); el.className = "line"; el.id = "L" + li; ov.appendChild(el);
+            const rows = ln.rows.map((r, ri) => {
+              const row = document.createElement("div"); row.className = "row";
+              row.style.cssText = "left:" + (textL - padX) + "px;top:" + px(T.capY[ri] - (M.top + M.cap / 2) - padT) + ";padding:" + px(padT) + " " + px(padX) + " " + px(padB);
+              const words = r.split(" ").map((wd) => { const o = ln.ignite ? buildWord(wd, C.palette.white, M, T.size, pal) : buildWord(wd, pal, M, T.size); row.appendChild(o.w); return o; });
+              el.appendChild(row);
+              return { row, words };
+            });
+            return { ln, el, rows, cx: left + B.R, words: rows.reduce((a, r) => a.concat(r.words), []), maxW, textL };
+          });
+          // paint after layout (Look.fill measures each leaf)
+          lines.forEach((L) => L.words.forEach((o) => { [o.cold, o.hot].forEach((st) => { if (st) { Look.fill(st.face, faceGrad(o.M, st.P.face)); st.face.style.textShadow = "none"; } }); }));
+
+          // ---------- the badge token: Three.js medallion + name plates ----------
+          const faceTex = C.speakers.map((s, i) => s.face === "radio" ? drawRadio(pals[i].ring) : Coin3D.portrait(imgs[i], pals[i].ring));
+          const coin = Coin3D({ size: B.canvas, R: B.R, thick: 0.2, faces: faceTex, rings: pals.map((p) => p.ring) });
+          const token = document.createElement("div"); token.id = "token"; ov.appendChild(token); token.appendChild(coin.canvas);
+          gsap.set(token, { x: lines[0].cx, y: B.cy });
+          const plates = lines.map((L, li) => {
+            const p = document.createElement("div"); p.className = "chip"; p.textContent = C.speakers[L.ln.spk].name;
+            const c = pals[L.ln.spk].plate;
+            p.style.background = "linear-gradient(180deg, " + c[0] + " 0%, " + c[1] + " 44%, " + c[2] + " 56%, " + c[3] + " 100%)";
+            token.appendChild(p);
+            gsap.set(p, { xPercent: -50, yPercent: -50, y: B.plateY, scaleX: 0, scaleY: 0 });
+            return p;
+          });
+
+          // ---------- timing ----------
+          const IN = lines[0].ln.t - 0.08, FD = 0.62;                       // entrance, flip duration
+          const flips = lines.slice(1).map((L) => L.ln.t - 0.22);            // flip start per speaker change (edge-on ~0.1 s later)
+          const OUT = C.out;
+          // words: masked rise in (staggered, overshoot + vertical motion blur), rise out on the next speaker change
+          lines.forEach((L, li) => {
+            const tin = li === 0 ? L.ln.t + 0.1 : L.ln.t + 0.06;
+            L.words.forEach((o, wi) => {
+              const at = tin + wi * 0.04;
+              gsap.set(o.wi, { yPercent: 200, visibility: "hidden" });
+              tl.set(o.wi, { visibility: "visible" }, at);
+              tl.fromTo(o.wi, { yPercent: 200 }, { yPercent: 0, duration: 0.46, ease: "back.out(1.6)", immediateRender: false }, at);
+              Look.mblur(tl, o.wi, at, 0.2, { y: 9, ease: "power2.out" });
+            });
+            const tout = li < lines.length - 1 ? lines[li + 1].ln.t - 0.42 : OUT;   // cleared before the badge turns edge-on
+            L.words.forEach((o, wi) => {
+              const at = tout + wi * 0.018;
+              if (li < lines.length - 1) tl.fromTo(o.wi, { yPercent: 0 }, { yPercent: -205, duration: 0.17, ease: "power3.in", immediateRender: false }, at);
+              else tl.fromTo(o.wi, { yPercent: 0 }, { yPercent: 200, duration: 0.2, ease: "power3.in", immediateRender: false }, at);
+              Look.mblur(tl, o.wi, at + 0.05, 0.13, { y: 0, to: [0, 8], ease: "power2.in" });
+              tl.set(o.wi, { visibility: "hidden" }, at + (li < lines.length - 1 ? 0.17 : 0.2));
+            });
+            // radio lines: a 4-frame horizontal tear + a short RGB split as the transmission lands
+            if (L.ln.radio) {
+              L.rows.forEach((r, ri) => Look.drive(tl, tin + 0.04, 5 * FR, (p) => {
+                const f = Math.floor(p * 5 + 1e-6);
+                r.row.style.transform = (p > 0 && p < 1) ? "translateX(" + ((Look.hash(f * 7 + ri * 31) * 2 - 1) * 16).toFixed(1) + "px)" : "none";
+              }));
+              Look.chroma(tl, L.el, tin + 0.04, 0.18, { px: 5 });
+            }
+          });
+          // plates: pop out under the badge after it lands; fold into it as the next flip starts
+          lines.forEach((L, li) => {
+            const pin = li === 0 ? IN + 0.32 : flips[li - 1] + 0.34;
+            tl.fromTo(plates[li], { scaleX: 0, scaleY: 0.4 }, { scaleX: 1, scaleY: 1, duration: 0.34, ease: "back.out(2.4)", immediateRender: false }, pin);
+            const pout = li < lines.length - 1 ? flips[li] : OUT;
+            tl.fromTo(plates[li], { scaleX: 1, scaleY: 1 }, { scaleX: 0, scaleY: 0.4, duration: 0.11, ease: "power3.in", immediateRender: false }, pout);
+          });
+          // token travel to each new line start, during the flip
+          flips.forEach((tf, j) => tl.to(token, { x: lines[j + 1].cx, duration: FD * 0.8, ease: "power3.inOut" }, tf));
+
+          // ---------- the medallion, rendered from time ----------
+          const eBack = E("back.out(1.5)"), eExpo = E("expo.out"), ePop = E("back.out(2.2)"), eIO = E("power2.inOut"), eIn = E("power3.in");
+          const PAYT = (C.lines.find((l) => l.ignite) || {}).ignite || -1;
+          const sweeps = [IN + 0.3].concat(flips.map((tf) => tf + 0.24)).concat(PAYT > 0 ? [PAYT + 0.02] : []);
+          function coinAt(t) {
+            if (t < IN || t >= OUT + 0.26) return { visible: false, scale: 0 };
+            const pe = clamp((t - IN) / 0.5, 0, 1);
+            let scale = ePop(pe), yaw = -1.15 * Math.PI * (1 - eExpo(clamp((t - IN) / 0.7, 0, 1))), pitch = 0, roll = 0;
+            let cur = 0, prog = false;
+            flips.forEach((tf, j) => {
+              if (t < tf) return;
+              cur = j + 1; const p = clamp((t - tf) / FD, 0, 1); prog = p < 1;
+              yaw += Math.PI * eBack(p);
+              const lift = Math.sin(Math.PI * clamp(p * 1.5, 0, 1));
+              scale *= 1 + 0.1 * lift; pitch += 0.2 * lift; roll += 0.05 * lift * (j % 2 ? -1 : 1);
+            });
+            yaw += 0.07 * Math.sin(2 * Math.PI * t / 2.6); pitch += 0.05 * Math.sin(2 * Math.PI * t / 3.3 + 1);
+            if (PAYT > 0 && t >= PAYT) {   // payoff squash: 1 -> 1.12 -> 0.96 -> 1, damped
+              const q = t - PAYT; scale *= 1 + 0.25 * Math.sin(2 * Math.PI * 2.9 * q) * Math.exp(-7.5 * q); pitch -= 0.14 * Math.sin(Math.PI * clamp(q / 0.3, 0, 1));
+            }
+            if (t >= OUT) {   // exit: a short anticipation, then collapse spinning into its centre
+              const q = (t - OUT) / 0.26;
+              scale *= q < 0.25 ? 1 + 0.06 * (q / 0.25) : 1.06 * (1 - eIn((q - 0.25) / 0.75));
+              yaw += 0.6 * Math.PI * q * q;
+            }
+            let rake = 0;
+            sweeps.forEach((s, m) => { if (t >= s) { const p = eIO(clamp((t - s) / 0.75, 0, 1)); rake = m % 2 ? 1 - p : p; } });
+            const spk = lines.map((L) => L.ln.spk), now = spk[cur], prev = prog ? spk[cur - 1] : now;
+            const visFront = cur % 2 === 0;
+            return { visible: true, scale, yaw, pitch, roll, rake, front: visFront ? now : prev, back: visFront ? prev : now };
+          }
+          const renderCoin = (t) => { coin.set(coinAt(t)); coin.render(); };
+          Look.drive(tl, 0, C.end, (p) => renderCoin(p * C.end));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderCoin(e.detail.time); });
+
+          // ---------- the payoff: Lamar's reply lands on the cut, the key rakes the medallion, one specular sweep crosses the line ----------
+          const PL = lines.find((L) => L.ln.pay);
+          if (PL) {
+            if (PL.ln.ignite) PL.words.forEach((o, wi) => ignite(tl, o, PL.ln.ignite + wi * 2 * FR, 0.1));
+            const at = (PL.ln.ignite || PL.ln.t + 0.5) + PL.words.length * 2 * FR + 0.08, hw = 0.42 * T.size, dur = 0.45, eS = E("power2.inOut");
+            const lw = PL.maxW + 2 * padX;
+            PL.words.forEach((o) => { o.offX = o.w.offsetLeft; o.offY = o.w.parentNode.offsetTop; });
+            Look.drive(tl, at, dur, (p) => {
+              const X = p <= 0 || p >= 1 ? -2000 : -hw - 40 + (lw + 2 * hw + 80) * eS(p);
+              PL.words.forEach((o) => { o.spec.style.backgroundImage = band(X - o.offX + (o.offY - PL.rows[0].row.offsetTop) * 0.45, hw); o.spec.style.webkitBackgroundClip = "text"; o.spec.style.backgroundClip = "text"; o.spec.style.color = "transparent"; o.spec.style.webkitTextFillColor = "transparent"; });
+            });
+            if (plate) Look.impact(tl, PL.ln.ignite || PL.ln.t + 0.1, { shake: "#shake", amp: 8, dur: 0.28, flash: 0, zoom: 1.018 });
+          }
+          // spec layers start empty
+          lines.forEach((L) => L.words.forEach((o) => { o.spec.style.color = "transparent"; o.spec.style.webkitTextFillColor = "transparent"; }));
+          if (plate) {
+            Look.push(tl, "#push", 0, C.end, { from: 1.0, to: 1.04 });
+          }
+          // intentional layer stacks (ink / side / rim / face / specular per word; badge canvas beside the rows)
+          document.querySelectorAll("#ov .line, #ov .row, #ov .w, #ov .wi, #ov .pop, #ov .l, #ov .set, #ov canvas, #ov .chip, #ov #token, #ov .token").forEach((n) => { n.setAttribute("data-layout-allow-overlap", ""); n.setAttribute("data-layout-allow-occlusion", ""); });
+          document.querySelectorAll("#ov .spec, #ov .front").forEach((n) => { if (n.classList.contains("spec") && !n.style.backgroundImage) n.style.backgroundImage = "linear-gradient(rgba(255,255,255,0), rgba(255,255,255,0))"; n.style.webkitBackgroundClip = "text"; n.style.backgroundClip = "text"; });
+          tl.set({}, {}, C.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+          renderCoin(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

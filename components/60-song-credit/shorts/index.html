@@ -1,0 +1,222 @@
+<!doctype html>
+<!-- 60 Song credit, variant B: "Track tag" (9:16, 1080x1920, 30 fps, 7 s).
+     A compact track tag near the top of a Short: a real 3D record with a chrome tonearm that swings in and drops the
+     needle, a live equaliser, the title as a marquee in heavy condensed caps, the artist under it.
+     Variable: bg "plate" (sample footage) / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/vinyl3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      #shake { z-index: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; z-index: 10; }
+      #deck { position: absolute; left: 0; top: 0; z-index: 3; will-change: transform; }
+      #deck canvas { filter: drop-shadow(0 3px 3px rgba(0,0,0,.5)) drop-shadow(0 14px 22px rgba(0,0,0,.45)); }
+      #tag { position: absolute; z-index: 2; white-space: nowrap; }
+      #kick { display: flex; align-items: flex-end; gap: 14px; height: 44px; }
+      #eq { display: flex; align-items: flex-end; gap: 5px; height: 42px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.7)) drop-shadow(0 4px 8px rgba(0,0,0,.45)); }
+      #eq i { display: block; width: 9px; height: 42px; border-radius: 3px 3px 1px 1px; transform-origin: 50% 100%;
+        background: linear-gradient(180deg, #FFF3C4 0%, #FFD23C 16%, #F6B13A 58%, #E07A16 100%);
+        box-shadow: inset 0 1.5px 0 rgba(255,255,255,.85), inset 0 -3px 3px rgba(120,50,0,.35); }
+      #kicktx { font: 800 29px/1 "Inter"; letter-spacing: .14em; color: #FFD23C; padding-bottom: 1px;
+        text-shadow: 0 1px 1px rgba(0,0,0,.8), 0 2px 10px rgba(0,0,0,.6); }
+      #win { position: relative; overflow: hidden; height: 104px; margin-top: 2px; }
+      #rise { position: absolute; left: 0; top: 12px; will-change: transform; }
+      #track { position: absolute; left: 0; top: 0; white-space: nowrap; will-change: transform;
+        font: 800 68px/1 "Archivo"; font-stretch: 64%; letter-spacing: 0.004em; text-transform: uppercase; color: #fff;
+        paint-order: stroke fill; -webkit-text-stroke: 8px rgba(7,6,10,.92); text-shadow: 0 3px 3px rgba(0,0,0,.35), 0 9px 24px rgba(0,0,0,.5); }
+      #track span { display: inline-block; }
+      #track .sep { color: #FFD23C; }
+      #awin { position: relative; overflow: hidden; height: 58px; margin-top: -8px; }
+      #artist { position: absolute; left: 0; top: 4px; font: 800 42px/1 "Inter"; letter-spacing: -0.012em; color: #fff;
+        paint-order: stroke fill; -webkit-text-stroke: 6px rgba(7,6,10,.9); text-shadow: 0 2px 2px rgba(0,0,0,.35), 0 6px 18px rgba(0,0,0,.5); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="7.55" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <video id="s1" class="clip shot" style="z-index:5" src="assets/shots/v17-deluxo-sunset-v.mp4" muted playsinline data-start="0" data-duration="1.6" data-media-start="0" data-track-index="0"></video>
+        <video id="s2" class="clip shot" style="z-index:4" src="assets/shots/v41-smokestacks-dusk-v.mp4" muted playsinline data-start="1.5333" data-duration="1.4667" data-media-start="0" data-track-index="1"></video>
+        <video id="s3" class="clip shot" style="z-index:3" src="assets/shots/v40-car-meet-night-v.mp4" muted playsinline data-start="2.9333" data-duration="1.5" data-media-start="0" data-track-index="0"></video>
+        <video id="s4" class="clip shot" style="z-index:2" src="assets/shots/v12-heli-city-dusk-v.mp4" muted playsinline data-start="4.3667" data-duration="1.6" data-media-start="0" data-track-index="1"></video>
+        <video id="s5" class="clip shot" style="z-index:1" src="assets/shots/v24-sunset-powerlines-v.mp4" muted playsinline data-start="5.9" data-duration="1.65" data-media-start="0" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="7.55" data-track-index="2">
+        <div id="tag">
+          <div id="kick"><div id="eq"><i></i><i></i><i></i><i></i><i></i></div><div id="kicktx"></div></div>
+          <div id="win"><div id="rise"><div id="track"></div></div></div>
+          <div id="awin"><div id="artist"></div></div>
+        </div>
+        <div id="deck"></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        title: "Coastline Ghosts (Night Mix)",   // scrolls one full loop as a marquee, back to the start before the exit
+        labelTitle: "Coastline Ghosts",
+        artist: "Mara Solace",
+        kicker: "NOW PLAYING",
+        side: "SIDE A  ·  33⅓",
+        disc: { x: 222, y: 416, r: 132 },     // record centre and radius (px). Shorts safe zone: x 72-936, y 230-1480
+        text: { x: 424, right: 936, top: 306 },
+        marquee: { start: 2.45, end: 6.2, fade: 24 },
+        rpm: 33.333,
+        colors: { vinyl: "#0b0b0e", accent: "#E59A1C" },
+        timing: { in: 0.15, swing: 0.62, drop: 1.12, touch: 1.25, lift: 6.55, tuck: 6.62, gone: 6.85, end: 7.55 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const C = CONFIG, T = C.timing, $ = (s) => document.querySelector(s), PI = Math.PI;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const Ez = (n) => gsap.parseEase(n);
+        const seg = (t, a, b, e) => { const p = t <= a ? 0 : t >= b ? 1 : (t - a) / (b - a); return e ? Ez(e)(p) : p; };
+        const wob = (t, t0, amp, f, k) => (t < t0 ? 0 : amp * Math.exp(-k * (t - t0)) * Math.sin(2 * PI * f * (t - t0)));
+
+        // ---------- geometry ----------
+        const R = C.disc.r, CW = 540, CH = 470;
+        const deckX = C.disc.x - 196, deckY = C.disc.y - 240;            // canvas placed so the record sits at C.disc
+        const discC = [C.disc.x - deckX, C.disc.y - deckY];
+        const pivot = [discC[0] + R * 1.14, discC[1] - R * 0.92];
+        const deck = $("#deck"); deck.style.width = CW + "px"; deck.style.height = CH + "px";
+        gsap.set(deck, { x: deckX, y: deckY });
+
+        const FACES = ["800 100px Archivo", "900 100px Archivo", "900 100px Inter", "800 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const V = Vinyl3D({ w: CW, h: CH, ss: 2, R, disc: discC, vinyl: C.colors.vinyl, wedgeAngle: 0.8, exposure: 1.0, vinylEnv: 0.2, vinylRough: 0.3, key: [0.5, 0.72, 0.85], rakeI: 0, expoK: 0.1, ringW: 0.032, platter: { r: 1.06, h: 14 },
+            label: Vinyl3D.drawLabel({ title: C.labelTitle, artist: C.artist, side: C.side }),
+            arm: { pivot, len: R * 1.0, tube: 3.8, base: 25, height: 22, headAngle: 0.5, accent: C.colors.accent } });
+          deck.appendChild(V.canvas);
+
+          // ---------- tag type ----------
+          const tag = $("#tag"); tag.style.left = C.text.x + "px"; tag.style.top = C.text.top + "px";
+          const WW = C.text.right - C.text.x; tag.style.width = WW + "px";
+          $("#kicktx").textContent = C.kicker; $("#artist").textContent = C.artist;
+          const track = $("#track"), chars = [];
+          for (let k = 0; k < 3; k++) {
+            Array.from(C.title).forEach((ch) => { const s = document.createElement("span"); s.textContent = ch === " " ? " " : ch; track.appendChild(s); chars.push(s); });
+            const sep = document.createElement("span"); sep.className = "sep"; sep.textContent = "  •  "; track.appendChild(sep); chars.push(sep);
+          }
+          const geo = chars.map((s) => ({ l: s.offsetLeft, w: s.offsetWidth, op: -1 }));
+          const period = geo[C.title.length].l + geo[C.title.length].w;   // one title + separator
+          const M = C.marquee;
+          // one full loop with a trapezoid speed profile (0.4 s ease in, 0.5 s ease out): the title is back at the window start before the exit
+          const offAt = (t) => { const D = M.end - M.start, a = 0.4, b = 0.5, v = period / (D - a / 2 - b / 2), u = t - M.start;
+            if (u <= 0) return 0; if (u >= D) return 0;
+            const x = u < a ? v * u * u / (2 * a) : u < D - b ? v * (a / 2 + (u - a)) : period - v * (D - u) * (D - u) / (2 * b);
+            return x % period; };
+          function marqueeAt(t) {
+            const off = offAt(t), lf = Math.min(1, off / M.fade);
+            track.style.transform = "translateX(" + (-off).toFixed(2) + "px)";
+            geo.forEach((g, i) => {
+              const x = g.l - off, cx = x + g.w * 0.5;
+              if (x > WW + 4 || x + g.w < -4) { if (g.op !== 0) { chars[i].style.opacity = "0"; g.op = 0; } return; }
+              const ar = Math.max(0, Math.min(1, (WW - cx) / M.fade)), al = 1 - lf * (1 - Math.max(0, Math.min(1, cx / M.fade)));
+              const a = Math.round(ar * al * 100) / 100;
+              if (a !== g.op) { chars[i].style.opacity = String(a); g.op = a; }
+            });
+          }
+
+          // ---------- equaliser ----------
+          const bars = Array.from(document.querySelectorAll("#eq i"));
+          const ph = bars.map((_, i) => [Look.hash(i * 7 + 1) * 6.28, Look.hash(i * 7 + 2) * 6.28, Look.hash(i * 7 + 3) * 6.28]);
+          function eqAt(t) {
+            const live = seg(t, T.touch + 0.02, T.touch + 0.24, "back.out(2.6)") * (1 - seg(t, T.lift, T.lift + 0.16, "power2.in"));
+            bars.forEach((b, i) => {
+              const p = ph[i], f = 1 + i * 0.31;
+              const n = 0.5 + 0.22 * Math.sin(2 * PI * 1.9 * f * t + p[0]) + 0.16 * Math.sin(2 * PI * 4.3 * f * t + p[1]) + 0.12 * Math.sin(2 * PI * 7.7 * t + p[2]);
+              const bt = ((t - T.touch) % 0.5 + 0.5) % 0.5, beat = Math.exp(-9 * bt) * (i % 2 ? 0.8 : 1);
+              const pu = t > T.touch + i * 0.03 ? 0.75 * Math.exp(-5 * (t - T.touch - i * 0.03)) : 0;   // the payoff pump: every bar slams to the top, then settles into the groove
+              const h = Math.min(1, Math.max(0.12, 0.18 + 0.55 * n + 0.32 * beat + pu));
+              b.style.transform = "scaleY(" + (0.12 + (h - 0.12) * live).toFixed(3) + ")";
+            });
+          }
+
+          // ---------- deck state from time ----------
+          const w0 = 2 * PI * C.rpm / 60, tA = T.swing, tB = T.drop;       // the platter starts as the arm moves, full speed by the drop
+          function spinAt(t) {
+            if (t <= tA) return 0;
+            const ramp = tB - tA;
+            let th = t < tB ? w0 * (t - tA) * (t - tA) / (2 * ramp) : w0 * ramp / 2 + w0 * (t - tB);
+            if (t > T.lift) { const d = Math.min(t, T.lift + 0.5) - T.lift; th -= w0 * d * d / (2 * 0.5) * 0.6; }
+            return th;
+          }
+          const REST = -1.34, PLAY = -2.0, UP = 0.11, DOWN = -0.07;
+          function deckState(t) {
+            const st = { rig: {} }, P = T.touch;
+            const pin = seg(t, T.in, T.in + 0.6, "power3.out");
+            st.rig.rx = -0.34 + 0.0 * pin;
+            st.rig.ry = wob(t, T.in + 0.5, 0.035, 1.8, 6);
+            st.rig.rz = 0.07 * (1 - pin) + wob(t, T.in + 0.5, -0.02, 2, 7);
+            // the record rolls in (spin follows the travel, clockwise as it moves right) and coasts to a stop before the platter starts
+            st.spin = spinAt(t) + deckOff(t) / R * 0.85;
+            // tonearm: swings over lifted, drops, a 2-frame bounce on touchdown; lifts and parks on exit
+            const sw = seg(t, T.swing, T.drop, "power2.inOut") * (1 - seg(t, T.lift + 0.1, T.lift + 0.34, "power2.inOut"));
+            st.swing = REST + (PLAY - REST) * sw;
+            const dn = seg(t, T.drop, P, "power2.in") * (1 - seg(t, T.lift, T.lift + 0.12, "power2.out"));
+            st.lift = UP + (DOWN - UP) * dn + wob(t, P, 0.018, 7, 16) * (t < T.lift ? 1 : 0);
+            // payoff light at touchdown
+            const fl = seg(t, P - 0.02, P + 0.04) * (1 - seg(t, P + 0.16, P + 0.62, "power2.out"));
+            st.wedge = 0.45 + 0.75 * fl;
+            const rg = seg(t, P - 0.01, P + 0.45, "power2.out");
+            st.ringR = 0.9 - 0.5 * rg; st.ringA = 1.9 * seg(t, P - 0.01, P + 0.03) * (1 - seg(t, P + 0.24, P + 0.46, "power1.in"));
+            st.wedgeAngle = 1.6 - 0.85 * seg(t, P - 0.06, P + 0.62, "power2.out") + 0.06 * Math.sin(2 * PI * 0.25 * (t - P));
+            st.rake = fl; st.rakeX = -1.6 + 3 * seg(t, P - 0.05, P + 0.5, "power1.inOut");
+            st.expo = seg(t, P, P + 0.034) * (1 - seg(t, P + 0.134, P + 0.42, "power2.out"));
+            return st;
+          }
+          const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+          svg.setAttribute("width", "0"); svg.setAttribute("height", "0"); svg.style.position = "absolute";
+          svg.innerHTML = '<filter id="mbx" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB"><feGaussianBlur id="mbxg" stdDeviation="0 0"/></filter>';
+          document.body.appendChild(svg);
+          const mbg = document.getElementById("mbxg");
+          const deckOff = (t) => -(deckX + CW + 40) * (1 - seg(t, T.in, T.in + 0.56, "expo.out")) - (deckX + CW + 60) * seg(t, T.gone, T.gone + 0.3, "power3.in");
+          function renderAt(t) {
+            const on = t >= T.in && t < T.gone + 0.3;
+            const x = deckOff(t), v = Math.abs(deckOff(t + 1 / 60) - deckOff(t - 1 / 60)) * 15;
+            gsap.set(deck, { x: deckX + x, y: deckY, opacity: on ? 1 : 0 });
+            const mb = Math.min(14, Math.max(0, v - 6) * 0.1);
+            if (mb > 0.5) { mbg.setAttribute("stdDeviation", mb.toFixed(2) + " 0"); deck.style.filter = "url(#mbx)"; } else deck.style.filter = "";
+            if (on) V.render(deckState(t));
+            eqAt(t); marqueeAt(t);
+          }
+
+          [$("#ov")].concat(Array.from($("#ov").querySelectorAll("*"))).forEach((nd) => ["occlusion", "overlap", "overflow"].forEach((k) => nd.setAttribute("data-layout-allow-" + k, "")));
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+
+          // ---------- text: kicker wipes on as the arm swings; title and artist rise out of their windows on touchdown ----------
+          const kick = $("#kick"), rise = $("#rise"), art = $("#artist");
+          gsap.set(kick, { clipPath: "inset(-20% 100% -20% 0%)", x: -18 });
+          tl.fromTo(kick, { clipPath: "inset(-20% 100% -20% 0%)", x: -18 }, { clipPath: "inset(-20% 0% -20% 0%)", x: 0, duration: 0.42, ease: "expo.out", immediateRender: false }, T.swing + 0.1);
+          gsap.set(rise, { y: 112 }); gsap.set(art, { y: 70 });
+          tl.fromTo(rise, { y: 112 }, { y: 0, duration: 0.5, ease: "back.out(1.25)", immediateRender: false }, T.touch);
+          tl.fromTo(art, { y: 70 }, { y: 0, duration: 0.48, ease: "back.out(1.2)", immediateRender: false }, T.touch + 0.08);
+          // exit: title and artist drop back into their windows, the kicker wipes off
+          tl.fromTo(rise, { y: 0 }, { y: 112, duration: 0.26, ease: "power3.in", immediateRender: false }, T.tuck);
+          tl.fromTo(art, { y: 0 }, { y: 70, duration: 0.24, ease: "power3.in", immediateRender: false }, T.tuck + 0.04);
+          tl.fromTo(kick, { clipPath: "inset(-20% 0% -20% 0%)" }, { clipPath: "inset(-20% 100% -20% 0%)", duration: 0.26, ease: "power3.in", immediateRender: false }, T.tuck + 0.1);
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

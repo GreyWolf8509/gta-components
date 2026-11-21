@@ -1,0 +1,210 @@
+<!doctype html>
+<!-- 38 Spin wheel, variant A (16:9, 1920x1080): the challenge-video picker wheel as a real 3D prize wheel.
+     It enters, winds up, spins (physics: friction + pegs + sprung ticker), slows tick by tick, lands on the winner,
+     lights it and slides the result plaque out from behind the wheel. Variable: bg "plate" / "none". See gta/DESIGN.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="media/spinsim.js"></script>
+    <script src="media/wheel3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      #wheel { position: absolute; inset: 0; opacity: 0; }
+      /* hidden measuring text so the fonts the canvases use are loaded and pass the lint */
+      #fontprobe { position: absolute; left: -9999px; top: 0; font: 900 40px "Archivo"; font-stretch: 75%; opacity: 0; }
+      #fontprobe span { font: 800 20px "Inter"; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.9" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="shotA" class="clip shot" src="assets/shots/v35-penthouse-dusk-h.mp4" muted playsinline data-start="0" data-duration="6.3" data-media-start="2.2" data-track-index="0"></video>
+        <video id="shotB" class="clip shot" src="assets/shots/v39-lowriders-downtown-h.mp4" muted playsinline data-start="6.3" data-duration="0.6" data-media-start="0.3" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="6.9" data-track-index="1">
+        <div id="wheel"></div>
+        <div id="fontprobe" aria-hidden="true">LOWRIDER <span>THE WHEEL PICKED</span></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        // the wedges, clockwise from the pointer side; ink:true prints dark labels on light colours
+        wedges: [
+          { label: "SUPERCAR", color: "#FF2E3A" },
+          { label: "BMX", color: "#FFD23C", ink: true },
+          { label: "MOTORBIKE", color: "#2F62FF" },
+          { label: "TANK", color: "#2ED06E", ink: true },
+          { label: "LOWRIDER", color: "#8B4DFF" },
+          { label: "TOW TRUCK", color: "#FF8A1F" },
+          { label: "JETSKI", color: "#22C7F0", ink: true },
+          { label: "BUS", color: "#FF4FA3" }
+        ],
+        winner: 4,            // index into wedges: where the wheel lands
+        land: 0.36,           // how far past the last peg it stops (0..1 of the wedge)
+        turns: 3,             // minimum full turns
+        kicker: "THE WHEEL PICKED",
+        result: "LOWRIDER",
+        wheel: { x: 720, y: 540 },           // centre, canvas px
+        card: { x: 1518, y: 540, w: 600, h: 300 },
+        pointerAngle: 0,                     // 0 = 3 o'clock (labels land horizontal)
+        timing: { in: 0.1, wind: 0.72, launch: 0.95, exit: 5.88, cut: 6.3, end: 6.9 }   // lock = launch + the physics settle time
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const FACES = ["900 100px Archivo", "800 100px Inter", "900 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const W = 1920, H = 1080, N = CONFIG.wedges.length, D = 360 / N;
+          const GEO = { Rhub: 74, Rw: 404, gap: 11, divW: 9, rPeg: 412, pegR: 10, ringIn: 428, ringOut: 474, bulbR: 11, nBulbs: 24, bulbPhase: 7.5,
+            pivotR: 520, headR: 44, L: 118, labelSize: 56, labelPad: 40 };
+          const win = CONFIG.wedges[CONFIG.winner];
+          const wheel = Wheel3D({ host: $("#wheel"), W, H, dpr: 1.5, geo: GEO, wedges: CONFIG.wedges, pointerAngle: CONFIG.pointerAngle,
+            exposure: 1.0, emis: 0.17,
+            card: { w: CONFIG.card.w, h: CONFIG.card.h, r: 34, color: win.color, kicker: CONFIG.kicker, result: CONFIG.result,
+              fw: 18, kickY: 98, kickSize: 30, resY: 240, resSize: 148, padX: 58, kickColor: "#FFCF5A" } });
+
+          // ---------- physics ----------
+          const PTR = CONFIG.pointerAngle, WIND = 14, DRIFT = 20;
+          const thStart = PTR + 0.66 * D - D / 2;
+          const SIMO = { n: N, rPeg: GEO.rPeg, e: 14, dMax: 50, flapHz: 7, flapZeta: 0.22, G: 10, mu: 80, drag: 1.0,
+            pegOffset: D / 2, pointer: PTR, theta0: thStart - WIND, pushDur: 0.06, tMax: 6, w0lo: 100, w0hi: 5000 };
+          let target = PTR - (CONFIG.winner * D + D / 2 - CONFIG.land * D);
+          while (target < SIMO.theta0 + 360 * CONFIG.turns) target += 360;
+          SIMO.target = target;
+          const sim = SpinSim.simulate(SIMO);
+          let tSettle = sim.tStop;
+          for (let t = 0; t < sim.tStop; t += 1 / 240) if (Math.abs(sim.thetaStop - sim.at(t).theta) < 0.12) { tSettle = t; break; }
+
+          const TM = CONFIG.timing, T = {};
+          T.in = TM.in; T.wind = TM.wind; T.launch = TM.launch;
+          T.lock = T.launch + tSettle;
+          T.card = T.lock + 0.22; T.cardDur = 0.5;
+          T.exit = TM.exit; T.cut = TM.cut; T.end = TM.end;
+          T.colDur = 0.3; T.collapse = T.cut - T.colDur;
+
+          const E = (n) => gsap.parseEase(n);
+          const cl = (x) => Math.max(0, Math.min(1, x));
+          const lerp = (a, b, p) => a + (b - a) * p;
+          const eBack = E("back.out(1.7)"), eExpo = E("expo.out"), eP2io = E("power2.inOut"), eP3in = E("power3.in"), eP3o = E("power3.out"), eCard = E("back.out(1.15)"), eLift = E("back.out(2.2)");
+
+          function thetaAt(t) {
+            let th;
+            if (t <= T.in) th = thStart - DRIFT;
+            else if (t < T.wind) th = thStart - DRIFT + DRIFT * eExpo(cl((t - T.in) / (T.wind - T.in)));
+            else if (t < T.launch) th = thStart - WIND * eP2io(cl((t - T.wind) / (T.launch - T.wind)));
+            else th = sim.at(t - T.launch).theta;
+            if (t > T.collapse) th += 150 * eP3in(cl((t - T.collapse) / T.colDur));
+            return th;
+          }
+          function rigAt(t) {
+            const u = cl((t - T.in) / 0.5), ue = eBack(u);
+            let s = t < T.in ? 0 : 0.35 + 0.65 * ue;
+            const rx = lerp(26, 3, eP3o(cl((t - T.in) / 0.6))), ry = lerp(-20, 0, eP3o(cl((t - T.in) / 0.6)));
+            const ul = t - T.lock; if (ul > 0 && ul < 0.26) s *= 1 + 0.022 * Math.sin(Math.PI * ul / 0.26);
+            if (t > T.collapse) s *= 1 - eP3in(cl((t - T.collapse) / (T.colDur - 1 / 30)));
+            if (t >= T.cut) s = 0;
+            return { x: CONFIG.wheel.x, y: CONFIG.wheel.y, s, rx, ry };
+          }
+          const SH = 0.5 / 30;
+          function bulbsAt(t, th) {
+            const n = GEO.nBulbs, out = [];
+            for (let i = 0; i < n; i++) {
+              const on = cl((t - (T.in + 0.14 + 0.36 * i / n)) / 0.05);
+              let v;
+              if (t < T.lock) {
+                const ph = th / 360 * 1.2 + t * 0.35, x = ((i / n * 3 - ph) % 1 + 1) % 1;
+                v = 0.3 + 0.7 * Math.pow(0.5 + 0.5 * Math.cos(2 * Math.PI * x), 6);
+              } else {
+                const u = t - T.lock;
+                if (u < 0.13) v = 1; else if (u < 0.2) v = 0.3; else if (u < 0.33) v = 1;
+                else { const x = ((i / n * 2 - (u - 0.33) * 0.7) % 1 + 1) % 1; v = lerp(1, 0.6 + 0.4 * Math.pow(0.5 + 0.5 * Math.cos(2 * Math.PI * x), 4), cl((u - 0.33) / 0.3)); }
+              }
+              out.push(on * v);
+            }
+            return out;
+          }
+          function wedgesAt(t) {
+            const u = t - T.lock, out = [];
+            for (let i = 0; i < N; i++) {
+              if (u < 0) { out.push({}); continue; }
+              if (i === CONFIG.winner) {
+                const lp = eLift(cl(u / 0.32));
+                let hot = u < 1 / 30 ? 30 * u * 0.62 : (u < 4 / 30 ? 0.62 : lerp(0.62, 0.22, eP3o(cl((u - 4 / 30) / 0.5))));
+                const sp = cl((u - 0.06) / 0.55);
+                out.push({ lift: 18 * lp, grow: 0.03 * lp, hot, spec: sp, specAmp: 0.55 });
+              } else out.push({ dim: 0.55 * eP3o(cl((u - 0.04) / 0.3)) });
+            }
+            return out;
+          }
+          function cardAt(t) {
+            const C = CONFIG.card;
+            if (t < T.card || t >= T.cut) return { vis: false };
+            // a door hinged on its left edge: slides out from behind the wheel past the pointer and swings open
+            const ex = cl((t - T.exit) / 0.28);
+            const hx0 = CONFIG.wheel.x + 120, hx1 = C.x - C.w / 2;
+            let hx = lerp(hx0, hx1, eP3o(cl((t - T.card) / 0.34)));
+            let ry = lerp(80, 0, E("back.out(1.4)")(cl((t - T.card - 0.08) / 0.52)));
+            ry = lerp(ry, 86, eP3in(cl((t - T.exit) / 0.2)));
+            hx = lerp(hx, hx0, eP3in(cl((t - T.exit - 0.08) / 0.2)));
+            const kick = eExpo(cl((t - T.card - 0.14) / 0.34)), res = eExpo(cl((t - T.card - 0.2) / 0.38));
+            const spec = cl((t - T.card - 0.62) / 0.6);
+            return { vis: ex < 1, hingeX: hx, y: C.y, z: -70, s: 1, ry, kick, res, spec, hot: 0.1 * Math.sin(Math.PI * spec) };
+          }
+          function renderAt(t) {
+            const rg = rigAt(t);
+            const ta = thetaAt(t - SH / 2), tb = thetaAt(t + SH / 2);
+            const travel = Math.abs(tb - ta) * Math.PI / 180 * GEO.Rw * rg.s;
+            const K = Math.max(1, Math.min(56, Math.ceil(travel / 4)));
+            const thetas = []; for (let k = 0; k < K; k++) thetas.push(thetaAt(t - SH / 2 + SH * (k + 0.5) / K));
+            if (K === 1) thetas[0] = thetaAt(t);
+            let d = t < T.launch ? 0 : sim.at(t - T.launch).d;
+            if (t > T.collapse) d *= 1 - cl((t - T.collapse) / 0.12);
+            const ul = t - T.lock;
+            wheel.render({ rig: rg, thetas, d, wedges: wedgesAt(t), bulbs: bulbsAt(t, thetaAt(t)),
+              ptrHot: ul > 0 ? 0.9 * Math.exp(-ul / 0.25) : 0, card: cardAt(t) });
+            const host = $("#wheel");
+            host.style.opacity = t < T.in ? 0 : 1;
+            const bl = 8 * (1 - eP3o(cl((t - T.in) / 0.2)));
+            host.style.filter = t > T.in && bl > 0.05 ? "blur(" + bl.toFixed(2) + "px)" : "";
+            // the bed: blurred + graded while the wheel is up (lesson 17: contrast >= 1.1, brightness <= .7, saturate >= .4)
+            if (plate) {
+              const k = t < T.cut ? eP2io(cl((t - T.in) / 0.38)) : 0;
+              $("#shotA").style.filter = k > 0.001 ? "blur(" + (10 * k).toFixed(2) + "px) brightness(" + (1 - 0.3 * k).toFixed(3) + ") contrast(" + (1 + 0.15 * k).toFixed(3) + ") saturate(" + (1 - 0.35 * k).toFixed(3) + ")" : "";
+              $("#shotA").style.transform = "scale(" + (1 + 0.05 * k).toFixed(4) + ")";
+            }
+          }
+
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+          if (plate) {
+            Look.impact(tl, T.cut, { shake: "#shake", amp: 7, dur: 0.3, flash: 0, zoom: 1.025 });
+            Look.expose(tl, T.cut, { target: "#push", peak: 1.12, hold: 3 / 30, dur: 0.3, saturate: 1.08 });
+          }
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          window.__spinT = T; window.__spinSim = { w0: sim.w0, err: sim.err, tSettle, ticks: sim.ticks.length };
+          tl.seek(0);
+          renderAt(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

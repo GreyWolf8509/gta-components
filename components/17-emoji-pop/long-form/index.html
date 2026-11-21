@@ -1,0 +1,308 @@
+<!doctype html>
+<!-- GTA-niche 17 Emoji pop, variant A "Skull pop" (16:9 long-form, 1920x1080, 30 fps).
+     Our own glossy 3D skull emoji, real Three.js geometry: a shaped icosphere cranium with displaced eye-socket and nose dents,
+     capsule teeth, a hinged jaw and a dark mouth cavity, clearcoat bone in a PMREM studio, a soft VSM shadow on the shot,
+     HDR bloom and sub-frame motion blur. It pops in beside the subject with stretch and squash, snaps its jaw open and winks
+     as the key light rakes across it (the payoff), laughs, then hops and tumbles out under gravity. See ../DECISIONS.md.
+     Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/emoji3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; pointer-events: none; }
+      #gl { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="4.0" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="shotA" class="clip shot" src="assets/shots/v06-franklin-lamar-portrait-h.mp4" muted playsinline data-start="0" data-duration="0.4" data-media-start="0" data-track-index="0"></video>
+        <video id="shotB" class="clip shot" src="assets/shots/v03-franklin-street-h.mp4" muted playsinline data-start="0.4" data-duration="1.2" data-media-start="0" data-track-index="1"></video>
+        <video id="shotC" class="clip shot" src="assets/shots/v31-red-car-sunset-h.mp4" muted playsinline data-start="1.6" data-duration="1.66" data-media-start="0" data-track-index="2"></video>
+        <video id="shotD" class="clip shot" src="assets/shots/v06-franklin-lamar-portrait-h.mp4" muted playsinline data-start="3.26" data-duration="0.74" data-media-start="0.4" data-track-index="3"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="4.0" data-track-index="4">
+        <canvas id="gl" width="1920" height="1080"></canvas>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        // where the skull sits (canvas px, the cranium centre) and how big (px per skull unit: the cranium is 2 units wide)
+        at: { x: 450, y: 372 },
+        size: 186,
+        wink: "right",                  // "right" | "left" | "none"
+        bone: "#ECE6DC",                // bone albedo
+        socket: "#100D12",              // eye sockets and nose
+        rim: "#FFD7A6",                 // rim light, matched to the shot (warm sun)
+        shadow: 0.3,                    // drop shadow opacity on the shot
+        // pop -> laugh (payoff: jaw snaps open + wink + light rake) -> tumble out
+        // pop on the cut, payoff (jaw snap + wink + light sweep), a second laugh snap on the next cut, then out
+        timing: { pop: 0.4, laugh: 0.7, beat2: 1.6, out: 2.75, end: 4.0 },
+        // the footage (plate only); keep these in sync with the <video> tags above
+        shots: [
+          { id: "shotA", src: "v06-franklin-lamar-portrait-h", start: 0, dur: 0.4 },
+          { id: "shotB", src: "v03-franklin-street-h", start: 0.4, dur: 1.2 },
+          { id: "shotC", src: "v31-red-car-sunset-h", start: 1.6, dur: 1.66 },
+          { id: "shotD", src: "v06-franklin-lamar-portrait-h", start: 3.26, dur: 0.74, in: 0.4 }
+        ]
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const W = 1920, H = 1080, C = CONFIG, TM = C.timing;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const E3 = window.Emoji3D, THREE = window.THREE, kf = E3.kf, lerp = E3.lerp, sstep = E3.sstep;
+
+        // ---------- stage ----------
+        const stage = E3.Stage(document.getElementById("gl"), W, H, {
+          fov: 14, exposure: 1.0, key: 2.5, rim: 0.5, rimColor: C.rim, hemi: 0.5, shadowOpacity: C.shadow,
+          shadowZ: -C.size * 1.15, shadowRadius: 18, shadowSize: 760, bloomThreshold: 2.2, env: { boxI: 7, horizon: "#7d776f", ground: "#1c1916" }
+        });
+        stage.dirs.shadow.set(-0.1, 0.2, 1);
+
+        // ---------- the cranium: painted + displaced ----------
+        const winkSide = C.wink === "left" ? -1 : 1;
+        const SOCK = { cx: 0.355, cy: -0.02, rx: 0.265, ry: 0.29, n: 2.5, tilt: 0.14 };
+        function socketPath(side, w) { // points in unit-sphere front coords
+          const pts = [];
+          for (let i = 0; i < 72; i++) {
+            const a = (i / 72) * Math.PI * 2, c = Math.cos(a), s = Math.sin(a);
+            const sc = Math.sign(c) * Math.pow(Math.abs(c), 2 / SOCK.n), ss = Math.sign(s) * Math.pow(Math.abs(s), 2 / SOCK.n);
+            // open: a rounded, slightly squared socket, outer-top corner lifted
+            let ox = SOCK.rx * sc, oy = SOCK.ry * ss;
+            const tl = SOCK.tilt * side, cr = Math.cos(tl), sr = Math.sin(tl);
+            let px = ox * cr - oy * sr, py = ox * sr + oy * cr;
+            px = side * SOCK.cx + px; py = SOCK.cy + py;
+            // wink: a thick happy arch, ends drooping
+            const u = c, wx = side * SOCK.cx + 0.25 * u, wy = SOCK.cy - 0.075 + 0.13 * (1 - u * u) + 0.05 * s * (0.55 + 0.45 * (1 - u * u));
+            pts.push([lerp(px, wx, w), lerp(py, wy, w)]);
+          }
+          return pts;
+        }
+        function noseShape(ctx, X, Y) {
+          ctx.beginPath();
+          ctx.moveTo(X(0), Y(-0.235));
+          ctx.bezierCurveTo(X(0.03), Y(-0.27), X(0.135), Y(-0.34), X(0.105), Y(-0.405));
+          ctx.bezierCurveTo(X(0.085), Y(-0.45), X(0.025), Y(-0.44), X(0), Y(-0.405));
+          ctx.bezierCurveTo(X(-0.025), Y(-0.44), X(-0.085), Y(-0.45), X(-0.105), Y(-0.405));
+          ctx.bezierCurveTo(X(-0.135), Y(-0.34), X(-0.03), Y(-0.27), X(0), Y(-0.235));
+          ctx.closePath();
+        }
+        function drawSkull(ctx, hctx, S, p) {
+          const X = (x) => (x + 1) / 2 * S, Y = (y) => (1 - y) / 2 * S, U = (d) => d / 2 * S;
+          // bone: warm, lighter at the brow, a touch of grey toward the rim
+          let g = ctx.createRadialGradient(X(-0.12), Y(0.38), U(0.1), X(0), Y(0.05), U(1.05));
+          g.addColorStop(0, "#FFFDF9"); g.addColorStop(0.55, C.bone); g.addColorStop(1, "#D8D1C6");
+          ctx.fillStyle = g; ctx.fillRect(0, 0, S, S);
+          // cheek / temple AO under the sockets
+          ctx.save(); ctx.filter = "blur(" + Math.round(S * 0.02) + "px)";
+          ctx.fillStyle = "rgba(120,104,92,0.13)";
+          [-1, 1].forEach((sd) => { ctx.beginPath(); ctx.ellipse(X(sd * 0.36), Y(-0.06), U(0.34), U(0.37), 0, 0, Math.PI * 2); ctx.fill(); });
+          ctx.beginPath(); ctx.ellipse(X(0), Y(-0.36), U(0.17), U(0.15), 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "rgba(120,104,92,0.12)";
+          ctx.beginPath(); ctx.ellipse(X(0), Y(-0.72), U(0.5), U(0.16), 0, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+          // sockets
+          [-1, 1].forEach((sd) => {
+            const w = (C.wink !== "none" && sd === winkSide) ? p.wink : 0;
+            const pts = socketPath(sd, w);
+            const path = () => { ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(X(q[0]), Y(q[1])) : ctx.moveTo(X(q[0]), Y(q[1])))); ctx.closePath(); };
+            const gr = ctx.createRadialGradient(X(sd * SOCK.cx - sd * 0.04), Y(SOCK.cy + 0.07), U(0.02), X(sd * SOCK.cx), Y(SOCK.cy), U(0.32));
+            gr.addColorStop(0, "#030204"); gr.addColorStop(0.75, C.socket); gr.addColorStop(1, "#231C20");
+            ctx.save(); ctx.filter = "blur(" + Math.round(S * 0.012) + "px)"; path(); ctx.strokeStyle = "rgba(128,122,116,0.85)"; ctx.lineWidth = U(0.075); ctx.stroke(); ctx.restore();
+            path(); ctx.fillStyle = gr; ctx.fill();
+            hctx.beginPath(); pts.forEach((q, i) => (i ? hctx.lineTo(X(q[0]), Y(q[1])) : hctx.moveTo(X(q[0]), Y(q[1])))); hctx.closePath();
+            hctx.fillStyle = "#000"; hctx.fill();
+          });
+          // nose
+          ctx.save(); ctx.filter = "blur(" + Math.round(S * 0.01) + "px)"; noseShape(ctx, X, Y); ctx.strokeStyle = "rgba(128,122,116,0.8)"; ctx.lineWidth = U(0.05); ctx.stroke(); ctx.restore();
+          noseShape(ctx, X, Y); ctx.fillStyle = C.socket; ctx.fill();
+          noseShape(hctx, X, Y); hctx.fillStyle = "#1c1c1c"; hctx.fill();
+          // brow ridge: a soft raise above each socket, and a soft raise of the cheekbones
+          hctx.save(); hctx.filter = "blur(" + Math.round(S * 0.05) + "px)"; hctx.fillStyle = "rgba(150,150,150,0.8)";
+          [-1, 1].forEach((sd) => { hctx.beginPath(); hctx.ellipse(X(sd * 0.44), Y(-0.42), U(0.2), U(0.12), 0, 0, Math.PI * 2); hctx.fill(); });
+          hctx.restore();
+        }
+        const cranium = E3.faceSphere({
+          detail: 110, tex: 2048, hmap: 640, blur: 9, depth: 0.1,
+          shape: (x, y, z) => {
+            const lo = sstep(-0.12, -0.95, y);
+            const sx = lerp(1.0, 0.86, lo), sz = lerp(0.97, 0.85, lo);
+            let zz = z * sz; if (zz > 0) zz *= lerp(1, 0.93, sstep(0.3, 0.95, z));
+            return [x * sx * (1 + 0.03 * sstep(0.1, 0.7, y)), y * 0.95, zz];
+          },
+          vcolor: (x, y, z) => { const a = (1 - 0.2 * sstep(0.1, -1, y) - 0.12 * sstep(0.1, -0.9, z)) * (0.84 + 0.16 * sstep(-0.1, 0.75, z)); return [a, a * 0.985, a * 0.965]; },
+          draw: drawSkull,
+          drawCoat: (k, S, p) => { // bone: full clearcoat, roughness 0.44; sockets and nose: no coat, fully rough (they stay black)
+            const X = (x) => (x + 1) / 2 * S, Y = (y) => (1 - y) / 2 * S;
+            k.fillStyle = "rgb(210,100,0)"; k.fillRect(0, 0, S, S);
+            k.filter = "blur(3px)"; k.fillStyle = "rgb(0,255,0)";
+            [-1, 1].forEach((sd) => {
+              const w = (C.wink !== "none" && sd === winkSide) ? p.wink : 0, pts = socketPath(sd, w);
+              k.beginPath(); pts.forEach((q, i) => (i ? k.lineTo(X(q[0]), Y(q[1])) : k.moveTo(X(q[0]), Y(q[1])))); k.closePath(); k.fill();
+            });
+            noseShape(k, X, Y); k.fill();
+          },
+          material: { clearcoat: 1, clearcoatRoughness: 0.1, envMapIntensity: 1.0 }
+        });
+
+        // ---------- teeth, jaw, mouth cavity ----------
+        const boneMat = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.bone), roughness: 0.34, clearcoat: 0.85, clearcoatRoughness: 0.14, envMapIntensity: 1.05 });
+        const jawMat = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.bone).multiplyScalar(0.95), roughness: 0.4, clearcoat: 0.85, clearcoatRoughness: 0.15, envMapIntensity: 1.0 });
+        // the mouth is a recessed matte void (no gloss: it must read as depth, not as an object)
+        const cavMat = new THREE.MeshStandardMaterial({ color: new THREE.Color("#12070A"), roughness: 1, metalness: 0, envMapIntensity: 0.05 });
+
+        // ---------- the payoff light: a clipped specular band that sweeps across the bone (world-space, all bone parts) ----------
+        const SWEEP = { uSweep: { value: -9 }, uC: { value: new THREE.Vector2() }, uScale: { value: C.size }, uAmt: { value: 0 } };
+        function addSweep(mat) {
+          mat.onBeforeCompile = (sh) => {
+            Object.assign(sh.uniforms, SWEEP);
+            sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vSwPos;")
+              .replace("#include <project_vertex>", "#include <project_vertex>\nvSwPos = (modelMatrix * vec4(transformed, 1.0)).xyz;");
+            sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vSwPos; uniform float uSweep, uScale, uAmt; uniform vec2 uC;")
+              .replace("#include <emissivemap_fragment>", [
+                "#include <emissivemap_fragment>",
+                "{ vec2 d = (vSwPos.xy - uC) / uScale; float s = dot(d, normalize(vec2(0.85, 0.55))) - uSweep;",
+                "  float band = exp(-s * s / 0.016) + 0.12 * exp(-s * s / 0.2);",
+                "  float lum = dot(diffuseColor.rgb, vec3(0.3333));",
+                "  totalEmissiveRadiance += vec3(1.0, 0.97, 0.9) * band * uAmt * smoothstep(0.3, 0.75, lum) * smoothstep(0.3, 0.8, normal.z); }"
+              ].join("\n"));
+          };
+          mat.customProgramCacheKey = () => "sweep";
+        }
+        [cranium.material, boneMat, jawMat].forEach(addSweep);
+        function teethRow(n, r, len, y, ax, az, z0, spread) {
+          const g = new THREE.Group(), geo = new THREE.CapsuleGeometry(r, len, 8, 20);
+          for (let i = 0; i < n; i++) {
+            const a = lerp(-spread, spread, i / (n - 1));
+            const m = new THREE.Mesh(geo, boneMat); m.castShadow = true;
+            m.position.set(ax * Math.sin(a), y, z0 + az * Math.cos(a));
+            m.rotation.y = Math.atan2(Math.sin(a) / ax, Math.cos(a) / az);
+            m.scale.set(1, 1, 0.7);
+            g.add(m);
+          }
+          return g;
+        }
+        const head = new THREE.Group();
+        head.add(cranium.mesh);
+        head.add(teethRow(6, 0.079, 0.075, -0.80, 0.485, 0.48, 0.0, 0.9));
+        const cav = new THREE.Mesh(E3.blob(32, (x, y, z) => [x, y, z]), cavMat);
+        cav.position.set(0, -1.02, -0.12); cav.scale.set(0.44, 0.28, 0.34); head.add(cav);
+        const PIV = new THREE.Vector3(0, -0.86, -0.25);
+        const jawPivot = new THREE.Group(); jawPivot.position.copy(PIV); head.add(jawPivot);
+        const se = (v, e) => Math.sign(v) * Math.pow(Math.abs(v), e);
+        const jaw = new THREE.Mesh(E3.blob(48, (x, y, z) => [se(x, 0.7) * 0.5, se(y, 0.75) * 0.19, se(z, 0.7) * 0.42]), jawMat);
+        jaw.castShadow = true; jaw.position.set(0, -1.12 - PIV.y, 0.05 - PIV.z); jawPivot.add(jaw);
+        const lower = teethRow(6, 0.07, 0.04, -1.0 - PIV.y, 0.445, 0.44, 0.0 - PIV.z, 0.86); jawPivot.add(lower);
+        // rami: the jaw's back corners rise to the hinge, so the mandible reads attached, not a floating denture
+        [-1, 1].forEach((sd) => {
+          const ram = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.2, 8, 16), jawMat); ram.castShadow = true;
+          ram.position.set(sd * 0.4, -0.97 - PIV.y, -0.08 - PIV.z); ram.rotation.z = sd * 0.1; ram.scale.set(0.8, 1, 1.15);
+          jawPivot.add(ram);
+        });
+
+        const rig = new THREE.Group(); rig.add(head); stage.scene.add(rig);
+
+        // ---------- motion: everything is a pure function of time ----------
+        const HA = 0.27; // one laugh beat
+        function pose(t) {
+          const p = t - TM.pop, q = t - TM.laugh, r = t - TM.out;
+          const o = { vis: p >= 0, x: 0, y: 0, s: 1, st: 1, rx: 0, ry: 0, rz: 0, jaw: 0, wink: 0, kx: -0.62, rim: 1.0, glow: 0, sweep: -9, sAmt: 0 };
+          if (!o.vis) return o;
+          // entrance: rises from below, stretched; lands squashed; turns in from the side
+          o.s = kf(p, [[0, 0.3], [0.10, 1.12, "power2.out"], [0.18, 0.94, "sine.inOut"], [0.27, 1.035, "sine.inOut"], [0.36, 0.99, "sine.inOut"], [0.45, 1, "sine.inOut"]]);
+          o.st = kf(p, [[0, 1.42], [0.09, 1.18, "power1.out"], [0.135, 0.84, "power2.out"], [0.21, 1.07, "sine.inOut"], [0.3, 0.975, "sine.inOut"], [0.4, 1, "sine.inOut"]]);
+          o.y = kf(p, [[0, 120], [0.10, -18, "power3.out"], [0.2, 5, "sine.inOut"], [0.3, 0, "sine.inOut"]]);
+          o.rz = kf(p, [[0, -0.5], [0.12, 0.1, "power2.out"], [0.24, -0.04, "sine.inOut"], [0.36, 0, "sine.inOut"]]);
+          o.ry = kf(p, [[0, -0.95], [0.14, 0.17, "power2.out"], [0.28, -0.05, "sine.inOut"], [0.42, 0, "sine.inOut"]]);
+          o.rx = kf(p, [[0, 0.32], [0.14, -0.07, "power2.out"], [0.3, 0, "sine.inOut"]]);
+          // payoff: jaw snaps open, wink, tilt toward the wink, the key light rakes across, rim pulse
+          if (q >= 0) {
+            const beat = q > 0.16 ? 0.5 - 0.5 * Math.cos(2 * Math.PI * (q - 0.16) / HA) : 0; // 0 open .. 1 closing
+            o.jaw = kf(q, [[0, 0], [0.07, 0.52, "power3.out"], [0.16, 0.42, "sine.inOut"]]) - 0.17 * beat;
+            o.wink = kf(q, [[0, 0], [0.08, 1, "power2.out"]]);
+            o.st *= kf(q, [[0, 1], [0.06, 1.1, "power2.out"], [0.16, 0.955, "sine.inOut"], [0.27, 1, "sine.inOut"]]) * (1 - 0.025 * beat);
+            o.y += -9 * beat;
+            o.s *= 1 + 0.02 * beat;
+            o.rz += -winkSide * kf(q, [[0, 0], [0.2, 0.13, "back.out(2.2)"]]) + 0.025 * Math.sin(2 * Math.PI * q / (HA * 2));
+            o.ry += winkSide * kf(q, [[0, 0], [0.25, -0.16, "power2.out"], [1.6, -0.05, "sine.inOut"]]);
+            o.rx += kf(q, [[0, 0], [0.08, -0.1, "power2.out"], [0.3, -0.03, "sine.inOut"]]);
+            o.kx = kf(q, [[0, -0.62], [0.55, 0.55, "power2.inOut"], [1.6, -0.35, "sine.inOut"]]);
+            o.sweep = kf(q, [[0, -1.6], [0.12, -0.1, "power2.out"], [0.24, 0.12, "none"], [0.5, 1.7, "power2.in"]]);
+            o.sAmt = kf(q, [[0, 0], [0.03, 2.4, "power2.out"], [0.4, 2.4], [0.52, 0, "power2.in"]]);
+            o.glow = kf(q, [[0, 0], [0.06, 1, "power2.out"], [0.16, 1], [0.6, 0, "power2.inOut"]]); // the light hit on the bone (3+ frames at peak)
+          }
+          // second beat on the next cut: a bigger "HA" (jaw snaps wide, squash-stretch hop, tilt flips)
+          const b2 = t - TM.beat2;
+          if (b2 >= 0 && r < 0) {
+            const k = kf(b2, [[0, 0], [0.05, 1, "power2.out"], [0.3, 0, "sine.inOut"]]);
+            o.jaw = Math.max(o.jaw, 0.3 + 0.28 * k);
+            o.st *= kf(b2, [[0, 1], [0.05, 0.86, "power2.out"], [0.13, 1.1, "power2.out"], [0.24, 0.97, "sine.inOut"], [0.34, 1, "sine.inOut"]]);
+            o.y += kf(b2, [[0, 0], [0.05, 8, "power2.out"], [0.14, -26, "power2.out"], [0.3, 0, "power2.in"]]);
+            o.rz += winkSide * kf(b2, [[0, 0], [0.16, 0.2, "back.out(2)"], [0.9, 0.12, "sine.inOut"]]);
+          }
+          // exit: anticipate (squash), hop, then tumble out under gravity
+          if (r >= 0) {
+            o.jaw = Math.max(o.jaw, kf(r, [[0, o.jaw], [0.12, 0.55, "power2.out"]]));
+            o.st *= kf(r, [[0, 1], [0.1, 0.84, "power2.out"], [0.2, 1.14, "power2.out"], [0.34, 1.0, "sine.inOut"]]);
+            o.y += kf(r, [[0, 0], [0.1, 12, "power2.out"], [0.22, -56, "power2.out"]]);
+            if (r > 0.22) { const f = r - 0.22; o.y += 0.5 * 7200 * f * f; o.x -= 190 * f; o.rz += 3.4 * f * f + 1.2 * f; o.ry -= 1.4 * f; o.rx += 0.9 * f; }
+            o.rz += kf(r, [[0, 0], [0.1, -0.06], [0.22, 0.12, "power2.out"]]);
+          }
+          return o;
+        }
+        const blurNeeded = (t) => { const p = t - TM.pop, q = t - TM.laugh, r = t - TM.out, b = t - TM.beat2; return (p >= -0.02 && p < 0.3) || (q >= 0 && q < 0.14) || (b >= 0 && b < 0.2) || (r >= 0.06 && r < 1.2); };
+
+        function apply(o, wink) {
+          rig.visible = o.vis;
+          if (!o.vis) return;
+          const s = o.s * C.size, sx = s / Math.sqrt(o.st), sy = s * Math.sqrt(o.st);
+          rig.position.set(C.at.x + o.x, -(C.at.y + o.y), 0);
+          rig.scale.set(sx, sy, s);
+          rig.rotation.set(o.rx, o.ry, o.rz);
+          jawPivot.rotation.x = o.jaw;
+          stage.dirs.key.set(o.kx, 0.78, 0.6);
+          stage.rim.intensity = 0.6 * o.rim;
+          SWEEP.uSweep.value = o.sweep; SWEEP.uAmt.value = o.sAmt; SWEEP.uC.value.set(C.at.x + o.x, -(C.at.y + o.y));
+          stage.key.intensity = 2.5;
+          stage.aim(C.at.x + o.x, C.at.y + o.y);
+          cranium.update({ wink: Math.round(wink * 40) / 40 });
+        }
+        function renderAt(t) {
+          const o = pose(t);
+          const p = t - TM.pop, r = t - TM.out, n = !o.vis ? 1 : (p < 0.14 ? 16 : (r > 0.15 ? 24 : (blurNeeded(t) ? 10 : 1)));
+          // sub-frames never reach before the pop (a half-visible first frame would read see-through)
+          stage.frame(t, (ts) => apply(pose(o.vis ? Math.max(ts, TM.pop) : ts), o.wink), n, p < 0.07 ? 0.16 : 0.5, 0.1);
+        }
+
+        const FACES = ["900 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const tl = gsap.timeline({ paused: true });
+          cranium.update({ wink: 0 });
+          Look.drive(tl, 0, TM.end, (p) => renderAt(p * TM.end));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+          tl.set({}, {}, TM.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+          renderAt(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

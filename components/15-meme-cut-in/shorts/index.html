@@ -1,0 +1,378 @@
+<!doctype html>
+<!-- 15 Meme cut-in, variant B (9:16, 1080x1920, 30 fps): "Full cut-in". The gameplay record-scratch freezes and the frozen frame
+     pulls back into a sharp, dimmed, vignetted plate on real black; the setup caption stamps on; the meme slams in as a physical
+     print (paper mount, thickness, cast shadow) with a snap zoom; the 3D stamp word lands on its edge and ignites gold under one
+     light sweep; then everything whips up and the gameplay resumes where it froze.
+     Variable bg: "plate" (sample GTA V gameplay) / "none" (caption, print and stamp alone on transparent). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <script src="media/payoff3d.js"></script>
+    <style>
+      @font-face { font-family: "Archivo"; font-style: normal; font-weight: 100 900; font-stretch: 62% 125%; font-display: block; src: url("assets/fonts/Archivo.ttf") format("truetype"); }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Archivo", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push, .seg { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+
+      /* the freeze bed: the frozen frame (sharp -h still) on real black, feathered top and bottom, dimmed, clean vignette */
+      #bed { position: absolute; inset: 0; opacity: 0; background: #040507; overflow: hidden; }
+      #plate img { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; display: block; }
+      .feather { position: absolute; left: 0; width: 100%; opacity: 0; }
+      #fTop { background: linear-gradient(180deg, #040507 0%, rgba(4,5,7,.88) 22%, rgba(4,5,7,.45) 58%, rgba(4,5,7,0) 100%); }
+      #fBot { background: linear-gradient(0deg, #040507 0%, rgba(4,5,7,.88) 22%, rgba(4,5,7,.45) 58%, rgba(4,5,7,0) 100%); }
+      #dim { position: absolute; inset: 0; background: #040507; opacity: 0; }
+      #bedVig { position: absolute; inset: 0; opacity: 0;
+        background: radial-gradient(ellipse 88% 54% at 50% 50%, rgba(4,5,7,0) 46%, rgba(4,5,7,.36) 78%, rgba(4,5,7,.86) 100%); }
+
+      #ov { position: absolute; inset: 0; pointer-events: none; }
+      #stShake, #stWhip, #stMb, #pushG { position: absolute; inset: 0; }
+      .glow { position: absolute; opacity: 0; mix-blend-mode: screen; }
+
+      /* cast shadows: follow the print's 2D pose, offset and softened by its height above the bed */
+      .shd { position: absolute; border-radius: 12px; background: #000; opacity: 0; transform-origin: 50% 50%; }
+
+      /* the print: a mounted glossy photo with real thickness */
+      #cardPos { position: absolute; opacity: 0; }
+      #cardBlur, #persp { position: absolute; inset: 0; }
+      #persp { perspective: 2300px; perspective-origin: 50% 50%; }
+      #c3 { position: absolute; inset: 0; transform-style: preserve-3d; transform-origin: 50% 50%; }
+      #c3 > div { position: absolute; }
+      .front { left: 0; top: 0; width: 100%; height: 100%; border-radius: 9px; overflow: hidden; }
+      .back { left: 0; top: 0; width: 100%; height: 100%; border-radius: 9px; background: #B9B1A3; }
+      .edge { left: 0; top: 0; width: 100%; height: 100%; border-radius: 10px; opacity: 0;
+        background: linear-gradient(180deg, #D9D2C4 0%, #B4AB9B 60%, #8A8273 100%); box-shadow: inset 0 -2px 0 rgba(60,52,40,.5); }
+      .s-top, .s-bot { left: 0; width: 100%; transform-origin: 50% 0; }
+      .s-top { top: 0; background: linear-gradient(180deg, #FFFFFF, #E4DFD4); }
+      .s-bot { background: linear-gradient(180deg, #A39B8C, #6F685B); }
+      .s-l, .s-r { top: 0; height: 100%; transform-origin: 0 50%; }
+      .s-l { left: 0; background: linear-gradient(90deg, #ECE7DE, #CFC8BA); }
+      .s-r { background: linear-gradient(90deg, #ACA496, #837B6D); }
+
+      /* paper: warm 3-stop stock with a fine grain, a lit top-left lip and a shaded bottom-right lip */
+      .paper { position: absolute; inset: 0; border-radius: 9px;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' seed='7' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .30  0 0 0 0 .26  0 0 0 0 .20  0 0 0 .5 0'/></filter><rect width='220' height='220' filter='url(%23n)'/></svg>"),
+          linear-gradient(158deg, #FFFFFD 0%, #F8F6F0 42%, #E8E3D9 100%);
+        background-size: 220px 220px, 100% 100%;
+        box-shadow: inset 0 2px 0 rgba(255,255,255,.98), inset 2px 0 0 rgba(255,255,255,.85), inset 0 3px 6px rgba(255,255,255,.5), inset 0 -4px 0 rgba(96,84,66,.42), inset -3px 0 0 rgba(96,84,66,.3),
+                    inset 0 0 30px rgba(110,94,70,.09); }
+      .photo { position: absolute; overflow: hidden; border-radius: 3px; background: #1a1c20;
+        box-shadow: 0 0 0 1px rgba(88,76,60,.55), 0 0 0 5px #FDFBF6, 0 0 0 6px rgba(120,106,86,.40), 0 1px 0 6px rgba(255,255,255,.9); }
+      #meme { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; display: block; }
+      .vig { position: absolute; inset: 0; background: radial-gradient(ellipse 80% 72% at 52% 40%, rgba(0,0,0,0) 58%, rgba(0,0,0,.30) 100%),
+        linear-gradient(0deg, rgba(4,5,8,.40) 0%, rgba(4,5,8,.14) 16%, rgba(4,5,8,0) 30%); }
+      .gloss { position: absolute; left: -20%; top: -20%; width: 140%; height: 140%;
+        background: linear-gradient(124deg, rgba(255,255,255,.12) 0%, rgba(255,255,255,.04) 14%, rgba(255,255,255,0) 24%, rgba(255,255,255,0) 86%, rgba(255,255,255,.03) 100%); }
+      .inset { position: absolute; inset: 0; border-radius: 3px;
+        box-shadow: inset 0 0 0 1px rgba(20,16,10,.65), inset 3px 5px 10px rgba(0,0,0,.45), inset 0 -1px 0 rgba(255,255,255,.22); }
+      .spec { position: absolute; top: -30%; left: 0; width: 560px; height: 160%; opacity: 0; mix-blend-mode: screen;
+        background: linear-gradient(90deg, rgba(255,250,240,0) 0%, rgba(255,250,240,.08) 20%, rgba(255,250,240,.30) 38%, rgba(255,250,240,.48) 50%, rgba(255,250,240,.30) 62%, rgba(255,250,240,.08) 80%, rgba(255,250,240,0) 100%); }
+
+      /* impact caption: bevelled white heavy narrow caps over an ink edge and a graded 3-step extrusion */
+      .cap { position: absolute; left: 0; width: 100%; text-align: center; white-space: nowrap; opacity: 0; }
+      .capIn { position: relative; display: inline-block; font-family: "Archivo"; font-weight: 900; font-stretch: 64%;
+        letter-spacing: -0.012em; word-spacing: 0.1em; line-height: 1; text-transform: uppercase; filter: drop-shadow(0 12px 16px rgba(0,0,0,.5)); }
+      .ink, .dp { position: absolute; left: 0; top: 0; width: 100%; color: #07080B; -webkit-text-stroke: 12px #07080B; }
+      .dp.d1 { transform: translateY(3.5px); color: #1B2130; -webkit-text-stroke: 12px #1B2130; }
+      .dp.d2 { transform: translateY(7px); color: #10141D; -webkit-text-stroke: 12px #10141D; }
+      .dp.d3 { transform: translateY(10.5px); color: #05060A; -webkit-text-stroke: 12px #05060A; }
+      .face { position: relative; color: #FFFFFF; }
+
+      .grp3d { position: absolute; left: 0; top: 0; width: 100%; height: 100%; opacity: 0; }
+      .grp3d .bump, .grp3d .shade { position: absolute; }
+      .grp3d .bump, .grp3d .ign { left: 0; top: 0; width: 100%; height: 100%; }
+      .grp3d .ign { position: absolute; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="4.05" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <div class="seg" id="segA">
+          <video id="clipA" class="clip shot" src="assets/shots/v56-gp-truck-crash-v.mp4" muted playsinline data-start="0" data-duration="1.067" data-media-start="0.2" data-track-index="0"></video>
+        </div>
+        <div class="seg" id="segC">
+          <video id="clipC" class="clip shot" src="assets/shots/v56-gp-truck-crash-v.mp4" muted playsinline data-start="3.533" data-duration="0.517" data-media-start="1.133" data-track-index="2"></video>
+        </div>
+        <div id="bed">
+          <div id="plate"><img id="frzA" src="media/freeze-a.jpg" alt="" /><img id="frzB" src="media/freeze-b.jpg" alt="" style="opacity:0" /></div>
+          <div class="feather" id="fTop"></div><div class="feather" id="fBot"></div>
+          <div id="dim"></div><div id="bedVig"></div>
+        </div>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="4.05" data-track-index="1">
+        <div id="stShake"><div id="stWhip"><div id="stMb">
+          <div id="pushG">
+          <div class="shd" id="shdAmb"></div>
+          <div class="shd" id="shdCon"></div>
+          <div class="shd" id="shdOcc"></div>
+          <div id="cardPos"><div id="cardBlur"><div id="persp">
+            <div id="c3">
+              <div class="back"></div>
+              <div class="edge" id="edge"></div>
+              <div class="s-top"></div><div class="s-bot"></div><div class="s-l"></div><div class="s-r"></div>
+              <div class="front">
+                <div class="paper"></div>
+                <div class="photo" id="photo">
+                  <img id="meme" src="media/meme-side-eye.jpg" alt="" />
+                  <div class="vig"></div>
+                  <div class="gloss" id="gloss"></div>
+                  <div class="inset"></div>
+                </div>
+                <div class="spec" id="spec"></div>
+              </div>
+            </div>
+          </div></div></div>
+          <div class="glow" id="glow"></div>
+          <div id="w3d"></div>
+          </div>
+          <div class="cap" id="cap1"></div>
+          <div class="cap" id="cap2"></div>
+        </div></div></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        // The meme: your own still at 1920x1080 (a game screenshot works best), shown at <= 1.0x so it stays sharp.
+        // focus = the face in image pixels; focusAt / focusAtZoomed = where it sits in the photo window before / after the snap zoom.
+        image: { src: "media/meme-side-eye.jpg", w: 1920, h: 1080, focus: [1300, 400], focusAt: [400, 300], focusAtZoomed: [372, 292], z0: 0.80, z1: 0.96, zHold: 0.99 },
+        // The record-scratch freeze: graded 1920x1080 stills of the frame where the clip stops (still) and ~4 frames earlier (skip).
+        // focus = the still's pixel that sits at the canvas centre (where your 9:16 clip was cropped from), cover = 1920/1080.
+        freeze: { still: "media/freeze-a.jpg", skip: "media/freeze-b.jpg", focus: [768, 540], cover: 1.7778, rest: 1.2, holdPush: 1.035 },
+        lines: ["WHEN I SAID", "I CAN PARK IT"],
+        stamp: "BRO.",
+        type: { size: 120, maxWidth: 800, cx: 540, lineY: [250, 380] },
+        // the print: centre, photo size, paper border, thickness, resting tilt
+        card: { cx: 540, cy: 984, photoW: 692, photoH: 820, border: 26, depth: 12, rest: -2.0, holdPush: 1.02 },
+        stamp3d: { size: 306, maxInk: 520, cy: 1335, depth: 30, bevel: 6.5, tilt: 0.3, edge: 6, shade: 0.35 },
+        colors: {
+          ink: "#07080B",
+          white: "linear-gradient(180deg, #FFFFFF 0%, #FFFFFF 44%, #DCE2EA 56%, #EEF1F5 78%, #D3DAE3 100%)",
+          face: ["#FFFFFF", "#F7F9FC", "#EEF2F7", "#E4E9F0"], side: ["#2A2F3A", "#07080B"],
+          goldFace: ["#FFF1A0", "#FFC21E", "#E07F0A"], goldLip: "#F7B23A", goldSide: ["#C46A00", "#3A1400"], hot: "#FFF6D0"
+        },
+        // one payoff beat: the print and the word land together (land), the word ignites gold 3 frames later under the light sweep
+        timing: { freeze: 1.00, skip: 1.067, pull: 1.12, pullDur: 0.36, line1: 1.20, line2: 1.32, slam: 1.62, land: 1.75, stamp: 1.67,
+                  sweep: 1.73, ignite: 1.85, hold: 2.2, wind: 3.52, out: 3.60, gone: 3.75, end: 4.05 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const C = CONFIG, T = C.timing, Y = C.type, K = C.card, $ = (s) => document.querySelector(s), FR = 1 / 30;
+        if (!plate) { document.querySelectorAll("video").forEach((v) => (v.style.display = "none")); $("#bed").style.display = "none"; }
+        $("#frzA").src = C.freeze.still; $("#frzB").src = C.freeze.skip;
+        const img = $("#meme"); img.src = C.image.src;
+
+        // ---------- print geometry ----------
+        const CW = K.photoW + 2 * K.border, CH = K.photoH + 2 * K.border, D = K.depth;
+        const L0 = K.cx - CW / 2, T0 = K.cy - CH / 2;
+        const pos = $("#cardPos");
+        Object.assign(pos.style, { left: L0 + "px", top: T0 + "px", width: CW + "px", height: CH + "px" });
+        ["#shdAmb", "#shdCon", "#shdOcc"].forEach((s) => Object.assign($(s).style, { left: L0 + "px", top: T0 + "px", width: CW + "px", height: CH + "px" }));
+        $(".s-top").style.height = D + "px"; $(".s-top").style.transform = "rotateX(-90deg)";
+        Object.assign($(".s-bot").style, { top: CH + "px", height: D + "px", transform: "rotateX(-90deg)" });
+        $(".s-l").style.width = D + "px"; $(".s-l").style.transform = "rotateY(90deg)";
+        Object.assign($(".s-r").style, { left: CW + "px", width: D + "px", transform: "rotateY(90deg)" });
+        $(".back").style.transform = "translateZ(" + (-D) + "px)";
+        $("#edge").style.transform = "translate3d(3px,8px," + (-D / 2) + "px)";
+        Object.assign($("#photo").style, { left: K.border + "px", top: K.border + "px", width: K.photoW + "px", height: K.photoH + "px" });
+
+        function buildCap(el, text) {
+          const inn = document.createElement("div"); inn.className = "capIn";
+          ["dp d3", "dp d2", "dp d1", "ink"].forEach((c) => { const l = document.createElement("span"); l.className = c; l.setAttribute("data-layout-ignore", ""); l.setAttribute("aria-hidden", "true"); l.textContent = text; inn.appendChild(l); });
+          const face = document.createElement("span"); face.className = "face";
+          text.split(" ").forEach((w, i, a) => { const s = document.createElement("span"); s.textContent = w; face.appendChild(s); if (i < a.length - 1) face.appendChild(document.createTextNode(" ")); });
+          inn.appendChild(face); el.appendChild(inn);
+          return { el, inn, face };
+        }
+        const caps = [buildCap($("#cap1"), C.lines[0]), buildCap($("#cap2"), C.lines[1])];
+
+        const FACES = ["900 100px Archivo"];
+        const imgs = Array.from(document.querySelectorAll("img")).map((im) => (im.decode ? im.decode().catch(() => 0) : 0));
+        Promise.all(FACES.map((f) => document.fonts.load(f)).concat(imgs)).then(() => document.fonts.ready).then(() => {
+          // one size for both lines (fit the longer), centred on the print
+          let size = Y.size;
+          caps.forEach((c) => (c.inn.style.fontSize = size + "px"));
+          const wMax = Math.max.apply(null, caps.map((c) => c.inn.offsetWidth));
+          if (wMax > Y.maxWidth) { size = Math.floor(size * Y.maxWidth / wMax); caps.forEach((c) => (c.inn.style.fontSize = size + "px")); }
+          caps.forEach((c, i) => {
+            c.el.style.left = (Y.cx - 540) + "px"; c.el.style.top = Y.lineY[i] + "px";
+            Look.fill(c.face, C.colors.white);
+            gsap.set(c.el, { transformOrigin: i ? "50% 15%" : "50% 85%" });
+          });
+
+          // ---------- the 3D stamp word (real extruded, bevelled glyphs; lands white, ignites gold) ----------
+          const S3 = C.stamp3d, Kc = C.colors;
+          const P3 = Payoff3D({
+            W: 1080, H: 1920, glyphs: window.PAYOFF_GLYPHS, text: C.stamp, size: S3.size, tracking: -0.01, maxInk: S3.maxInk,
+            cx: K.cx, cy: S3.cy, depth: S3.depth, bevel: S3.bevel, tilt: S3.tilt, inkPx: S3.edge, inkColor: Kc.ink, shadow: 0.7, shadowOff: 12, bloomPeak: 1.5, bloomBase: 0.2,
+            colors: { whiteFace: [Kc.face[0], Kc.face[3]], whiteSide: Kc.side, goldFace: Kc.goldFace, goldLip: Kc.goldLip, goldSide: Kc.goldSide, hot: Kc.hot },
+            timing: { ignite: T.ignite, frontDur: 0.18, specAt: T.ignite + 0.06, specDur: 0.45, rakeDur: 0.6, holdEnd: T.out }
+          });
+          const g3 = document.createElement("div"); g3.className = "grp3d";
+          const bump = document.createElement("div"); bump.className = "bump";
+          const ign = document.createElement("div"); ign.className = "ign";
+          const shade = document.createElement("div"); shade.className = "shade";
+          const sw = P3.inkW * 1.3, shH = P3.cap * 2.1;
+          shade.style.cssText = "left:" + (K.cx - sw / 2 + 10) + "px;top:" + (S3.cy - shH / 2 + 22) + "px;width:" + sw + "px;height:" + shH + "px;" +
+            "background:radial-gradient(closest-side, rgba(0,0,0," + S3.shade + ") 0%, rgba(0,0,0," + (S3.shade * 0.6).toFixed(3) + ") 55%, rgba(0,0,0,0) 100%)";
+          ign.appendChild(shade); ign.appendChild(P3.canvas); bump.appendChild(ign); g3.appendChild(bump); $("#w3d").appendChild(g3);
+          // the ignite light: a warm radial that screens onto the print behind the word (localised, never a frame-wide flash)
+          const glow = $("#glow"), gw = P3.inkW * 1.45, gh = P3.cap * 2.3;
+          Object.assign(glow.style, { left: (K.cx - gw / 2) + "px", top: (S3.cy - gh / 2) + "px", width: gw + "px", height: gh + "px",
+            background: "radial-gradient(closest-side, rgba(255,214,90,.62) 0%, rgba(255,184,40,.30) 45%, rgba(255,160,30,0) 100%)" });
+          const originY = S3.cy + P3.cap / 2;
+          document.querySelectorAll("#ov .cap, #ov .capIn, #ov .face, #ov .face span, #ov .grp3d, #ov .bump, #ov .ign, #glow, #ov canvas, #ov .shade, #bed, #plate img, #meme, #gloss, #spec, #photo, .front, .shd, #cardPos, #edge, .feather").forEach((n) => { n.setAttribute("data-layout-allow-overlap", ""); n.setAttribute("data-layout-allow-occlusion", ""); n.setAttribute("data-layout-allow-overflow", ""); });
+
+          const tl = gsap.timeline({ paused: true });
+
+          // ---------- 1+2. gameplay, then the record-scratch freeze: the frame stops, needle-skips, and pulls back into the bed ----------
+          if (plate) {
+            const FZ = C.freeze, fTop = $("#fTop"), fBot = $("#fBot"), pims = [$("#frzA"), $("#frzB")];
+            const pl = { s: FZ.cover, dx: 0, push: 1 }, PL = {};
+            const setPlate = () => {
+              const s = pl.s * pl.push, tx = 540 - FZ.focus[0] * s + pl.dx, ty = 960 - FZ.focus[1] * s;
+              const tr = "translate(" + tx.toFixed(2) + "px," + ty.toFixed(2) + "px) scale(" + s.toFixed(4) + ")";
+              pims.forEach((im) => (im.style.transform = tr));
+              const fh = 210 * s, bot = ty + 1080 * s;
+              fTop.style.top = (ty - 1).toFixed(1) + "px"; fTop.style.height = fh.toFixed(1) + "px";
+              fBot.style.top = (bot - fh + 1).toFixed(1) + "px"; fBot.style.height = fh.toFixed(1) + "px";
+              const k = Math.min(1, Math.max(0, (FZ.cover - pl.s) / (FZ.cover - FZ.rest)));
+              fTop.style.opacity = fBot.style.opacity = $("#bedVig").style.opacity = k.toFixed(3);
+            };
+            ["s", "dx", "push"].forEach((k) => Object.defineProperty(PL, k, { get: () => pl[k], set: (v) => { pl[k] = v; setPlate(); } }));
+            setPlate();
+            tl.set("#bed", { opacity: 1 }, T.freeze);
+            Look.impact(tl, T.freeze, { shake: "#shake", amp: 10, dur: 0.22, zoom: 1.03, flash: 0 });
+            // the needle skips back 4 frames for 2 frames with a 24px skid
+            tl.set("#frzB", { opacity: 1 }, T.skip);
+            tl.set("#frzB", { opacity: 0 }, T.skip + 2 * FR);
+            tl.fromTo(PL, { dx: 0 }, { dx: -24, duration: FR, ease: "none", immediateRender: false }, T.skip);
+            tl.fromTo(PL, { dx: -24 }, { dx: 0, duration: 0.1, ease: "power3.out", immediateRender: false }, T.skip + FR);
+            // pull back to 1.0x (sharp): the frozen frame becomes a picture on black
+            tl.fromTo(PL, { s: FZ.cover }, { s: FZ.rest, duration: T.pullDur, ease: "expo.out", immediateRender: false }, T.pull);
+            tl.fromTo("#dim", { opacity: 0 }, { opacity: 0.12, duration: T.pullDur, ease: "power2.out", immediateRender: false }, T.pull);
+            // the lights go down on the bed as the print lands
+            tl.fromTo("#dim", { opacity: 0.12 }, { opacity: 0.30, duration: 0.22, ease: "power2.out", immediateRender: false }, T.land - 0.04);
+            Look.impact(tl, T.land, { shake: "#shake", amp: 12, dur: 0.1, zoom: 1.02, flash: 0 });
+            Look.impact(tl, T.ignite, { shake: "#shake", amp: 10, dur: 0.26, zoom: 1.015, flash: 0 });
+            // the frozen frame keeps living under the hold: a slow push (parallax against the print)
+            tl.fromTo(PL, { push: 1 }, { push: FZ.holdPush, duration: T.out - T.land, ease: "none", immediateRender: false }, T.land);
+            tl.set("#bed", { opacity: 0 }, T.out);
+          }
+
+          // ---------- 3. the setup caption stamps on ----------
+          [T.line1, T.line2].forEach((at, i) => {
+            const el = caps[i].el;
+            tl.set(el, { opacity: 1 }, at);
+            tl.fromTo(el, { scale: 1.35 }, { scale: 0.94, duration: 0.08, ease: "power4.in", immediateRender: false }, at);
+            tl.fromTo(el, { scale: 0.94 }, { scale: 1, duration: 0.3, ease: "back.out(3)", immediateRender: false }, at + 0.08);
+          });
+
+          // ---------- 4. the payoff: the print slams in, snap zoom, the stamp lands on its edge, one light sweep, the word ignites ----------
+          const FQ = C.image.focus, F0 = C.image.focusAt, F1 = C.image.focusAtZoomed;
+          const st = { sc: 1.45, rz: -13, rx: 24, ry: -12, x: 60, y: -40, lift: 1, sqx: 1, sqy: 1, z: C.image.z0, fx: F0[0], fy: F0[1], hy: 0, hr: 0 };
+          const c3 = $("#c3"), shA = $("#shdAmb"), shC = $("#shdCon"), shO = $("#shdOcc"), gloss = $("#gloss");
+          function apply() {
+            const s = st, L = s.lift;
+            c3.style.transform = "translate(" + s.x.toFixed(2) + "px," + (s.y + s.hy).toFixed(2) + "px) rotateZ(" + (s.rz + s.hr).toFixed(3) + "deg) rotateX(" + s.rx.toFixed(3) +
+              "deg) rotateY(" + s.ry.toFixed(3) + "deg) scale3d(" + (s.sc * s.sqx).toFixed(4) + "," + (s.sc * s.sqy).toFixed(4) + "," + s.sc.toFixed(4) + ")";
+            const sh = (el, ox, oy, k, blur, kb, scl) => {
+              el.style.transform = "translate(" + (s.x + ox + k * L).toFixed(1) + "px," + (s.y + s.hy + oy + k * 1.38 * L).toFixed(1) + "px) rotate(" + (s.rz + s.hr).toFixed(3) + "deg) scale(" + (s.sc * scl).toFixed(4) + ")";
+              el.style.filter = "blur(" + (blur + kb * L).toFixed(1) + "px)";
+            };
+            sh(shO, 2, 5, 60, 3, 20, 0.998);
+            sh(shC, 9, 16, 80, 10, 30, 1.0);
+            sh(shA, 26, 48, 110, 34, 40, 1.03);
+            gloss.style.transform = "translate(" + ((s.rz - K.rest) * 16 + s.ry * 9).toFixed(1) + "px," + (s.rx * 7).toFixed(1) + "px)";
+            img.style.transform = "translate(" + (s.fx - FQ[0] * s.z).toFixed(2) + "px," + (s.fy - FQ[1] * s.z).toFixed(2) + "px) scale(" + s.z.toFixed(4) + ")";
+          }
+          const P = {};
+          Object.keys(st).forEach((k) => Object.defineProperty(P, k, { get: () => st[k], set: (v) => { st[k] = v; apply(); } }));
+          apply();
+          const tw = (from, to, dur, ease, at) => tl.fromTo(P, from, Object.assign({}, to, { duration: dur, ease, immediateRender: false }), at);
+
+          // the slam: falls from above the lens at a tilt, accelerating, motion-blurred; the shadow converges as it drops
+          const fall = T.land - T.slam;
+          tl.set(pos, { opacity: 1 }, T.slam);
+          tl.fromTo([shA, shC, shO], { opacity: 0 }, { opacity: (i) => [0.62, 0.78, 0.66][i], duration: fall, ease: "power2.in", immediateRender: false }, T.slam);
+          tl.fromTo("#cardBlur", { filter: "blur(6px)" }, { filter: "blur(0px)", duration: fall, ease: "power2.in", immediateRender: false }, T.slam);
+          tl.set("#cardBlur", { filter: "none" }, T.land);
+          tw({ sc: 1.45, x: 60, y: -40 }, { sc: 1, x: 0, y: 0 }, fall, "power1.in", T.slam);
+          tw({ lift: 1 }, { lift: 0 }, fall, "power1.in", T.slam);
+          tw({ rz: -13, rx: 24, ry: -12 }, { rz: -4.6, rx: -3, ry: 2 }, fall, "power1.in", T.slam);
+          // impact: 2-frame squash, spring back; the tilt springs to rest with overshoot; the board edge shows once it lies flat
+          tw({ sqx: 1, sqy: 1 }, { sqx: 1.035, sqy: 0.955 }, FR * 1.5, "power1.out", T.land);
+          tw({ sqx: 1.035, sqy: 0.955 }, { sqx: 1, sqy: 1 }, 0.3, "back.out(3)", T.land + FR * 1.5);
+          tw({ rz: -4.6 }, { rz: K.rest }, 0.62, "elastic.out(1, 0.42)", T.land);
+          tw({ rx: -3, ry: 2 }, { rx: 0, ry: 0 }, 0.55, "elastic.out(1, 0.4)", T.land);
+          tl.set("#edge", { opacity: 1 }, T.land);
+          Look.impact(tl, T.land, { shake: "#stShake", amp: 6, dur: 0.1, zoom: 1, flash: 0 });
+          // snap zoom onto the face on the landing frame, within the still's resolution
+          tw({ z: C.image.z0, fx: F0[0], fy: F0[1] }, { z: C.image.z1, fx: F1[0], fy: F1[1] }, 0.16, "expo.out", T.land);
+          tw({ z: C.image.z1 }, { z: C.image.zHold }, T.wind - T.land - 0.16, "none", T.land + 0.16);
+          // the ignite hit: the print takes it (8px down, a counter-turn, an elastic settle) and the stage jolts
+          tw({ hy: 0, hr: 0 }, { hy: 8, hr: 1.5 }, 0.05, "power2.out", T.ignite);
+          tw({ hy: 8, hr: 1.5 }, { hy: 0, hr: 0 }, 0.55, "elastic.out(1, 0.5)", T.ignite + 0.05);
+          Look.impact(tl, T.ignite, { shake: "#stShake", amp: 4, dur: 0.22, zoom: 1, flash: 0 });
+
+          // the stamp word follows the print down two frames later and lands on its bottom edge
+          gsap.set([bump, ign], { transformOrigin: K.cx + "px " + originY.toFixed(1) + "px" });
+          const wf = T.land - T.stamp;
+          tl.set(g3, { opacity: 1 }, T.stamp);
+          tl.fromTo(bump, { scale: 1.6, rotation: -5 }, { scale: 0.93, rotation: -1, duration: wf, ease: "power2.in", immediateRender: false }, T.stamp);
+          tl.fromTo(bump, { scale: 0.93, rotation: -1 }, { scale: 1, rotation: 0, duration: 0.3, ease: "back.out(2.6)", immediateRender: false }, T.land);
+          tl.fromTo(ign, { scale: 1 }, { scale: 1.12, duration: 0.07, ease: "power2.out", immediateRender: false }, T.ignite);
+          tl.fromTo(ign, { scale: 1.12 }, { scale: 1, duration: 0.24, ease: "back.out(3)", immediateRender: false }, T.ignite + 0.07);
+          Look.mblur(tl, bump, T.stamp, wf, { x: 0, y: 6, ease: "none" });
+          // glow: 1-frame attack, peak held 3 frames, settles to a warm glint under the gold through the hold
+          tl.set(glow, { opacity: 1 }, T.ignite + FR);
+          tl.fromTo(glow, { opacity: 1 }, { opacity: 0.3, duration: 0.5, ease: "power2.out", immediateRender: false }, T.ignite + 4 * FR);
+
+          // one soft light band rakes across the print, clipped to it, and reaches the word as it ignites
+          const spec = $("#spec"), SD = 0.38;
+          Look.drive(tl, T.sweep, SD, (p) => {
+            if (p <= 0 || p >= 1) { spec.style.opacity = "0"; return; }
+            const e = gsap.parseEase("power2.inOut")(p);
+            spec.style.transform = "translateX(" + (-560 + (CW + 560) * e).toFixed(1) + "px) rotate(20deg)";
+            spec.style.opacity = Math.min(1, Math.sin(Math.PI * p) * 1.35).toFixed(3);
+          });
+
+          // hold: a living drift
+          tw({ rz: K.rest, y: 0 }, { rz: K.rest + 0.8, y: -6 }, T.wind - 2.4, "sine.inOut", 2.4);
+          gsap.set("#pushG", { transformOrigin: K.cx + "px " + K.cy + "px" });
+          tl.fromTo("#pushG", { scale: 1 }, { scale: K.holdPush, duration: T.wind - T.hold, ease: "none", immediateRender: false }, T.hold);
+
+          // ---------- 5. exit: wind-up, everything whips up, the gameplay resumes where it froze ----------
+          tw({ sc: 1, y: -6 }, { sc: 0.97, y: 8 }, T.out - T.wind, "power2.out", T.wind);
+          tl.fromTo("#stWhip", { y: 0, rotation: 0 }, { y: -1750, rotation: 5, duration: T.gone - T.out, ease: "power2.in", immediateRender: false }, T.out);
+          Look.mblur(tl, "#stMb", T.out, T.gone - T.out, { x: 0, y: 0, to: [0, 46], ease: "power2.in" });
+          tl.set("#ov", { opacity: 0 }, T.gone);
+          if (plate) {
+            gsap.set("#segC", { transformOrigin: "50% 45%", scale: 1.08 });
+            tl.fromTo("#segC", { scale: 1.08 }, { scale: 1, duration: 0.34, ease: "expo.out", immediateRender: false }, T.out);
+            Look.impact(tl, T.out + 0.02, { shake: "#shake", amp: 10, dur: 0.26, zoom: 1, flash: 0 });
+            Look.mblur(tl, "#segC", T.out, 0.14, { x: 0, y: 30, ease: "power2.out" });
+          }
+
+          Look.drive(tl, 0, T.end, (p) => P3.renderAt(p * T.end)); P3.renderAt(0);
+          if (plate) Look.install(tl, { duration: T.end, grain: 0.06, vignette: 0 });
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

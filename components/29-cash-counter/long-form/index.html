@@ -1,0 +1,438 @@
+<!doctype html>
+<!-- GTA-niche 29 Cash counter, variant A "Cash HUD" (16:9 long-form, 1920x1080, 30 fps).
+     The creators' dark cash pill with lime digits, docked top-right where the game's own cash readout lives. The pill is real
+     geometry (Three.js): a smoked-glass body over a frosted backdrop and a white enamel bezel. Digits are a true odometer
+     (masked columns, motion-blurred by multi-sample strips). Each gain floats up as a neon "+$" and is absorbed into the pill;
+     the payoff gain puts the pill in the evidence's neon gain state (green bezel, flooded glass) while every column spins,
+     then locks in with a white-hot flash, a raking specular and a bloom on the object. See ../DECISIONS.md.
+     Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/gloss3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; pointer-events: none; }
+      .lay { position: absolute; visibility: hidden; }
+      #frost { position: absolute; }
+      #frost i { position: absolute; display: block; backdrop-filter: blur(16px) saturate(1.2) brightness(0.4) contrast(1.1); -webkit-backdrop-filter: blur(16px) saturate(1.2) brightness(0.4) contrast(1.1); }
+      #neon i { position: absolute; display: block; }
+      #aura { position: absolute; mix-blend-mode: screen; opacity: 0; }
+      #win { position: absolute; overflow: hidden; }
+      #spill { position: absolute; inset: 0; }
+      .col, .glyph { position: absolute; top: 0; }
+      .col { overflow: visible; }
+      .smp { position: absolute; left: 0; top: 0; width: 100%; }
+      .smp span, .glyph span { position: absolute; left: 0; top: 0; width: 100%; text-align: center; white-space: pre; }
+      #sheen, #gloss { position: absolute; inset: 0; }
+      #chips { position: absolute; left: 0; width: 100%; overflow: hidden; }
+      #chipsIn { position: absolute; left: 0; width: 100%; }
+      .chip { position: absolute; white-space: nowrap; visibility: hidden; }
+      .chip span { position: absolute; right: 0; top: 0; white-space: nowrap; }
+    </style>
+  </head>
+  <body>
+    <svg id="fxs" width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true"><defs id="fx"></defs></svg>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="7" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="shotA" class="clip shot" src="assets/shots/v56-gp-truck-crash-h.mp4" muted playsinline data-start="0" data-duration="2.6" data-media-start="0.5" data-track-index="0"></video>
+        <video id="shotB" class="clip shot" src="assets/shots/v10-cash-table-h.mp4" muted playsinline data-start="2.6" data-duration="1.2333" data-media-start="0" data-track-index="0"></video>
+        <video id="shotC" class="clip shot" src="assets/shots/v11-yacht-h.mp4" muted playsinline data-start="3.8333" data-duration="2.0667" data-media-start="0" data-track-index="0"></video>
+        <video id="shotD" class="clip shot" src="assets/shots/v18-pool-skyline-h.mp4" muted playsinline data-start="5.9" data-duration="1.1" data-media-start="0" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="7" data-track-index="1">
+        <div id="aura" class="lay"></div>
+        <div id="chips"><div id="chipsIn"></div></div>
+        <div id="frost" class="lay"><i></i></div>
+        <div id="neon" class="lay"><i></i></div>
+        <div id="pillWrap" class="lay"></div>
+        <div id="face" class="lay"><div id="win"><div id="spill"></div><div id="digits"></div><div id="gloss"></div><div id="sheen"></div></div></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        start: 2900304,                         // the balance on screen when it lands
+        gains: [                                 // pop = "+$" appears under the pill, merge = it hits the pill (put merges on cuts)
+          { amount: 25000, pop: 1.38, merge: 1.95 },
+          { amount: 1000000, pop: 2.66, merge: 3.80, payoff: true }   // the payoff gain: neon state, every column spins, lock-in
+        ],
+        timing: { in: 0.22, dock: 0.98, out: 6.3, end: 7.0, lockAfter: 0.52 },
+        pill: { x: 1372, y: 44, w: 500, h: 128, r: 52, rim: 10 },     // docked box, canvas px (top-right, 48/44 px from the edges)
+        type: { family: "Archivo", weight: 900, stretch: 66, size: 86, tracking: 0.0, chipSize: 60, paySize: 84 },
+        colors: {
+          digit: ["#F2FFC4", "#9DFB72", "#43E66B", "#14B451"],  // lime money-green face: top, upper, lower, baseline
+          hot: ["#FFFFFF", "#F4FFE8", "#C9FFB8", "#7DF29A"],   // white-hot lock-in face
+          ink: "#03170A",                                        // digit edge
+          body: ["#1C2830", "#070B0E"],                          // smoked glass: top, bottom
+          rim: "#E2E7EB", neon: "#38E07B", neonRim: "#22D25F", neonHot: "#B8FFC9",
+          chip: ["#FFFFFF", "#D9FFC9", "#5CF27A", "#22C55E"], chipInk: "#032612", glow: "#38E07B"
+        },
+        shots: ["#shotA", "#shotB", "#shotC", "#shotD"]
+      };
+
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const $ = (s) => document.querySelector(s);
+        const C = CONFIG, T = C.timing, P = C.pill, TY = C.type, K = C.colors, FR = 1 / 30;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x)), lerp = (a, b, k) => a + (b - a) * k;
+        const E = (n) => gsap.parseEase(n);
+        const hexA = (h, a) => "rgba(" + [1, 3, 5].map((i) => parseInt(h.substr(i, 2), 16)).join(",") + "," + a.toFixed(3) + ")";
+        const mixHex = (a, b, k) => { const p = (h) => [1, 3, 5].map((i) => parseInt(h.substr(i, 2), 16)); const A = p(a), B = p(b);
+          return "rgb(" + A.map((v, i) => Math.round(v + (B[i] - v) * k)).join(",") + ")"; };
+
+        const FACES = [TY.weight + " 100px Archivo", "italic 900 100px Inter", "900 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f, "$0123456789,+"))).then(() => document.fonts.ready).then(build);
+
+        function build() {
+          // ---------- stage geometry: one canvas/DOM box around the docked pill, big enough for the entrance pose ----------
+          const BX = 960, BY = 0, BW = 960, BH = 520;                     // box in frame px
+          const PX = P.x - BX + P.w / 2, PY = P.y - BY + P.h / 2;          // pivot = pill centre (box px)
+          ["#frost", "#neon", "#pillWrap", "#face", "#aura"].forEach((s) => Object.assign($(s).style, { left: BX + "px", top: BY + "px", width: BW + "px", height: BH + "px", transformOrigin: PX + "px " + PY + "px" }));
+          const px0 = PX - P.w / 2, py0 = PY - P.h / 2;                    // pill top-left (box px)
+          Object.assign($("#frost i").style, { left: px0 + 3 + "px", top: py0 + 3 + "px", width: P.w - 6 + "px", height: P.h - 6 + "px", borderRadius: P.r - 3 + "px" });
+          Object.assign($("#neon i").style, { left: px0 + 2 + "px", top: py0 + 2 + "px", width: P.w - 4 + "px", height: P.h - 4 + "px", borderRadius: P.r - 2 + "px" });
+          const aura = $("#aura");
+          aura.style.background = "radial-gradient(ellipse " + (P.w * 0.75) + "px " + (P.h * 1.25) + "px at " + PX + "px " + PY + "px, " + hexA(K.neon, 0.55) + " 0%, " + hexA(K.neon, 0.22) + " 45%, rgba(0,0,0,0) 100%)";
+
+          // ---------- the pill: real geometry ----------
+          const G = Gloss3D({ W: BW, H: BH, pivot: [PX, PY], exposure: 1.0, env: { front: 0.55, top: 1.15 } });
+          const rimM = G.mat("lacquer", { color: K.rim, toneMapped: false, specGain: 0.9, glowColor: K.neon, params: { roughness: 0.26, clearcoat: 1.0 } });
+          const bodyM = G.mat("lacquer", { color: K.body[1], toneMapped: false, specGain: 0.55, glowColor: K.neon,
+            grad: { top: P.h / 2 - 8, bottom: -P.h / 2 + 8, colTop: K.body[0], colBot: K.body[1] },
+            params: { transparent: true, opacity: plate ? 0.9 : 0.93, roughness: 0.32, clearcoat: 0.8, clearcoatRoughness: 0.08, envMapIntensity: 0.4 } });
+          // bezel: a rounded white enamel ring standing proud of the glass
+          G.add([px0, py0, P.w, P.h, P.r], [[px0 + P.rim, py0 + P.rim, P.w - 2 * P.rim, P.h - 2 * P.rim, P.r - P.rim]], { mat: rimM, z: 12, depth: 4, bt: 5, bs: 4.2, bseg: 6 });
+          // glass body: recessed under the bezel
+          G.add([px0 + 4, py0 + 4, P.w - 8, P.h - 8, P.r - 4], null, { mat: bodyM, z: 3, depth: 6, bt: 3, bs: 3, bseg: 4, order: 2 });
+          G.canvas.style.filter = "drop-shadow(0 6px 10px rgba(0,0,0,.42)) drop-shadow(0 16px 30px rgba(0,0,0,.28))";
+          $("#pillWrap").appendChild(G.canvas);
+
+          // ---------- the odometer ----------
+          const win = $("#win"), WX = px0 + P.rim, WY = py0 + P.rim, WW = P.w - 2 * P.rim, WH = P.h - 2 * P.rim;
+          Object.assign(win.style, { left: WX + "px", top: WY + "px", width: WW + "px", height: WH + "px", borderRadius: (P.r - P.rim) + "px" });
+          // glass gloss over the digits: a soft reflection across the upper half, and a recess shadow under the bezel
+          $("#gloss").style.background = "radial-gradient(ellipse " + (WW * 0.62) + "px " + (WH * 0.56) + "px at 50% -8%, rgba(255,255,255,.2) 0%, rgba(255,255,255,.08) 55%, rgba(255,255,255,0) 100%), " +
+            "linear-gradient(180deg, rgba(0,0,0,.34) 0px, rgba(0,0,0,0) 12px, rgba(0,0,0,0) " + (WH - 10) + "px, rgba(0,0,0,.22) " + WH + "px)";
+          const font = TY.weight + " " + TY.size + "px/1 " + TY.family;
+          const probe = document.createElement("span");
+          probe.style.cssText = "position:absolute;visibility:hidden;white-space:pre;font:" + font + ";font-stretch:" + TY.stretch + "%";
+          document.body.appendChild(probe);
+          const adv = (s) => { probe.textContent = s; return probe.getBoundingClientRect().width; };
+          let colW = 0; for (let d = 0; d < 10; d++) colW = Math.max(colW, adv(String(d)));
+          colW = Math.ceil(colW + 1);
+          const commaW = adv(","), dollarW = adv("$");
+          const cv = document.createElement("canvas").getContext("2d"); cv.font = TY.weight + " " + TY.size + "px " + TY.family;
+          const mm = cv.measureText("0"), fa = mm.fontBoundingBoxAscent, fd = mm.fontBoundingBoxDescent, cap = mm.actualBoundingBoxAscent;
+          const L = Math.round(TY.size * 1.18);                 // strip row pitch: neighbours sit outside the window at rest
+          const base = (L - (fa + fd)) / 2 + fa;                 // baseline within a row
+          const capTop = base - cap;
+          const rowTop = WH / 2 - (capTop + cap / 2) + 1;        // strip offset that centres a row's cap in the window
+
+          const nd = String(C.start).length;                      // 7 digit columns: d,ddd,ddd
+          const items = [];                                       // layout: $ then digits with commas
+          items.push({ kind: "$", w: dollarW + 4 });
+          for (let i = 0; i < nd; i++) { items.push({ kind: "d", i, w: colW }); if ((nd - 1 - i) % 3 === 0 && i < nd - 1) items.push({ kind: ",", w: commaW + 1 }); }
+          const totalW = items.reduce((s, it) => s + it.w, 0);
+          let x = (WW - totalW) / 2 - 2;                          // optical: the $ is light on the left
+          items.forEach((it) => { it.x = x; x += it.w; });
+
+          const faceGrad = (cols) => "repeating-linear-gradient(180deg, " + cols[0] + " 0px, " + cols[0] + " " + (capTop - 2).toFixed(1) + "px, " +
+            cols[1] + " " + (capTop + cap * 0.3).toFixed(1) + "px, " + cols[2] + " " + (capTop + cap * 0.68).toFixed(1) + "px, " +
+            cols[3] + " " + (capTop + cap + 2).toFixed(1) + "px, " + cols[3] + " " + L + "px)";
+          const digitsEl = $("#digits"), SVGNS = "http://www.w3.org/2000/svg";
+          const stripText = Array.from({ length: 30 }, (_, i) => String(i % 10)).join("\n");
+          const NS = 7, faces = [], outs = [];
+          function layerPair(parent, text) {
+            const o = document.createElement("span"), f = document.createElement("span");
+            o.textContent = text; f.textContent = text;
+            const st = "font:" + font + ";font-stretch:" + TY.stretch + "%;line-height:" + L + "px;";
+            o.style.cssText = st + "color:" + K.ink + ";-webkit-text-stroke:7px " + K.ink + ";";
+            f.style.cssText = st + "color:transparent;-webkit-text-fill-color:transparent;-webkit-background-clip:text;background-clip:text;background-image:" + faceGrad(K.digit) + ";";
+            parent.appendChild(o); parent.appendChild(f); outs.push(o); faces.push(f);
+            return { o, f };
+          }
+          const cols = [], statics = [];
+          items.forEach((it) => {
+            if (it.kind === "d") {
+              const c = document.createElement("div"); c.className = "col"; c.style.cssText = "left:" + it.x.toFixed(1) + "px;width:" + it.w + "px;height:" + WH + "px";
+              const smps = [];
+              for (let s = 0; s < NS; s++) { const sm = document.createElement("div"); sm.className = "smp"; layerPair(sm, stripText); c.appendChild(sm); smps.push(sm); }
+              digitsEl.appendChild(c);
+              const fid = "vb" + it.i, f = document.createElementNS(SVGNS, "filter");
+              f.setAttribute("id", fid); f.setAttribute("x", "-10%"); f.setAttribute("y", "-50%"); f.setAttribute("width", "120%"); f.setAttribute("height", "200%");
+              const gb = document.createElementNS(SVGNS, "feGaussianBlur"); gb.setAttribute("in", "SourceGraphic"); gb.setAttribute("stdDeviation", "0 0");
+              f.appendChild(gb); $("#fx").appendChild(f);
+              cols.push({ el: c, smps, i: it.i, ev: [], fid, gb });
+            } else {
+              const g = document.createElement("div"); g.className = "glyph"; g.style.cssText = "left:" + it.x.toFixed(1) + "px;width:" + it.w + "px;height:" + WH + "px;top:" + rowTop.toFixed(1) + "px";
+              layerPair(g, it.kind); digitsEl.appendChild(g); statics.push(g);
+            }
+          });
+          // digit-column positions over time: each event rolls forward from the current digit to the next (plus whole spins)
+          const dig = (v, i) => Math.floor(v / Math.pow(10, nd - 1 - i)) % 10;
+          const W_DET = 6.2832 / 0.2, K_DET = 18, mainEase = (q) => 0.85 * (1 - (1 - q) * (1 - q)) + 0.15 * q;
+          cols.forEach((c) => { c.P0 = dig(C.start, c.i) - 10; c.cur = c.P0; });
+          function roll(at, dur, toV, o) {
+            o = o || {};
+            cols.forEach((c, k) => {
+              const to = dig(toV, c.i), from = ((c.cur % 10) + 10) % 10;
+              let rows = (to - from + 10) % 10;
+              if (o.boot) rows = 10;
+              else if (rows && o.spin) rows += o.spin;           // only columns that change move; the big one takes an extra turn
+              if (!rows) return;
+              const order = o.ltr ? k : (cols.length - 1 - k);
+              const t0 = at + order * (o.stagger || 0), d = dur;
+              const v = rows * 0.15 / d;                           // arrival speed, rows/s: the detent absorbs it
+              c.ev.push({ t0, dur: d, from: c.cur, to: c.cur + rows, A: clamp(v / W_DET, 0.06, 0.2) });
+              c.cur += rows;
+            });
+          }
+          // fast start, arrives still moving, then a mechanical detent: <= 0.08 row past the mark, settled within 4 frames
+          function Pat(c, t) {
+            let p = c.P0;
+            for (let j = 0; j < c.ev.length; j++) {
+              const e = c.ev[j];
+              if (t < e.t0) return p;
+              if (t < e.t0 + e.dur) return e.from + (e.to - e.from) * mainEase((t - e.t0) / e.dur);
+              p = e.to;
+              const u = t - (e.t0 + e.dur), nx = c.ev[j + 1];
+              if (u < 0.25 && (!nx || t < nx.t0)) return e.to + e.A * Math.sin(W_DET * u) * Math.exp(-K_DET * u);
+            }
+            return p;
+          }
+          let V = C.start;
+          roll(T.in + 0.04, 0.6, V, { boot: true, ltr: true, stagger: 0.05 });
+          const lockAt = [];
+          C.gains.forEach((g) => {
+            const nv = V + g.amount;
+            if (g.payoff) { roll(g.merge + 0.02, T.lockAfter, nv, { spin: 10 }); lockAt.push(g.merge + T.lockAfter + 0.02); }
+            else roll(g.merge + 0.02, 0.42, nv, { stagger: 0.06 });
+            V = nv;
+          });
+          const TLOCK = lockAt[0] || 1e9, PAY = C.gains.find((g) => g.payoff) || { merge: 1e9 };
+
+          function setCol(c, t, exitY) {
+            const p = Pat(c, t), v = (Pat(c, t + 1 / 120) - Pat(c, t - 1 / 120)) * 60;   // rows / s
+            const idx = (((p % 10) + 10) % 10) + 10, y0 = rowTop - idx * L;
+            const smear = Math.abs(v) * L / 60;                  // 180-degree shutter at 30 fps
+            const n = smear < 2 ? 1 : 3, spread = Math.min(smear, 0.9 * L);
+            // a light vertical motion blur between the samples; numerals stay readable while they spin
+            const sd = smear > 6 ? Math.min(6, smear / 6 + 0.5) : 0;
+            if (sd > 0) { c.gb.setAttribute("stdDeviation", "0 " + sd.toFixed(2)); c.el.style.filter = "url(#" + c.fid + ")"; } else c.el.style.filter = "none";
+            c.smps.forEach((sm, j) => {
+              if (j >= n) { sm.style.visibility = "hidden"; return; }
+              const off = n === 1 ? 0 : (j / (n - 1) - 0.5) * spread;
+              sm.style.visibility = "inherit";
+              sm.style.opacity = (1 / (j + 1)).toFixed(3);
+              sm.style.transform = "translate3d(0," + (y0 + off).toFixed(2) + "px,0)";
+            });
+            c.el.style.transform = exitY ? "translateY(" + exitY.toFixed(2) + "px)" : "";
+          }
+
+          // ---------- gain chips: neon "+$" that pops under the pill and floats up into it ----------
+          const fmt = (v) => "+$" + v.toLocaleString("en-US");
+          const CLIP = P.y + P.h - 12;   // the chips window starts at the pill's bottom edge: a chip rising past it goes INTO the pill
+          Object.assign($("#chips").style, { top: CLIP + "px", height: (1080 - CLIP) + "px" }); $("#chipsIn").style.top = -CLIP + "px";
+          const chips = C.gains.map((g, gi) => {
+            const el = document.createElement("div"); el.className = "chip";
+            const size = g.payoff ? TY.paySize : TY.chipSize, txt = fmt(g.amount);
+            const st = "font:italic 900 " + size + "px/1.2 Inter;letter-spacing:-0.02em;";
+            const glow = document.createElement("span"), out = document.createElement("span"), face = document.createElement("span");
+            [glow, out, face].forEach((s) => { s.textContent = txt; });
+            glow.style.cssText = st + "color:" + K.glow + ";text-shadow:0 0 " + Math.round(size * 0.3) + "px " + hexA(K.glow, 0.95) + ",0 0 " + Math.round(size * 0.75) + "px " + hexA(K.glow, 0.6) + ";";
+            out.style.cssText = st + "color:" + K.chipInk + ";-webkit-text-stroke:" + Math.round(size * 0.1) + "px " + K.chipInk + ";text-shadow:0 " + Math.round(size * 0.06) + "px " + Math.round(size * 0.12) + "px rgba(0,0,0,.45);";
+            face.style.cssText = st + "color:transparent;-webkit-text-fill-color:transparent;-webkit-background-clip:text;background-clip:text;";
+            el.appendChild(glow); el.appendChild(out); el.appendChild(face);
+            $("#chipsIn").appendChild(el);
+            const h = size * 1.2, w = face.getBoundingClientRect().width;
+            face.style.backgroundImage = "linear-gradient(180deg, " + K.chip[0] + " " + (h * 0.22).toFixed(1) + "px, " + K.chip[1] + " " + (h * 0.4).toFixed(1) + "px, " + K.chip[2] + " " + (h * 0.62).toFixed(1) + "px, " + K.chip[3] + " " + (h * 0.8).toFixed(1) + "px)";
+            el.style.width = w + "px"; el.style.height = h + "px";
+            // right edge tucks under the pill's digits; payoff sits a little further left and lower (bigger)
+            const right = P.x + P.w - (g.payoff ? 18 : 30), top = P.y + P.h + (g.payoff ? 22 : 18);
+            el.style.left = (right - w) + "px"; el.style.top = top + "px";
+            el.style.transformOrigin = (w * 0.62) + "px " + (h * 0.55) + "px";
+            return { el, g, glow, w, h, top };
+          });
+
+          // ---------- pose of the pill as a pure function of time ----------
+          const spring = (t, t0, amp, dec, f) => (t < t0 ? 0 : amp * Math.exp(-dec * (t - t0)) * Math.sin(6.2832 * f * (t - t0)));
+          const damp = (t, t0, amp, dec, f) => (t < t0 ? amp : amp * Math.exp(-dec * (t - t0)) * Math.cos(6.2832 * f * (t - t0)));
+          const eDock = E("expo.inOut"), eBack = E("back.out(1.6)");
+          function poseAt(t) {
+            const p = { dx: 0, dy: 0, sx: 1, sy: 1, rx: 0, ry: 0, vis: t >= T.in && t < T.out + 0.32 };
+            // entrance: big, inward of the dock, swinging up out of the frame edge (top tipped away), springing flat
+            const ue = t - T.in;
+            const big = 1.34, bx = -170, by = 70;
+            let s = big, dx = bx, dy = by;
+            if (ue < 0.42) s = big * (0.5 + 0.5 * eBack(clamp(ue / 0.42, 0, 1)));
+            p.rx = ue < 0 ? -1.4 : damp(t, T.in, -1.4, 7.5, 0.95);
+            p.ry = ue < 0 ? 0.35 : damp(t, T.in, 0.35, 6.0, 0.8);
+            // dock: glide into the corner with a little inertia (swings on y as it travels, settles with a 3% overshoot)
+            const ud = clamp((t - T.dock) / 0.5, 0, 1), k = eDock(ud);
+            if (t >= T.dock) { s = lerp(big, 1, k) + spring(t, T.dock + 0.42, -0.035, 9, 1.6); dx = lerp(bx, 0, k); dy = lerp(by, 0, k); p.ry += Math.sin(Math.PI * ud) * -0.16 + spring(t, T.dock + 0.5, 0.05, 8, 1.4); }
+            p.dx = dx; p.dy = dy; p.sx = s; p.sy = s;
+            // gains: the chip hits the pill from below: squash, bottom kicked back, a small hop
+            C.gains.forEach((g) => {
+              const u = t - g.merge; if (u < 0) return;
+              const a = g.payoff ? 1.6 : 1;
+              p.sy *= 1 - 0.07 * a * Math.exp(-14 * u) * Math.cos(6.2832 * 2.2 * u);
+              p.sx *= 1 + 0.035 * a * Math.exp(-14 * u) * Math.cos(6.2832 * 2.2 * u);
+              p.rx += spring(t, g.merge, 0.16 * a, 6.5, 1.5);
+              p.dy += -10 * a * Math.exp(-10 * u) * Math.sin(Math.min(Math.PI, 6.2832 * 1.6 * u));
+            });
+            // payoff lock-in: a punch out of the face, then a rake toward the key light and back
+            if (t >= TLOCK) {
+              const u = t - TLOCK;
+              const pu = u < 0.06 ? 1 + 0.12 * (u / 0.06) : 1 + 0.12 * Math.exp(-9 * (u - 0.06)) * Math.cos(6.2832 * 1.3 * (u - 0.06));
+              p.sx *= pu; p.sy *= pu; p.dx -= (pu - 1) * P.w / 2; p.dy += (pu - 1) * P.h / 2;
+              p.ry += -0.2 * Math.sin(Math.PI * clamp(u / 0.9, 0, 1)) * (1 - 0.3 * clamp(u / 0.9, 0, 1));
+              p.rx += spring(t, TLOCK, -0.07, 6, 1.2);
+            }
+            // idle life once docked: a slow drift so the env light moves on the bezel
+            const ui = clamp((t - (T.dock + 0.5)) / 0.6, 0, 1);
+            p.ry += ui * 0.03 * Math.sin(6.2832 * 0.32 * (t - T.dock)); p.rx += ui * 0.022 * Math.sin(6.2832 * 0.26 * (t - T.dock) + 0.8);
+            // exit: a small wind-up, then the pill folds back into the top edge of the frame (top tips away) and cuts at edge-on
+            const uw = t - T.out;
+            if (uw >= 0) {
+              const kw = Math.sin(Math.PI * clamp(uw / 0.12, 0, 1)) * (uw < 0.12 ? 1 : 0);
+              p.rx += 0.1 * kw; p.sx *= 1 + 0.04 * kw; p.sy *= 1 + 0.04 * kw;
+              const kx = E("power3.in")(clamp((uw - 0.08) / 0.24, 0, 1));
+              p.rx += -1.48 * kx; p.sx *= 1 - 0.18 * kx; p.sy *= 1 - 0.18 * kx; p.dy += -46 * kx; p.dx += 14 * kx;
+            }
+            if (t >= T.out + 0.32) p.vis = false;
+            return p;
+          }
+
+          // ---------- state: neon gain state, lock flash, specular ----------
+          const eIO = E("power2.inOut");
+          const diag = Math.hypot(P.w, P.h) * 0.62, LG = WW * 0.8642 + WH * 0.5025;
+          function renderAt(t) {
+            const p = poseAt(t);
+            const vis = p.vis ? "visible" : "hidden";
+            ["#frost", "#neon", "#pillWrap", "#face", "#aura"].forEach((s) => ($(s).style.visibility = vis));
+            G.pose(p);
+            $("#face").style.transform = G.css(p, 3);
+            $("#frost").style.transform = G.css(p, 2);
+            $("#neon").style.transform = G.css(p, 0);
+            $("#aura").style.transform = G.css(p, 0);
+            // entrance / exit: 2-frame opacity attack, directional blur resolving
+            const ue = t - T.in, ux = t - (T.out + 0.1);
+            const op = ue < 0 ? 0 : Math.min(1, ue / (2 * FR));
+            const bl = ue < 0.2 ? 9 * (1 - clamp(ue / 0.2, 0, 1)) : ux > 0 ? 7 * clamp(ux / 0.2, 0, 1) : 0;
+            const pw = $("#pillWrap"), fc = $("#face");
+            pw.style.opacity = fc.style.opacity = op.toFixed(3);
+            $("#frost").style.opacity = (op * (1 - clamp(Math.abs(p.rx) / 1.1, 0, 1))).toFixed(3);
+            fc.style.filter = bl > 0.05 ? "blur(" + bl.toFixed(2) + "px)" : "none";
+            G.canvas.style.filter = "drop-shadow(0 6px 10px rgba(0,0,0,.42)) drop-shadow(0 16px 30px rgba(0,0,0,.28))" + (bl > 0.05 ? " blur(" + bl.toFixed(2) + "px)" : "");
+
+            // neon gain state: rises on the payoff merge, peaks white-green at the lock, cools back to the white bezel
+            let neon = 0, flash = 0;
+            C.gains.forEach((g) => {
+              const u = t - g.merge; if (u < 0) return;
+              if (g.payoff) {
+                const ul = t - TLOCK;
+                let n = u < 0.05 ? u / 0.05 : 1;
+                if (ul > 0.8) n = Math.max(0, 1 - (ul - 0.8) / 0.9);
+                neon = Math.max(neon, n);
+                if (ul >= 0) flash = Math.max(flash, ul < FR ? ul / FR : ul < 4 * FR ? 1 : Math.exp(-(ul - 4 * FR) * 6));
+              } else {
+                neon = Math.max(neon, 0.55 * Math.exp(-u * 4.5) * (u < 0.04 ? u / 0.04 : 1));
+              }
+            });
+            const nk = clamp(neon, 0, 1);
+            rimM.color.set(mixHex(K.rim, K.neonRim, nk)); rimM.userData.G.uGlowCol.value.set(flash > 0.01 ? mixHex(K.neon, K.neonHot, flash) : K.neon);
+            rimM.userData.G.uGlow.value = 0.32 * nk + 0.75 * flash;
+            bodyM.userData.G.uGlow.value = 0.06 * nk + 0.04 * flash;
+            $("#neon i").style.boxShadow = nk > 0.01 ? "0 0 " + (14 + 10 * flash).toFixed(1) + "px " + (3 + 3 * flash).toFixed(1) + "px " + hexA(K.neon, 0.75 * nk) + ", 0 0 " + (46 + 30 * flash).toFixed(0) + "px " + (8 + 6 * flash).toFixed(1) + "px " + hexA(K.neon, 0.38 * nk) : "none";
+            aura.style.opacity = (plate ? 0.42 : 0.3) * nk + (plate ? 0.5 : 0.35) * flash;
+            // light spilling from the digits into the glass
+            $("#spill").style.background = "radial-gradient(ellipse " + (WW * 0.55) + "px " + (WH * 0.62) + "px at 50% 58%, " + hexA(K.neon, 0.1 + 0.3 * nk + 0.2 * flash) + " 0%, " + hexA(K.neon, 0.02 + 0.1 * nk) + " 60%, rgba(0,0,0,0) 100%)";
+            // digit face: lime, white-hot at the lock
+            const hk = clamp(flash, 0, 1);
+            const fg = hk > 0.01 ? faceGrad(K.digit.map((c, i) => mixHex(c, K.hot[i], hk))) : faceGrad(K.digit);
+            if (fg !== renderAt._fg) { faces.forEach((f) => (f.style.backgroundImage = fg)); renderAt._fg = fg; }
+            const gl = 0.18 + 0.5 * nk + 0.3 * flash;
+            const ts = "0 2px 0 rgba(0,0,0,.35), 0 0 " + (10 + 14 * nk).toFixed(0) + "px " + hexA(K.neon, gl);
+            if (ts !== renderAt._ts) { outs.forEach((o) => (o.style.textShadow = ts)); renderAt._ts = ts; }
+
+            // specular: one soft sweep as it docks, one hard rake at the lock (pill geometry + a matching band over the digits)
+            const s1 = clamp((t - (T.dock + 0.38)) / 0.7, 0, 1), s2 = clamp((t - (TLOCK + 0.1)) / 0.42, 0, 1);
+            let sx = -1e5, sa = 0, sw = 60;
+            if (t >= TLOCK + 0.1 && s2 < 1) { sx = -diag + 2 * diag * eIO(s2); sa = 2.8 * Math.min(1, 1.6 * Math.sin(Math.PI * s2)); sw = 44; }
+            else if (t >= T.dock + 0.38 && s1 < 1) { sx = -diag + 2 * diag * eIO(s1); sa = 0.9 * Math.sin(Math.PI * s1); sw = 70; }
+            G.U.uSpecX.value = sx; G.U.uSpecAmp.value = sa; G.U.uSpecW.value = sw;
+            // DOM band over the window: same diagonal (0.86, 0.5) in y-up space -> mirrored in CSS
+            if (sa > 0.01) {
+              // the three.js band runs along dot(p, (0.86, 0.5)) in y-up space = a 60deg CSS gradient line through the window centre
+              const at = (d) => (LG / 2 + d).toFixed(1) + "px", a = Math.min(0.24, 0.12 * sa).toFixed(3);
+              $("#sheen").style.background = "linear-gradient(60deg, rgba(255,255,255,0) " + at(sx - sw * 1.5) + ", rgba(255,255,250," + a + ") " + at(sx) + ", rgba(255,255,255,0) " + at(sx + sw * 1.5) + ")";
+            } else $("#sheen").style.background = "none";
+
+            // odometer
+            cols.forEach((c) => setCol(c, t, 0));
+
+            // chips: pop (back.out + blur + 2-frame opacity), breathe, then shoot up under the pill (stretch + smear) and vanish into it
+            chips.forEach((ch) => {
+              const g = ch.g, up = t - g.pop, rise0 = g.merge - (g.payoff ? 0.2 : 0.17);
+              if (up < 0 || t >= g.merge) { ch.el.style.visibility = "hidden"; return; }
+              ch.el.style.visibility = "visible";
+              let s = up < 0.36 ? 0.35 + 0.65 * E("back.out(2.4)")(clamp(up / 0.36, 0, 1)) : 1;
+              let y = up < 0.36 ? 26 * (1 - E("expo.out")(clamp(up / 0.36, 0, 1))) : -6 * clamp((t - g.pop - 0.36) / (rise0 - g.pop - 0.36), 0, 1);
+              let sy = 1, blur = up < 0.12 ? 8 * (1 - up / 0.12) : 0, op = Math.min(1, up / (2 * FR));
+              if (t >= rise0) {
+                const ur = clamp((t - rise0) / (g.merge - rise0), 0, 1), kr = E("power3.in")(ur);
+                y = -6 - (ch.top + ch.h - CLIP + 2) * kr; s *= 1 - 0.3 * kr; sy = 1 + 0.35 * kr; blur = 2.5 * kr;
+              }
+              ch.el.style.transform = "translateY(" + y.toFixed(2) + "px) scale(" + s.toFixed(4) + "," + (s * sy).toFixed(4) + ")";
+              ch.el.style.opacity = op.toFixed(3);
+              ch.el.style.filter = blur > 0.05 ? "blur(" + blur.toFixed(2) + "px)" : "none";
+              // glow breathes up as it hangs, peaks on the pop
+              const gb = up < 0.1 ? 1.4 - 0.4 * up / 0.1 : 1;
+              ch.glow.style.opacity = Math.min(1, gb).toFixed(3);
+            });
+
+            G.render();
+          }
+
+          // ---------- timeline ----------
+          const tl = gsap.timeline({ paused: true });
+          if (plate) {
+            C.shots.forEach((s) => {
+              const v = $(s), st = parseFloat(v.dataset.start), du = parseFloat(v.dataset.duration);
+              gsap.set(v, { scale: 1, transformOrigin: "50% 50%" });
+              tl.fromTo(v, { scale: 1 }, { scale: 1.04, duration: du, ease: "none", immediateRender: false }, st);
+            });
+            // the lock-in light: a short exposure lift on the yacht plate and a small impact (the bloom lives on the pill)
+            Look.expose(tl, TLOCK, { target: "#push", peak: 1.1, hold: 3 / 30, dur: 0.38, saturate: 1.12 });
+            Look.impact(tl, TLOCK, { shake: "#shake", amp: 7, dur: 0.3, zoom: 1.025, flash: 0 });
+            Look.impact(tl, PAY.merge, { shake: "#shake", amp: 4, dur: 0.22, zoom: 1.012, flash: 0 });
+          }
+          Look.drive(tl, 0, T.end, (q) => renderAt(q * T.end));
+          tl.set({}, {}, T.end);
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+          // the layers are stacked on purpose
+          document.querySelectorAll("#ov *").forEach((n) => { n.setAttribute("data-layout-allow-overlap", ""); n.setAttribute("data-layout-allow-occlusion", ""); });
+          renderAt(0);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        }
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,121 @@
+<!doctype html>
+<!-- 45 District pop-up, variant B (9:16, Shorts): "Place for Shorts".
+     The Short cuts to a new area and its name writes on, big, in the lower safe zone: the creators' script location tag, phone-first.
+     The script is real geometry (media/script3d.js): a gold brush-pen relief written by a hot pen tip, a swash flicks under
+     it (the lock-in: specular sweep + key-light rake + bloom), then a small district line rises from under the swash.
+     Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). See gta/DESIGN.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/script-glyphs.js"></script>
+    <script src="media/script3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      #gl { position: absolute; inset: 0; }
+      /* the district line: a lit gold rule + wide caps, rising out of a window under the swash */
+      .sub { position: absolute; z-index: 2; display: flex; align-items: center; gap: 22px; white-space: nowrap; }
+      .rule { width: 104px; height: 9px; transform-origin: 100% 50%; clip-path: polygon(0 46%, 100% 0, 100% 100%, 0 54%);
+        background: linear-gradient(180deg, #FFF6DC 0%, #FFE29A 22%, #F2BE4E 45%, #8A5410 70%, #D9902A 100%);
+        filter: drop-shadow(0 2px 3px rgba(20,10,0,.6)); }
+      .win { overflow: hidden; padding: 6px 4px 8px; margin: -6px -4px -8px; }
+      .word { display: flex; font: 800 52px/1 "Archivo"; font-stretch: 125%; letter-spacing: 0.2em; color: #FFFFFF;
+        text-shadow: 0 2px 2px rgba(10,6,0,.55), 0 3px 12px rgba(10,6,0,.5); }
+      .word span { display: inline-block; }
+      .word span.sp { width: 0.32em; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="4.8667" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <!-- the outgoing shot sits on top until its cut; the incoming one starts 2 frames early underneath (DESIGN lesson 25) -->
+        <video id="s1" class="clip shot" style="z-index:4" src="assets/shots/v17-deluxo-sunset-v.mp4" muted playsinline data-start="0" data-duration="0.8" data-media-start="0.2" data-track-index="0"></video>
+        <video id="s2" class="clip shot" style="z-index:3" src="assets/shots/v49-gp-franklin-mural-v.mp4" muted playsinline data-start="0.7333" data-duration="1.4" data-media-start="2.6" data-track-index="1"></video>
+        <video id="s3" class="clip shot" style="z-index:2" src="assets/shots/v39-lowriders-downtown-v.mp4" muted playsinline data-start="2.0667" data-duration="1.1666" data-media-start="0" data-track-index="0"></video>
+        <video id="s4" class="clip shot" style="z-index:1" src="assets/shots/v24-sunset-powerlines-v.mp4" muted playsinline data-start="3.1667" data-duration="1.7" data-media-start="0" data-track-index="1"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="4.8667" data-track-index="2" style="z-index:10">
+        <div id="gl"></div>
+        <div class="sub" id="sub"><div class="rule" id="rule"></div><div class="win"><div class="word" id="word"></div></div></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        lines: ["Grove", "Street"],         // the script, one entry per line (any Latin text; the pen writes it in order)
+        district: "LOS SANTOS",             // the caps line under the swash
+        font: "decorous",                   // "decorous" (Petit Formal-style, clearest at phone size), "allure" (Allura-style) or "brush" (Alex Brush-style)
+        // layout (canvas px, phone-first): line 1 hangs from the left ink edge, line 2 from the right; one em size
+        left: 120, right: 900, baseline: [1112, 1345], size: 255,
+        stroke: { thick: 0.118, thin: 0.042, swash: 0.11 },   // brush-pen widths in em (heavy downstrokes, hairline upstrokes)
+        swash: { from: 0.10, to: 1.006, dy: 46, bend: 12 },  // under the last line: fractions of its ink width; dy px under its baseline
+        ink: 2.4,                           // dark bronze edge (px) so the gold holds on bright footage
+        sub: { gap: 26, size: 52 },
+        colors: { gold: "#F2BE4E", pale: "#FFE7A8", goldDeep: "#8A5410", amber: "#D9902A", spec: "#FFF6E0", hot: "#FFF2D2", shadow: "#120A02", ink: "#3A2206" },
+        timing: { write: 0.84, writeDur: 1.0, swash: 1.893, swashDur: 0.24, out: 4.30, outDur: 0.38, end: 4.8667 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const C = CONFIG, T = C.timing, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const FACES = ["800 100px Archivo", "900 100px Archivo", "700 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          // district line letters
+          const word = $("#word");
+          C.district.split("").forEach((ch) => { const s = document.createElement("span"); if (ch === " ") s.className = "sp"; else s.textContent = ch; word.appendChild(s); });
+          word.style.fontSize = C.sub.size + "px";
+          // the script (real geometry); the swash hangs off its measured ink
+          const G = window.SCRIPT_GLYPHS;
+          const lines = [
+            { text: C.lines[0], size: C.size, x: C.left, baseline: C.baseline[0], align: "left" },
+            { text: C.lines[1], size: C.size, x: C.right, baseline: C.baseline[1], align: "right" }
+          ];
+          const sw = C.swash;
+          const P = Script3D({
+            W: 1080, H: 1920, glyphs: G, font: C.font, lines,
+            thick: C.stroke.thick, thin: C.stroke.thin, swashThick: C.stroke.swash,
+            swash: { line: 1, f0: sw.from, f1: sw.to, dy: sw.dy, tilt: 4, bend: sw.bend },
+            colors: C.colors, timing: T, shadow: 0.7, shadowOff: [6, -10], ink: C.ink, halo: 0.18, punch: 0.036, zr: 0.42, mergeTol: 0.06
+          });
+          $("#gl").appendChild(P.canvas);
+          // the 3D canvas spans the frame but is transparent around the script: tell the layout audit the overlap is intended
+          [P.canvas, $("#sub")].concat(Array.from($("#sub").querySelectorAll("*"))).forEach((n) => { n.setAttribute("data-layout-allow-overlap", ""); n.setAttribute("data-layout-allow-occlusion", ""); });
+          const sub = $("#sub");
+          sub.style.right = (1080 - C.right) + "px"; sub.style.top = (C.baseline[1] + sw.dy + C.sub.gap) + "px";
+
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, T.end, (p) => P.renderAt(p * T.end));
+          P.renderAt(0);
+          // district line: the rule shoots out from the swash end, the letters rise out of their window (no fade)
+          const L = P.lockAt, spans = word.querySelectorAll("span");
+          gsap.set("#rule", { scaleX: 0 });
+          gsap.set(spans, { yPercent: 118, filter: "blur(3px)", visibility: "hidden" });
+          tl.set(spans, { visibility: "visible" }, L - 0.18);
+          tl.to("#rule", { scaleX: 1, duration: 0.42, ease: "expo.out" }, L - 0.2);
+          tl.to(spans, { yPercent: 0, filter: "blur(0px)", duration: 0.34, ease: "back.out(2.2)", stagger: { each: 0.018, from: "end" } }, L - 0.18);
+          // exit: letters drop back into the window, the rule retracts, then the pen un-writes the script
+          tl.to(spans, { yPercent: 118, filter: "blur(3px)", duration: 0.24, ease: "power3.in", stagger: { each: 0.014, from: "start" } }, T.out - 0.16);
+          tl.to("#rule", { scaleX: 0, duration: 0.22, ease: "power3.in" }, T.out - 0.06);
+          tl.set(spans, { visibility: "hidden" }, T.out + 0.24);
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

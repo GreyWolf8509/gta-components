@@ -1,0 +1,197 @@
+<!doctype html>
+<!-- 68 Settings label, variant A: stacked graphics settings for long-form (16:9, 1920x1080, 30 fps, 4.15 s). Overlay.
+     Setting names tick on row by row, each with its colour-coded level on a real 3D reel (media/level3d.js); on the cut the setting
+     being compared rolls LOW -> ULTRA and locks in green. Variable: bg "plate" / "none". See gta/DESIGN.md and ../DECISIONS.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="media/glyphs.js"></script>
+    <script src="media/level3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scale(1.02); }
+      #ov { position: absolute; inset: 0; }
+      #glow { position: absolute; border-radius: 50%; pointer-events: none; opacity: 0; mix-blend-mode: screen; }
+      #gl { position: absolute; pointer-events: none; }
+      /* setting names: heavy Archivo caps, white, crisp dark edge + soft shadow; each row rises in its own window */
+      .ln { position: absolute; overflow: hidden; padding: 12px 14px 24px 12px; }
+      .ln .li { display: block; white-space: nowrap; font-family: "Archivo", "Inter", sans-serif; font-weight: 900; font-stretch: 90%;
+        text-transform: uppercase; color: #FFFFFF; letter-spacing: -0.005em; line-height: 1;
+        paint-order: stroke fill; -webkit-text-stroke: 6px #07080B; text-shadow: 0 3px 0 rgba(0,0,0,.32), 0 6px 14px rgba(0,0,0,.45); }
+      .ln .ch { display: inline-block; will-change: transform; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="4.15" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <!-- the same shot twice, as comparison videos do: first with the compared setting on LOW, then on ULTRA (the incoming take starts 2 frames early underneath) -->
+        <video id="s1" class="clip shot" src="assets/shots/v11-yacht-h.mp4" muted playsinline data-start="0" data-duration="2.1" data-media-start="0" data-track-index="0" style="z-index:2; filter: blur(3.4px) saturate(.74) contrast(.95)"></video>
+        <video id="s2" class="clip shot" src="assets/shots/v11-yacht-h.mp4" muted playsinline data-start="2.0333" data-duration="2.1167" data-media-start="0" data-track-index="1" style="z-index:1; filter: saturate(1.08) contrast(1.04)"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="4.15" data-track-index="2">
+        <div id="glow"></div>
+        <div id="names"></div>
+        <div id="gl"></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        rows: [                                  // levels: one entry = a fixed level; two or more = the reel rolls to the next one at `flip`
+          { name: "Textures:", levels: ["Low", "Ultra"], flip: 2.1 },    // the setting being compared: flips on the cut (the payoff)
+          { name: "Shadows:",  levels: ["Ultra"] },
+          { name: "Water:",    levels: ["Medium"] },
+          { name: "Grass:",    levels: ["Low"] }
+        ],
+        // colour per level word (any level not listed falls back to MEDIUM's yellow)
+        levelColor: { LOW: "LOW", MEDIUM: "MEDIUM", HIGH: "MEDIUM", ULTRA: "ULTRA" },
+        palette: {                               // colour-coded enamel (face top/mid/bottom, side near/far, bevel lip, hot light, glow rgb)
+          LOW:    { face: ["#FF7A82", "#FF2E3A", "#C8102E"], side: ["#9E0A1E", "#2A0207"], lip: "#FF6A73", hot: "#FFB0B6", em: 0.5, glow: "255,46,58" },
+          MEDIUM: { face: ["#FFE15C", "#FFD23C", "#E59A0C"], side: ["#A87204", "#2E1C00"], lip: "#FFE47A", hot: "#FFF0A8", em: 0.46, glow: "255,210,60" },
+          ULTRA:  { face: ["#86F8AE", "#38E07B", "#10A048"], side: ["#0A7432", "#011A0A"], lip: "#7CF5A8", hot: "#9DFFC0", em: 0.5, glow: "56,224,123" }
+        },
+        // row 0 is the compared setting and leads at hero size; the rest sit under it as the supporting readout
+        layout: { left: 96, ys: [180, 316, 414, 512], heroName: 82, heroLevel: 128, name: 60, level: 86, colGap: 34 },
+        reel: { depth: 22, bevel: 4.8, tilt: 0.3, ink: 3, shadow: 0.55, shadowOff: 8 },
+        timing: { in: 0.15, rowStep: 0.17, out: 3.62, end: 4.15 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, Lay = CONFIG.layout, ROWS = CONFIG.rows, PAL = CONFIG.palette, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const colorOf = (w) => CONFIG.levelColor[w.toUpperCase()] || "MEDIUM";
+
+        // ---------- time helpers (pure functions of t) ----------
+        const TAU = Math.PI * 2, clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+        const eo3 = (x) => 1 - Math.pow(1 - clamp(x), 3), ei3 = (x) => Math.pow(clamp(x), 3), sio = (x) => 0.5 - 0.5 * Math.cos(Math.PI * clamp(x));
+        const spring = (t, f, z) => { if (t <= 0) return 0; const w = TAU * f, wd = w * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + (z * w / wd) * Math.sin(wd * t)); };
+        const kick = (t, f, z) => (t <= 0 ? 0 : Math.exp(-z * TAU * f * t) * Math.sin(TAU * f * Math.sqrt(1 - z * z) * t));
+        const flash = (t, a, hold = 3 / 30, dec = 0.4) => { const u = t - a; if (u < 0) return 0; if (u < 1 / 30) return u * 30; if (u < 1 / 30 + hold) return 1; return Math.exp(-(u - 1 / 30 - hold) / dec); };
+
+        const rowY = (i) => Lay.ys[i], isHero = (i) => i === 0;
+        const nameSz = (i) => (isHero(i) ? Lay.heroName : Lay.name), levelSz = (i) => (isHero(i) ? Lay.heroLevel : Lay.level);
+        const tRow = (i) => T.in + i * T.rowStep, tReel = (i) => tRow(i) + 0.1, tOut = (i) => T.out + i * 0.05;
+        // one flip = one level step: the old word tips back to edge-on with an ease-in (visible over 3 frames), then the new word comes
+        // over the top on a damped spring that starts with the same speed, overshoots a few degrees and locks
+        const turn = (u, A = 0.09, f = 2.6, z = 0.74) => {
+          if (u <= 0) return 0; if (u < A) { const x = u / A; return 0.5 * x * x; }
+          const v0 = 2 / A, w = TAU * f, wd = w * Math.sqrt(1 - z * z), t2 = u - A;
+          return 0.5 + 0.5 * (1 - Math.exp(-z * w * t2) * (Math.cos(wd * t2) + ((z * w - v0) / wd) * Math.sin(wd * t2)));
+        };
+        const LEAD = 0.14;
+        // reel faces per row: blank, then the row's level words (for a flipping row, every level from the first to the last), then blank
+        const ORDER = ["LOW", "MEDIUM", "ULTRA"];
+        const rowFaces = ROWS.map((r) => {
+          let words = r.levels.slice();
+          if (words.length > 1) {      // roll through the levels in between, like a dial winding up
+            const a = ORDER.indexOf(words[0].toUpperCase()), b = ORDER.indexOf(words[words.length - 1].toUpperCase());
+            if (a >= 0 && b > a) words = ORDER.slice(a, b + 1).map((w) => w[0] + w.slice(1).toLowerCase());
+          }
+          return words;
+        });
+        const payRow = ROWS.findIndex((r) => r.levels.length > 1), PAY = payRow >= 0 ? ROWS[payRow].flip : null;
+        function reelPos(i, t) {
+          const n = rowFaces[i].length;
+          let p = turn(t - tReel(i));                                               // blank -> first level
+          if (i === payRow) for (let q = 0; q < n - 1; q++) p += turn(t - (PAY - LEAD - 0.1 * (n - 2 - q)), 0.08);   // first -> last level in one wind-up, landing on the cut
+          p += ei3((t - tOut(i)) / 0.22);                                           // exit: rolls up to the blank face
+          return p;
+        }
+        const FACES = ["900 100px Archivo"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          // ---------- names: measured so each name's cap centre sits on its row line ----------
+          const mc = document.createElement("canvas").getContext("2d");
+          const names = ROWS.map((r, i) => {
+            const sz = nameSz(i);
+            mc.font = "900 " + sz + "px Archivo";
+            const mH = mc.measureText("H"), capN = mH.actualBoundingBoxAscent;
+            const baseInBox = (sz - (mH.fontBoundingBoxAscent + mH.fontBoundingBoxDescent)) / 2 + mH.fontBoundingBoxAscent;   // baseline in a line-height:1 box
+            const ln = document.createElement("div"); ln.className = "ln"; ln.setAttribute("data-layout-allow-overflow", "");
+            const li = document.createElement("div"); li.className = "li"; li.setAttribute("data-layout-allow-overflow", ""); li.style.fontSize = sz + "px";
+            const chars = [];
+            r.name.toUpperCase().split("").forEach((c) => { const s = document.createElement("span"); s.className = "ch"; s.setAttribute("data-layout-allow-occlusion", ""); s.setAttribute("data-layout-allow-overflow", ""); s.textContent = c === " " ? " " : c; li.appendChild(s); chars.push(s); });
+            ln.appendChild(li); $("#names").appendChild(ln);
+            ln.style.left = (Lay.left - 12) + "px";
+            ln.style.top = (rowY(i) + capN / 2 - baseInBox - 12).toFixed(1) + "px";
+            return { ln, li, chars };
+          });
+          const nameW = Math.max(...names.map((n) => n.li.getBoundingClientRect().width));
+          const colX = Math.round(Lay.left + nameW + Lay.colGap);
+
+          // ---------- the level reels (Three.js), one per row ----------
+          const GL = { left: colX - 40, top: rowY(0) - 120, W: 620, H: rowY(ROWS.length - 1) - rowY(0) + 220 };
+          const gl = $("#gl"); gl.style.left = GL.left + "px"; gl.style.top = GL.top + "px"; gl.style.width = GL.W + "px"; gl.style.height = GL.H + "px";
+          const R3 = CONFIG.reel;
+          const L3 = Level3D({ W: GL.W, H: GL.H, glyphs: window.PAYOFF_GLYPHS, px: colX - GL.left + 170, py: GL.H / 2,
+            depth: R3.depth, bevel: R3.bevel, tilt: R3.tilt, tracking: 0, inkPx: R3.ink, inkColor: "#07080B", shadow: R3.shadow, shadowOff: R3.shadowOff,
+            palette: PAL,
+            drums: ROWS.map((r, i) => ({ x: colX - GL.left, y: rowY(i) - GL.top, align: "left",
+              faces: [null].concat(rowFaces[i].map((w) => ({ text: w, color: colorOf(w), size: levelSz(i) }))).concat([null]) })) });
+          gl.appendChild(L3.canvas);
+
+          // ---------- the payoff glow: localised colour light behind the flipped level ----------
+          const glow = $("#glow");
+          if (payRow >= 0) {
+            const last = rowFaces[payRow].length, f = L3.face(payRow, last), gc = PAL[colorOf(rowFaces[payRow][last - 1])].glow;
+            const GW = (f.right - f.left) + 300, GH = 230, cx = GL.left + (f.left + f.right) / 2, cy = rowY(payRow);
+            glow.style.cssText += ";left:" + (cx - GW / 2) + "px;top:" + (cy - GH / 2) + "px;width:" + GW + "px;height:" + GH + "px;" +
+              "background:radial-gradient(closest-side, rgba(" + gc + ",.55), rgba(" + gc + ",.2) 52%, rgba(" + gc + ",0))";
+          }
+
+          // ---------- per-frame 3D state ----------
+          const renderAt = (t) => {
+            const st = ROWS.map((r, i) => {
+              const pos = reelPos(i, t), n = rowFaces[i].length, lit = {};
+              // every level locks with a small light kick; the flipped one gets the full payoff light
+              lit[1] = { boost: 0.12 * flash(t, tReel(i) + 0.14, 2 / 30, 0.2) };
+              let s = 1 + 0.05 * kick(t - (tReel(i) + 0.12), 3, 0.4), ry = 0;
+              if (i === payRow) {
+                const at = PAY + 0.02, e = { boost: 0.16 * flash(t, at, 3 / 30, 0.35) };
+                const hp = (t - at) / 0.34; if (hp > 0 && hp < 1.4) { e.hot = eo3(hp); e.hotAmp = 0.8 * (1 - clamp(hp / 1.4)); }
+                const sp = (t - (at + 0.12)) / 0.55; if (sp > 0 && sp < 1) { e.spec = sio(sp); e.specAmp = 0.38 * Math.sin(Math.PI * sp); }
+                lit[n] = e;
+                s += 0.16 * kick(t - at, 2.3, 0.36);
+                ry = t > PAY ? -0.06 + 0.12 * sio((t - PAY) / Math.max(0.5, T.out - PAY)) : 0;
+              }
+              return { pos, s, ry, lit };
+            });
+            // the key light stays put: the payoff light lives in the flipped word's own shader (hot front, sweep, boost), so the other rows never wash out
+            L3.render(st, { bloom: 0.14 + (PAY == null ? 0 : 0.6 * flash(t, PAY + 0.02, 3 / 30, 0.3)), th: 1.3, keyA: -0.6, keyI: 2.0 });
+          };
+
+          const tl = gsap.timeline({ paused: true });
+          // names tick on row by row: letters rise in their window, 14 ms apart; exit rolls them up out of it
+          names.forEach((N, i) => {
+            gsap.set(N.chars, { yPercent: 170 });
+            tl.to(N.chars, { yPercent: 0, duration: 0.45, ease: "expo.out", stagger: 0.014 }, tRow(i));
+            tl.to(N.chars, { yPercent: -170, duration: 0.24, ease: "power3.in", stagger: 0.01 }, tOut(i) + 0.02);
+          });
+          tl.set("#names", { visibility: "hidden" }, tOut(ROWS.length - 1) + 0.5);
+          if (payRow >= 0) {
+            Look.drive(tl, 0, T.end, (p) => { const t = p * T.end; glow.style.opacity = Math.min(1, flash(t, PAY + 0.02, 3 / 30, 0.45) * 0.85 + 0.2 * clamp((t - PAY) / 0.4) * (1 - clamp((t - T.out) / 0.2))).toFixed(3); });
+            if (plate) Look.impact(tl, PAY + 0.02, { flash: 0, shake: "#shake", amp: 5, dur: 0.28, zoom: 1.008 });
+          }
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          renderAt(0);
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

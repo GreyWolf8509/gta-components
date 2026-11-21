@@ -1,0 +1,444 @@
+<!doctype html>
+<!-- 07 Hit transitions, variant A: "Transition pack" (16:9, 1920x1080, 30 fps, 7.2 s).
+     Five GTA V shots cut on a 1.4 s beat grid: whip pan (1.40), zoom-through punch (2.80), speed-line shake hit (4.20, payoff),
+     luma dip to black (5.60). Full-kind component: the transitions are treatments of the footage, so bg "none" keeps the footage.
+     The whip is DOM (SVG velocity blur). From 2.60 on, a WebGL pass (#fx) draws the frame from the injected video frames:
+     a true 48-tap radial shutter blur, speed lines, light core, warm highlight-only exposure and the luma dip.
+     Everything is driven by one pure function of timeline time (seek-safe). See ../README.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #000; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #000; }
+      .layer { position: absolute; inset: 0; transform-origin: 50% 50%; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      /* whip: a warm light band riding the seam, smeared by the rig's own motion blur */
+      #streak { position: absolute; top: -60px; bottom: -60px; left: 0; width: 520px; opacity: 0; mix-blend-mode: screen; pointer-events: none;
+        background: linear-gradient(90deg, rgba(255,206,150,0) 0%, rgba(255,214,168,.55) 32%, rgba(255,240,222,1) 50%, rgba(255,214,168,.55) 68%, rgba(255,206,150,0) 100%); }
+      /* footage only the WebGL pass reads: hidden by opacity (the runtime forces visibility on active clips, lesson 25) */
+      #fxsrc { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
+      #fx { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <svg width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+      <defs>
+        <!-- whip: directional (horizontal) Gaussian, sigma driven by strip velocity, with a chroma smear along the travel axis -->
+        <filter id="fWhip" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+          <feGaussianBlur id="fWhipB" in="SourceGraphic" stdDeviation="0 0" result="b" />
+          <feColorMatrix in="b" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="r" />
+          <feOffset id="fWhipR" in="r" dx="0" dy="0" result="ro" />
+          <feColorMatrix in="b" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="g" />
+          <feColorMatrix in="b" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="bl" />
+          <feOffset id="fWhipBl" in="bl" dx="0" dy="0" result="bo" />
+          <feBlend in="ro" in2="g" mode="screen" result="rg" />
+          <feBlend in="rg" in2="bo" mode="screen" />
+        </filter>
+      </defs>
+    </svg>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="7.2" data-width="1920" data-height="1080">
+      <!-- shots 1+2 share one rig so the whip blurs them as one strip (no dark seam) -->
+      <div id="whip" class="layer" data-layout-allow-overflow>
+        <div id="L1" class="layer" data-layout-allow-overflow>
+          <video id="s1" class="clip shot" src="assets/shots/v17-deluxo-sunset-h.mp4" muted playsinline data-start="0" data-duration="1.57" data-media-start="0" data-track-index="0"></video>
+        </div>
+        <div id="L2" class="layer" data-layout-allow-overflow>
+          <video id="s2" class="clip shot" src="assets/shots/v31-red-car-sunset-h.mp4" muted playsinline data-start="1.22" data-duration="1.6467" data-media-start="0" data-track-index="1"></video>
+        </div>
+        <div id="streak" data-layout-allow-overflow></div>
+      </div>
+      <!-- shots 3-5 are read by the WebGL pass only. Each starts 2 frames before its cut and ends after its last use (lesson 25). -->
+      <div id="fxsrc">
+        <video id="s3" class="clip shot" src="assets/shots/v44-bridge-skyline-h.mp4" muted playsinline data-start="2.733333" data-duration="1.533333" data-media-start="0.133333" data-track-index="2"></video>
+        <video id="s4" class="clip shot" src="assets/shots/v08-trevor-rifle-h.mp4" muted playsinline data-start="4.133333" data-duration="0.966667" data-media-start="0" data-track-index="3"></video>
+        <video id="s5" class="clip shot" src="assets/shots/v11-yacht-h.mp4" muted playsinline data-start="5.533333" data-duration="1.666667" data-media-start="0.246667" data-track-index="4"></video>
+      </div>
+      <canvas id="fx" width="1920" height="1080" data-layout-allow-overflow></canvas>
+    </div>
+    <script>
+      // All tuning lives here. Cut times must match the <video> windows above.
+      const CONFIG = {
+        end: 7.2,
+        shots: ["v17-deluxo-sunset", "v31-red-car-sunset", "v44-bridge-skyline", "v08-trevor-rifle", "v11-yacht"],
+        whip: { at: 1.40, dur: 0.36, maxBlur: 140, blurPerPx: 0.3, swell: 0.06, tilt: 2.5, lift: 0.12, streak: 1.0, chroma: 0.07, chromaMax: 6 },
+        // zoom-through: true radial shutter blur (48 jittered taps between this frame's scale and the previous one), barrel lens, edge chroma
+        zoom: { at: 2.80, outDur: 0.20, outTo: 2.6, inDur: 0.32, inFrom: 2.2, shutter: 1.0, taps: 48, lens: 0.11, lensIn: 0.26,
+                chroma: 4, contrast: 1.14, edgeDark: 0.5, bloom: 0.55 },
+        // speed-line hit (payoff): lines rush inward over the outgoing bridge, converge on the cut, then burst outward over the explosion
+        hit:  { at: 4.20, center: [936, 452], suck: 0.20, suckTo: 1.06, suckShutter: 3, suckVig: 0.55, inhale: 0.14, lines: 60,
+                rush: { "-3": [1000, 0.5], "-2": [720, 0.75], "-1": [480, 0.95] },
+                burst: [[300, 1, 1.0], [240, 1, 1.0], [400, 0.95, 0.95], [600, 0.7, 0.8], [850, 0.4, 0.6]],
+                core: 360, coreA: 0.9, coreHold: 3, coreDecay: 0.24,
+                punchFrom: 1.20, rest: 1.04, punchDur: 0.45, punchShutter: 0.6, shakeDur: 0.45, ampX: 26, ampY: 15, rot: 0.55, shakeBlur: 0.3,
+                lift: 0.42, key: 0.55, warm: [1.1, 0.96, 0.78], hold: 3, decay: 0.36, chroma: 6, chromaDur: 0.18, bloom: 1.2, hitVig: 0.45 },
+        // luma dip: shadows go first and the fire dies last; hold on black; the yacht rises highlights-first on the beat
+        dip:  { outAt: 4.90, out: 0.17, riseAt: 5.60, rise: 0.32, settleFrom: 1.07, settle: 0.7 },
+        push: 0.035
+      };
+      (function () {
+        const C = CONFIG, W = 1920, Hh = 1080, FR = 1 / 30, $ = (s) => document.getElementById(s);
+        const P = gsap.parseEase, E4io = P("power4.inOut"), E3i = P("power3.in"), EXo = P("expo.out"), E2i = P("power2.in"), E2o = P("power2.out");
+        const cl = (v) => (v < 0 ? 0 : v > 1 ? 1 : v), seg = (t, a, b) => cl((t - a) / (b - a)), f3 = (v) => v.toFixed(3);
+        const el = { whip: $("whip"), L1: $("L1"), L2: $("L2"), streak: $("streak") };
+        const vids = { s2: $("s2"), s3: $("s3"), s4: $("s4"), s5: $("s5") };
+        const fWhipB = $("fWhipB"), fWhipR = $("fWhipR"), fWhipBl = $("fWhipBl");
+        // ================= FX engine (WebGL2, shared by both variants by copy) =================
+        // One full-screen shader chain: scene (footage geometry, 48-tap radial / directional shutter blur, radial chroma,
+        // highlight-only exposure, luma dip, VHS signal model, speed lines, light core, specular sweep) -> bright pass ->
+        // 2x separable Gaussian at 1/4 res -> composite. Driven only from timeline time: drawn from the GSAP timeline and
+        // again on "hf-seek", which the renderer re-dispatches after it injects each video frame, so the cut frame always
+        // samples its own footage (no CSS masks or image filters on cut frames, lesson 25).
+        function makeFX(canvas, W, H) {
+          const gl = canvas.getContext("webgl2", { alpha: true, premultipliedAlpha: true, preserveDrawingBuffer: true, antialias: false });
+          if (!gl) return null;
+          const half = !!gl.getExtension("EXT_color_buffer_float");
+          const VS = "#version 300 es\nin vec2 aP; void main(){ gl_Position = vec4(aP, 0.0, 1.0); }";
+          const HDR = "#version 300 es\nprecision highp float; out vec4 o;\n";
+          const HASH = "float h11(float p){ p = fract(p*0.1031); p *= p + 33.33; p *= p + p; return fract(p); }\n" +
+            "float h12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }\n";
+          const FS_SCENE = HDR + HASH + `
+uniform sampler2D uTex, uTex2; uniform vec2 uRes; uniform float uFrame;
+uniform int uSrc, uSrc2, uTaps;
+uniform vec2 uC, uT, uT0, uChromaC, uGamma, uHitC, uSweepN;
+uniform float uS, uS0, uS2, uRot, uLens, uChroma, uHiLift, uHiKey, uWarmAmt, uContrast, uSat, uBright;
+uniform vec3 uWarm, uCore;
+uniform float uVhs, uJit, uSine, uTear, uNoise, uBleed, uBleedOff, uTrackY, uTrackA, uRowMix, uScan;
+uniform float uLinesA, uLinesR0, uLinesSeed, uLinesN, uLinesW, uCoreA, uSweepA, uSweepPos, uSweepW;
+const vec3 LW = vec3(0.2126, 0.7152, 0.0722);
+vec3 bars(vec2 s){
+  vec2 u = vec2(fract(s.x / uRes.x), clamp(s.y / uRes.y, 0.0, 1.0)); int i = int(floor(u.x * 7.0));
+  if (u.y < 0.67) { vec3 c[7] = vec3[7](vec3(.75), vec3(.75,.75,0.), vec3(0.,.75,.75), vec3(0.,.75,0.), vec3(.75,0.,.75), vec3(.75,0.,0.), vec3(0.,0.,.75)); return c[i]; }
+  if (u.y < 0.75) { vec3 c[7] = vec3[7](vec3(0.,0.,.75), vec3(.075), vec3(.75,0.,.75), vec3(.075), vec3(0.,.75,.75), vec3(.075), vec3(.75)); return c[i]; }
+  float x = u.x;
+  if (x < 0.1786) return vec3(0.0, 0.13, 0.30); if (x < 0.3572) return vec3(1.0); if (x < 0.5358) return vec3(0.2, 0.0, 0.42);
+  if (x < 0.76) return vec3(0.075); if (x < 0.807) return vec3(0.035); if (x < 0.855) return vec3(0.075); if (x < 0.902) return vec3(0.115);
+  return vec3(0.075);
+}
+vec3 src1(vec2 s){ if (uSrc == 2) return bars(s); return texture(uTex, s / uRes).rgb; }
+vec3 src2(vec2 s){ if (uSrc2 == 2) return bars(s); return texture(uTex2, s / uRes).rgb; }
+vec2 toSrc(vec2 p, float S, vec2 T){
+  vec2 d = p - uC - T; float c = cos(uRot), s = sin(uRot);
+  d = vec2(c * d.x + s * d.y, -s * d.x + c * d.y); return uC + d / S;
+}
+vec3 rgb2yiq(vec3 c){ return vec3(dot(c, vec3(0.299,0.587,0.114)), dot(c, vec3(0.596,-0.274,-0.322)), dot(c, vec3(0.211,-0.523,0.312))); }
+vec3 yiq2rgb(vec3 y){ return vec3(y.x + 0.956*y.y + 0.621*y.z, y.x - 0.272*y.y - 0.647*y.z, y.x - 1.106*y.y + 1.703*y.z); }
+vec3 vsrc(vec2 s, bool sec){
+  s.x = mod(s.x, uRes.x);
+  if (sec) return src2(uC + (s - uC) / uS2);
+  return src1(toSrc(s, uS, uT));
+}
+vec3 vhs(vec2 p){
+  float fr = uFrame, row = floor(p.y / 2.0);
+  float jit = (h11(row * 0.731 + fr * 13.17) - 0.5) * 2.0 * uJit;
+  float env = 0.5 + 0.5 * sin(p.y * 0.0037 + fr * 1.93);
+  float tear = uSine * (0.7 * sin(p.y * 0.0093 + fr * 2.31) + 0.3 * sin(p.y * 0.027 + fr * 4.7)) * env;
+  float bsz = 60.0 + 110.0 * h11(floor(p.y / 170.0) + fr * 0.61), bid = floor(p.y / bsz);
+  float block = h11(bid * 3.17 + fr * 1.91) > 0.55 ? (h11(bid * 7.31 + fr * 0.77) - 0.5) * 2.0 * uTear : 0.0;
+  float tb = 1.0 - smoothstep(0.0, 70.0, abs(p.y - uTrackY));
+  float hs = smoothstep(uRes.y - 46.0, uRes.y - 18.0, p.y) * step(0.001, uJit);
+  float dx = jit + tear + block + tb * 36.0 * uTrackA + hs * 70.0;
+  vec2 ps = vec2(p.x - dx, p.y);
+  bool sec = uRowMix > 0.0 && h11(floor(p.y / 56.0) * 1.91 + fr * 3.31) < uRowMix;
+  float Y = dot(vsrc(ps, sec), vec3(0.299, 0.587, 0.114));
+  vec2 iq = vec2(0.0);
+  for (int k = -3; k <= 3; k++) iq += rgb2yiq(vsrc(ps + vec2(uBleedOff + float(k) * uBleed, 0.0), sec)).yz;
+  vec3 col = yiq2rgb(vec3(Y, iq / 7.0 * 1.2));
+  col += (h12(vec2(floor(p.x / 3.0), row) + fr * 17.3) - 0.5) * uNoise;
+  col += tb * uTrackA * (h12(vec2(floor(p.x / 2.0), floor(p.y)) + fr * 5.1) * 0.55 - 0.1);
+  if (h11(row * 1.13 + fr * 29.3) > 0.993 - uNoise * 0.04) {
+    float x0 = h11(row * 3.71 + fr) * uRes.x, len = 30.0 + 260.0 * h11(row * 9.13 + fr);
+    col += vec3(0.75) * step(x0, p.x) * step(p.x, x0 + len);
+  }
+  col *= 1.0 - uScan * (1.0 - step(2.0, mod(p.y, 4.0)));
+  return max(col, 0.0);
+}
+float lines(vec2 p, out float tone){
+  vec2 d = p - uHitC; float r = length(d);
+  float x = (atan(d.y, d.x) * 0.15915494 + 0.5) * uLinesN + uLinesSeed * 0.37;
+  float id = mod(floor(x), uLinesN), f = fract(x) - 0.5;
+  float h1 = h11(id * 1.37 + uLinesSeed * 17.1), h2 = h11(id * 2.71 + uLinesSeed * 31.7), h3 = h11(id * 5.13 + uLinesSeed * 7.3);
+  tone = h3; if (h3 < 0.16) return 0.0;
+  float r0 = uLinesR0 * mix(0.72, 1.5, h2);
+  float tip = clamp((r - r0) / (240.0 + 0.45 * r0), 0.0, 1.0);
+  float off = (h11(id * 9.7 + uLinesSeed * 3.3) - 0.5) * 0.36;
+  float hw = mix(0.07, 0.28, h1) * uLinesW * pow(tip, 0.7);
+  float aa = 1.0 / max(6.2831853 * r / uLinesN, 1.0);
+  return (1.0 - smoothstep(hw - aa, hw + aa, abs(f - off))) * smoothstep(r0, r0 + 140.0, r);
+}
+void main(){
+  vec2 p = vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y);
+  vec3 col;
+  if (uSrc == 0) col = vec3(0.0);
+  else if (uVhs > 0.5) col = vhs(p);
+  else {
+    vec2 hc = uRes * 0.5, q = (p - hc) / (0.5 * length(uRes));
+    vec2 pl = hc + (p - hc) * (1.0 - uLens * dot(q, q));
+    vec2 cd = vec2(0.0);
+    if (uChroma > 0.0) { vec2 dv = p - uChromaC; float dl = length(dv) + 1e-3; cd = dv / dl * uChroma * clamp(dl / (0.5 * length(uRes)), 0.0, 1.0); }
+    vec3 acc = vec3(0.0); float j = h12(p + uFrame * 7.13);
+    for (int i = 0; i < 64; i++) {
+      if (i >= uTaps) break;
+      float k = uTaps > 1 ? (float(i) + j) / float(uTaps) : 1.0;
+      float S = mix(uS0, uS, k); vec2 T = mix(uT0, uT, k);
+      if (uChroma > 0.0) acc += vec3(src1(toSrc(pl + cd, S, T)).r, src1(toSrc(pl, S, T)).g, src1(toSrc(pl - cd, S, T)).b);
+      else acc += src1(toSrc(pl, S, T));
+    }
+    col = acc / float(max(uTaps, 1));
+  }
+  float l = dot(col, LW), hk = smoothstep(uHiKey - 0.18, uHiKey + 0.22, l);
+  col *= 1.0 + uHiLift * hk;
+  col = mix(col, col * uWarm, uWarmAmt * hk);
+  col = uGamma.x * pow(max(col, vec3(0.0)), vec3(uGamma.y));
+  col = max((col - 0.45) * uContrast + 0.45, 0.0);
+  float l2 = dot(col, LW); col = max(mix(vec3(l2), col, uSat), 0.0) * uBright;
+  if (uSweepA > 0.0) {
+    float q = dot(p - uRes * 0.5, uSweepN) - uSweepPos, w2 = uSweepW * 3.5, q2 = q + uSweepW * 3.2, w3 = uSweepW * 0.35;
+    float band = (exp(-q * q / (2.0 * uSweepW * uSweepW)) + 0.12 * exp(-q * q / (2.0 * w2 * w2)) + 0.5 * exp(-q2 * q2 / (2.0 * w3 * w3)))
+               * (0.3 + 0.7 * smoothstep(uRes.y * 0.06, uRes.y * 0.32, p.y)); // eases off the open sky at the top of frame
+    // weighted by the surface's own brightness (lit glass catches it, dark mullions stay dark) and screened, so bright sky never clips to a veil
+    float lw = dot(col, LW), w = 0.1 + 0.9 * smoothstep(0.08, 0.5, lw) * (1.0 - 0.85 * smoothstep(0.62, 0.92, lw));
+    col += (1.0 - min(col, vec3(1.0))) * min(uSweepA * band * w * vec3(1.0, 0.95, 0.86), vec3(0.97));
+  }
+  if (uLinesA > 0.0) {
+    float tone; float m = lines(p, tone);
+    vec3 lc = tone > 0.72 ? vec3(1.15, 0.66, 0.26) : vec3(1.08, 1.03, 0.95);
+    col = mix(col, lc, m * uLinesA);
+  }
+  if (uCoreA > 0.0) {
+    // glare profile (sharp hot centre, long soft warm tail, no plateau) screened on: darker surroundings take the warm light, hot areas stay hot
+    float rc = length(p - uCore.xy) / uCore.z;
+    vec3 add = uCoreA * (exp(-rc * 6.0) * vec3(0.95, 0.9, 0.8) + exp(-rc * 1.8) * vec3(0.66, 0.52, 0.32));
+    col += (1.0 - min(col, vec3(1.0))) * min(add, vec3(0.97));
+  }
+  o = vec4(col, 1.0);
+}`;
+          const FS_BRIGHT = HDR + `
+uniform sampler2D uSrcT; uniform vec2 uTexel, uOut; uniform float uTh;
+void main(){
+  vec2 uv = gl_FragCoord.xy / uOut;
+  vec3 c = 0.25 * (texture(uSrcT, uv + uTexel * vec2(-1.0, -1.0)).rgb + texture(uSrcT, uv + uTexel * vec2(1.0, -1.0)).rgb
+                 + texture(uSrcT, uv + uTexel * vec2(-1.0, 1.0)).rgb + texture(uSrcT, uv + uTexel * vec2(1.0, 1.0)).rgb);
+  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  o = vec4(c * smoothstep(uTh, uTh + 0.3, l), 1.0);
+}`;
+          const FS_BLUR = HDR + `
+uniform sampler2D uSrcT; uniform vec2 uDir, uOut;
+void main(){
+  vec2 uv = gl_FragCoord.xy / uOut;
+  vec3 c = texture(uSrcT, uv).rgb * 0.1802;
+  float w[6] = float[6](0.1627, 0.1201, 0.0727, 0.0361, 0.0147, 0.0049);
+  for (int i = 0; i < 6; i++) { vec2 d = uDir * float(i + 1); c += (texture(uSrcT, uv + d).rgb + texture(uSrcT, uv - d).rgb) * w[i]; }
+  o = vec4(c / 1.0026, 1.0);
+}`;
+          const FS_FINAL = HDR + `
+uniform sampler2D uScene, uBloomTex; uniform vec2 uRes; uniform float uBloom, uVig; uniform vec3 uBloomTint;
+void main(){
+  vec2 uv = gl_FragCoord.xy / uRes;
+  vec3 c = texture(uScene, uv).rgb;
+  if (uBloom > 0.0) c += texture(uBloomTex, uv).rgb * uBloom * uBloomTint;
+  vec2 q = (gl_FragCoord.xy - 0.5 * uRes) / (0.5 * uRes);
+  c *= 1.0 - uVig * smoothstep(0.5, 1.45, length(q));
+  o = vec4(clamp(c, 0.0, 1.0), 1.0);
+}`;
+          const INTS = new Set(["uSrc", "uSrc2", "uTaps", "uTex", "uTex2", "uScene", "uBloomTex", "uSrcT"]);
+          function prog(fs) {
+            const mk = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+              if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error("FX shader: " + gl.getShaderInfoLog(s)); return s; };
+            const p = gl.createProgram(); gl.attachShader(p, mk(gl.VERTEX_SHADER, VS)); gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fs));
+            gl.bindAttribLocation(p, 0, "aP"); gl.linkProgram(p);
+            if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error("FX link: " + gl.getProgramInfoLog(p));
+            const cache = {};
+            return { p, set(name, v) {
+              if (!(name in cache)) cache[name] = gl.getUniformLocation(p, name);
+              const l = cache[name]; if (l === null) return;
+              if (typeof v === "number") { if (INTS.has(name)) gl.uniform1i(l, v); else gl.uniform1f(l, v); }
+              else if (v.length === 2) gl.uniform2f(l, v[0], v[1]); else if (v.length === 3) gl.uniform3f(l, v[0], v[1], v[2]);
+            } };
+          }
+          const PS = prog(FS_SCENE), PB = prog(FS_BRIGHT), PL = prog(FS_BLUR), PF = prog(FS_FINAL);
+          const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+          const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+          gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+          gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+          function mkTex(w, h, hdr) {
+            const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+            if (hdr) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
+            else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, w * h === 1 ? new Uint8Array([0, 0, 0, 255]) : null);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            return t;
+          }
+          function mkFbo(w, h) {
+            const t = mkTex(w, h, half), f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+            return { t, f, w, h };
+          }
+          const scene = mkFbo(W, H), bw = Math.round(W / 4), bh = Math.round(H / 4), b1 = mkFbo(bw, bh), b2 = mkFbo(bw, bh);
+          const vt = [mkTex(1, 1, false), mkTex(1, 1, false)];
+          gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+          // the renderer injects each video frame as an <img class="__render_frame__"> sibling; sample that when present
+          function frameOf(v) {
+            const n = v.nextElementSibling;
+            if (n && n.classList && n.classList.contains("__render_frame__") && n.complete && n.naturalWidth > 0) return n;
+            return v.readyState >= 2 ? v : null;
+          }
+          function upload(unit, v) {
+            const s = v && frameOf(v); if (!s) return;
+            gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, vt[unit]);
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+            try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, s); } catch (e) { /* keep the last frame */ }
+          }
+          function pass(P, target, w, h) { gl.bindFramebuffer(gl.FRAMEBUFFER, target ? target.f : null); gl.viewport(0, 0, w, h); gl.useProgram(P.p); }
+          function bindT(unit, t) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t); }
+          return {
+            clear() { gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); },
+            draw(u) {
+              gl.bindVertexArray(vao); gl.disable(gl.BLEND);
+              if (u.tex) upload(0, u.tex); if (u.tex2) upload(1, u.tex2);
+              pass(PS, scene, W, H); bindT(0, vt[0]); bindT(1, vt[1]);
+              PS.set("uTex", 0); PS.set("uTex2", 1); PS.set("uRes", [W, H]);
+              for (const k in u) if (k.charCodeAt(0) === 117 && k !== "tex" && k !== "tex2") PS.set(k, u[k]);
+              gl.drawArrays(gl.TRIANGLES, 0, 3);
+              const bl = u.bloom || 0;
+              if (bl > 0.001) {
+                bindT(1, null);
+                pass(PB, b1, bw, bh); bindT(0, scene.t); PB.set("uSrcT", 0); PB.set("uTexel", [1 / W, 1 / H]); PB.set("uOut", [bw, bh]); PB.set("uTh", u.bloomTh || 0.7);
+                gl.drawArrays(gl.TRIANGLES, 0, 3);
+                for (let it = 0; it < 2; it++) {
+                  pass(PL, b2, bw, bh); bindT(0, b1.t); PL.set("uSrcT", 0); PL.set("uOut", [bw, bh]); PL.set("uDir", [1.5 / bw, 0]); gl.drawArrays(gl.TRIANGLES, 0, 3);
+                  pass(PL, b1, bw, bh); bindT(0, b2.t); PL.set("uSrcT", 0); PL.set("uOut", [bw, bh]); PL.set("uDir", [0, 1.5 / bh]); gl.drawArrays(gl.TRIANGLES, 0, 3);
+                }
+              }
+              pass(PF, null, W, H); bindT(0, scene.t); bindT(1, b1.t);
+              PF.set("uScene", 0); PF.set("uBloomTex", 1); PF.set("uRes", [W, H]); PF.set("uBloom", bl); PF.set("uBloomTint", u.bloomTint || [1, 1, 1]); PF.set("uVig", u.vig || 0);
+              gl.drawArrays(gl.TRIANGLES, 0, 3);
+            }
+          };
+        }
+        // neutral scene state; each frame's state overrides what it needs
+        function U0(W, H) {
+          return { uSrc: 1, uSrc2: 1, uFrame: 0, uC: [W / 2, H / 2], uS: 1, uS0: 1, uS2: 1, uT: [0, 0], uT0: [0, 0], uRot: 0, uLens: 0, uTaps: 1,
+            uChroma: 0, uChromaC: [W / 2, H / 2], uHiLift: 0, uHiKey: 0.6, uWarm: [1, 1, 1], uWarmAmt: 0, uGamma: [1, 1], uContrast: 1, uSat: 1, uBright: 1,
+            uVhs: 0, uJit: 0, uSine: 0, uTear: 0, uNoise: 0, uBleed: 0, uBleedOff: 0, uTrackY: -999, uTrackA: 0, uRowMix: 0, uScan: 0,
+            uLinesA: 0, uLinesR0: 300, uLinesSeed: 0, uLinesN: 64, uLinesW: 1, uHitC: [W / 2, H / 2], uCore: [W / 2, H / 2, 300], uCoreA: 0,
+            uSweepA: 0, uSweepPos: -9999, uSweepW: 60, uSweepN: [0.866, 0.5], bloom: 0, bloomTh: 0.7, bloomTint: [1, 1, 1], vig: 0 };
+        }
+
+        // ---- motion curves (pure functions of time) ----
+        const w0 = C.whip.at - C.whip.dur / 2, w1 = C.whip.at + C.whip.dur / 2;
+        const whipX = (t) => -W * E4io(seg(t, w0, w1));
+        const Z = C.zoom, H = C.hit, D = C.dip;
+        const zOut = (t) => 1 + (Z.outTo - 1) * E3i(seg(t, Z.at - Z.outDur, Z.at));
+        const zIn = (t) => Z.inFrom - (Z.inFrom - 1) * EXo(seg(t, Z.at, Z.at + Z.inDur));
+        const shakeAt = (f) => { // deterministic rattling shake: alternating sign, hashed magnitude, quadratic decay
+          const nF = Math.round(H.shakeDur * 30); if (f < 0 || f >= nF) return [0, 0, 0];
+          const env = Math.pow(1 - f / nF, 2), s = f % 2 ? 1 : -1;
+          return [s * (0.55 + 0.45 * Look.hash(f * 3 + 11)) * H.ampX * env, -s * (0.35 + 0.65 * Look.hash(f * 3 + 12)) * H.ampY * env,
+                  (Look.hash(f * 3 + 13) * 2 - 1) * H.rot * env];
+        };
+        // bridge: landing, slow push, then the suck-in that loads the hit
+        const s3At = (t) => zIn(t) * (1 + 0.02 * seg(t, Z.at + Z.inDur, H.at - H.suck)) * (1 + (H.suckTo - 1) * E2i(seg(t, H.at - H.suck, H.at)));
+        // hit shot: punch 1.20 -> 1.04 on expo.out, then a slow drift
+        const punchAt = (t) => (H.rest + (H.punchFrom - H.rest) * (1 - EXo(seg(t - H.at, 0, H.punchDur)))) * (1 + 0.03 * seg(t, H.at + H.punchDur, D.outAt + D.out));
+        const fx = makeFX($("fx"), W, Hh);
+
+        function fxState(t) {
+          if (t < Z.at - Z.outDur - 1e-4) return null; // the DOM whip rig owns the frame until the zoom starts (identical state at the handoff)
+          const u = U0(W, Hh); u.uFrame = Math.round(t * 30);
+          if (t < Z.at) {
+            // outgoing: v31 accelerates into the lens; the shutter spans this frame's scale and the previous frame's
+            const S = zOut(t), Sp = zOut(t - FR), e = E3i(seg(t, Z.at - Z.outDur, Z.at));
+            u.tex = vids.s2; u.uS = S; u.uS0 = S - (S - Sp) * Z.shutter; u.uTaps = S - Sp > 0.002 ? Z.taps : 1;
+            u.uLens = Z.lens * e; u.uChroma = Z.chroma * e; u.uContrast = 1 + (Z.contrast - 1) * e; u.vig = Z.edgeDark * e; u.bloom = Z.bloom * e; u.bloomTh = 0.72;
+            return u;
+          }
+          if (t < H.at) {
+            // incoming: the bridge lands out of the lens (the cut frame has no previous state, so its shutter is extrapolated from the next frame)
+            const S = s3At(t), landing = t < Z.at + Z.inDur;
+            u.tex = vids.s3; u.uS = S;
+            u.uS0 = landing ? S + (S - s3At(t + FR)) * Z.shutter : S - (S - s3At(t - FR)) * H.suckShutter;
+            u.uTaps = Math.abs(u.uS0 - S) > 0.002 ? Z.taps : 1;
+            const li = 1 - EXo(seg(t, Z.at, Z.at + Z.lensIn));
+            u.uLens = Z.lens * li; u.uChroma = Z.chroma * li; u.uContrast = 1 + (Z.contrast - 1) * li; u.vig = Z.edgeDark * li; u.bloom = Z.bloom * li; u.bloomTh = 0.72;
+            // pre-hit: suck-in, an inhale (the frame dims slightly so the cut pops), speed lines rushing inward from the edges
+            const sk = E2i(seg(t, H.at - H.suck, H.at));
+            u.vig = Math.max(u.vig, H.suckVig * sk); u.uBright = 1 - H.inhale * sk;
+            const rf = Math.round((t - H.at) * 30), rush = H.rush[String(rf)];
+            if (rush) { u.uLinesR0 = rush[0]; u.uLinesA = rush[1]; u.uLinesSeed = 40 + rf; u.uLinesN = H.lines; u.uHitC = H.center; u.uLinesW = 0.9; }
+            return u;
+          }
+          const uH = t - H.at, f = Math.floor(uH * 30 + 1e-6), dipP = seg(t, D.outAt, D.outAt + D.out);
+          if (t < D.riseAt) {
+            if (dipP >= 1) { u.uSrc = 0; return u; } // hold on black (nothing sampled)
+            const sh = shakeAt(f), pr = shakeAt(f - 1), S = punchAt(t);
+            u.tex = vids.s4; u.uS = S; u.uS0 = S + (S - punchAt(t + FR)) * H.punchShutter;
+            u.uT = [sh[0], sh[1]]; u.uT0 = [sh[0] + (pr[0] - sh[0]) * H.shakeBlur, sh[1] + (pr[1] - sh[1]) * H.shakeBlur]; u.uRot = sh[2] * Math.PI / 180;
+            u.uTaps = Math.abs(u.uS0 - S) > 0.002 || Math.abs(pr[0] - sh[0]) + Math.abs(pr[1] - sh[1]) > 0.5 ? 32 : 1;
+            // warm highlight-only exposure: the fire and sky lift, blacks stay black; held 3 frames, then decays
+            const hold = H.hold / 30, k = uH < hold ? 1 : 1 - E2o(seg(uH, hold, hold + H.decay));
+            u.uHiLift = H.lift * k; u.uHiKey = H.key; u.uWarm = H.warm; u.uWarmAmt = k;
+            u.bloom = H.bloom * k; u.bloomTh = 0.62; u.bloomTint = [1.0, 0.8, 0.56]; u.vig = H.hitVig * k;
+            u.uChroma = uH < H.chromaDur ? H.chroma * (1 - E2o(uH / H.chromaDur)) : 0; u.uChromaC = H.center;
+            // the speed lines converge on the cut, then burst outward over the explosion (a new drawing each frame)
+            const b = H.burst[f], hc = [H.center[0] + sh[0], H.center[1] + sh[1]];
+            if (b) { u.uLinesR0 = b[0]; u.uLinesA = b[1]; u.uLinesW = b[2]; u.uLinesSeed = 20 + f; u.uLinesN = H.lines; u.uHitC = hc; }
+            // white-hot core on the fireball, held 3 frames, then contracts and fades
+            const ch = H.coreHold / 30, ce = E2o(seg(uH, ch, ch + H.coreDecay));
+            u.uCore = [hc[0], hc[1], H.core * (1 - 0.35 * ce)]; u.uCoreA = H.coreA * (1 - ce);
+            if (dipP > 0) {
+              // luma dip: amplitude holds while the exponent climbs, so shadows and mids crush first and only the fire is left before black
+              u.uGamma = [1 - Math.pow(dipP, 2.5), 1 + 5 * Math.pow(dipP, 1.2)];
+            }
+            return u;
+          }
+          // the yacht rises out of black highlights-first (foam and sky arrive first), with a settle and a slow push
+          const rp = seg(t, D.riseAt, D.riseAt + D.rise);
+          u.tex = vids.s5; u.uGamma = rp < 1 ? [1 - Math.pow(1 - rp, 3), 6 - 5 * E2o(rp)] : [1, 1];
+          u.uS = u.uS0 = (D.settleFrom - (D.settleFrom - 1) * EXo(seg(t, D.riseAt, D.riseAt + D.settle))) * (1 + 0.03 * seg(t, D.riseAt + D.settle, C.end));
+          return u;
+        }
+        function drawFX(t) { if (!fx) return; const u = fxState(t); if (u) fx.draw(u); else fx.clear(); }
+
+        function render(t) {
+          // ---- whip pan (DOM): shots 1+2 travel as one strip; blur and a chromatic smear from per-frame displacement; a light band rides the seam ----
+          const x = whipX(t), wp = seg(t, w0, w1), bump = Math.sin(Math.PI * wp);
+          const sig = Math.min(C.whip.maxBlur, C.whip.blurPerPx * Math.abs(x - whipX(t - FR)));
+          const p1 = 1 + C.push * seg(t, 0, w0);
+          el.L1.style.transform = "translateX(" + x.toFixed(1) + "px) scale(" + f3(p1) + ")";
+          el.L2.style.transform = "translateX(" + (x + W).toFixed(1) + "px)";
+          el.streak.style.transform = "translateX(" + (x + W - 260).toFixed(1) + "px)";
+          el.streak.style.opacity = wp > 0 && wp < 1 ? f3(C.whip.streak * Math.pow(bump, 1.6)) : "0";
+          if (wp > 0 && wp < 1) {
+            const ch = Math.min(C.whip.chromaMax, sig * C.whip.chroma);
+            el.whip.style.transform = "scale(" + f3(1 + C.whip.swell * bump) + ") rotate(" + f3(-C.whip.tilt * bump) + "deg)";
+            fWhipB.setAttribute("stdDeviation", sig.toFixed(1) + " " + (sig * 0.04).toFixed(1));
+            fWhipR.setAttribute("dx", (-ch).toFixed(1)); fWhipBl.setAttribute("dx", ch.toFixed(1));
+            el.whip.style.filter = (sig > 0.3 ? "url(#fWhip) " : "") + "brightness(" + f3(1 + C.whip.lift * bump) + ")";
+          } else { el.whip.style.transform = ""; el.whip.style.filter = ""; fWhipB.setAttribute("stdDeviation", "0 0"); }
+          // ---- everything from the zoom on: the WebGL pass ----
+          drawFX(t);
+        }
+
+        // Snap to the 30 fps grid: the runtime nudges seeks by ~1 ms, and a cut frame must never render its pre-cut state.
+        const snap = (x) => Math.round(x * 30) / 30 + 1e-6;
+        const tl = gsap.timeline({ paused: true });
+        Look.drive(tl, 0, C.end, (p) => render(snap(p * C.end)));
+        tl.set({}, {}, C.end);
+        window.__timelines = window.__timelines || {};
+        window.__timelines["main"] = tl;
+        // the renderer injects each video frame after the timeline seek, then re-dispatches hf-seek: redraw then so the pass reads this frame's footage
+        window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") drawFX(snap(e.detail.time)); });
+        tl.seek(0);
+      })();
+    </script>
+  </body>
+</html>

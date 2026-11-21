@@ -1,0 +1,195 @@
+<!doctype html>
+<!-- GTA-niche 46 Evolution timeline, variant B (9:16 Shorts, 1080x1920, 30 fps): "Year stack".
+     The creators' release-year tag, phone-first: one big year at the top-right of the Short, built as real geometry (extruded,
+     bevelled Inter Black tabular figures in Three.js, white enamel, one ink outline + drop shadow). Its digits are mechanical
+     drums, so the year rolls from one year to the next on each cut: 2013 ticks to 2015, then the years run 2016...2021, hold and
+     tremble, and 2022 slams in on the last cut: the block squashes, the digits fill with gold behind a hot meniscus, the key
+     light rakes and one specular band sweeps. See ../DECISIONS.md. Variable: bg "plate" (sample GTA V footage) / "none". -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <script src="media/year3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; pointer-events: none; }
+      #year { position: absolute; inset: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.25" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <!-- each incoming shot starts 2 frames early underneath the outgoing one (DESIGN 11.25): no blank frame at a cut -->
+        <video id="shotA" class="clip shot" style="z-index:3" src="assets/shots/v49-gp-franklin-mural-v.mp4" muted playsinline data-start="0" data-duration="2.05" data-media-start="0.3" data-track-index="0"></video>
+        <video id="shotB" class="clip shot" style="z-index:2" src="assets/shots/v28-tennis-mansion-v.mp4" muted playsinline data-start="1.983" data-duration="2.267" data-media-start="0.05" data-track-index="2"></video>
+        <video id="shotC" class="clip shot" style="z-index:1" src="assets/shots/v11-yacht-v.mp4" muted playsinline data-start="4.183" data-duration="2.067" data-media-start="0.03" data-track-index="3"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="6.25" data-track-index="1"><div id="year"></div></div>
+    </div>
+    <script>
+      const CONFIG = {
+        stops: [2013, 2015, 2022],                  // the years the edit holds on, one clip each; the year rolls through every year between
+        place: { inkR: 892, capTop: 286 },           // top-right of the Short (safe zone x 72-936, y 230-1480): right ink edge, cap top (px)
+        font: { size: 262 },                         // Inter Black em, tabular figures: cap 190 px, the year ~655 px wide (~60% of the frame)
+        depth: 50, bevel: 6, tilt: 0.24, yaw: -0.15,  // extrusion (px) and its direction: down and to the right
+        ink: 10, shadow: 0.6,                         // ink outline (px) and drop-shadow strength: the creators' black stroke + soft shadow
+        colors: {
+          face: ["#FFFFFF", "#EEF2F7", "#C3CCDA"], side: ["#7F889A", "#161A22"], lip: "#E6EBF2",            // white enamel
+          gold: ["#FFF1A8", "#FFD23C", "#E59A1C", "#B5650E"], goldSide: ["#A85A08", "#241000"], goldLip: "#FFF4C2",   // polished gold
+          hot: "#FFF6D0", ink: "#0C0D11"
+        },
+        timing: {
+          enter: 0.2,               // the year slams in: every digit turns up into place, left to right
+          ticks: [1.75, 1.92],      // first roll: one flip per year (2014, 2015), done on the 2.05 cut
+          run: [3.3, 3.98],         // second roll: the years run 2016 -> 2021, braking
+          land: 4.25,               // 2022 slams in on the cut: squash, shake, gold, rake, sweep
+          out: 5.72,                // exit: every digit tips back over its drum, left to right
+          end: 6.25
+        }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, C = CONFIG.colors, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x)), Hh = Look.hash, PI = Math.PI;
+        const E = (n) => gsap.parseEase(n), eOut = E("power2.out"), eIO = E("power2.inOut"), eIn = E("power2.in"), eBack = E("back.out(1.9)"),
+          eRun = E("power2.inOut"), eSine = E("sine.inOut"), eSpec = E("power3.inOut"), eFlip = E("back.out(1.4)");
+        Promise.all(["900 100px Inter"].map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const G = window.YEAR_GLYPHS, SZ = CONFIG.font.size, P = CONFIG.place;
+          const S0 = { size: SZ };
+          const cap0 = G.cap * SZ / G.upm, cell0 = G.g["0"][0] * SZ / G.upm;
+          const S = YEAR3D({
+            W: 1080, H: 1920, glyphs: G, size: SZ, pcx: 560, pcy: P.capTop + cap0 / 2, fov: 10,
+            depth: CONFIG.depth, bevel: CONFIG.bevel, tilt: CONFIG.tilt, yaw: CONFIG.yaw, curveSeg: 14, bevelSeg: 3, bevelK: 0.9,
+            inkPx: CONFIG.ink, inkColor: C.ink, shadow: CONFIG.shadow, shadowOff: [6, 14], specW: 0.11, hotW: 8, hot: C.hot,
+            fill: { set: "gold" },
+            sets: {
+              base: { face: C.face, side: C.side, lip: C.lip, metal: [0.0, 0.55], rough: [0.28, 0.3], emis: [0.4, 0.06] },
+              gold: { face: C.gold, side: C.goldSide, lip: C.goldLip, metal: [0.35, 0.8], rough: [0.2, 0.24], emis: [0.26, 0.06], tint: [1.0, 0.45], horizon: 0.5 }
+            },
+            prewarm: [["2", "base", 3], ["0", "base", 3], ["1", "base", 3], ["3", "base", 1], ["4", "base", 1], ["5", "base", 1], ["9", "base", 1]]
+          });
+          $("#year").appendChild(S.canvas);
+          const CAP = S.cap, CELL = S.adv("0"), TL = CONFIG.tilt;
+          const yc = P.capTop + CAP / 2, base = P.capTop + CAP;
+          // four tabular columns, right ink edge pinned (the creators' tag hangs from the top-right)
+          const lastInkR = S.inkR("3");
+          const xL = P.inkR - (3 * CELL + lastInkR);
+          const ax = xL + (4 * CELL) / 2, ay = yc;                       // group anchor: the block's centre
+          // ---- the year as a function of time: change events, each one a drum flip on the columns that change ----
+          const stops = CONFIG.stops;
+          const events = [];
+          events.push({ t: T.ticks[0], from: stops[0], to: stops[0] + 1 });
+          for (let y = stops[0] + 1; y < stops[1]; y++) events.push({ t: T.ticks[1] + (y - stops[0] - 1) * 0.0, from: y, to: y + 1 });
+          // second roll: values cross each integer at times given by an eased run, then the last year lands on the cut
+          const n2 = stops[2] - stops[1] - 1;                               // 2016..2021
+          const vRun = (t) => stops[1] + n2 * eRun(clamp((t - T.run[0]) / (T.run[1] - T.run[0]), 0, 1));
+          const tReach = (v) => { let a = T.run[0], b = T.run[1]; for (let i = 0; i < 40; i++) { const m = (a + b) / 2; if (vRun(m) >= v - 1e-6) b = m; else a = m; } return b; };
+          for (let y = stops[1] + 1; y <= stops[2] - 1; y++) events.push({ t: tReach(y) - 0.04, from: y - 1, to: y });
+          const tLastFlip = T.land - 0.11;
+          events.push({ t: tLastFlip, from: stops[2] - 1, to: stops[2], slam: true });
+          events.forEach((e, i) => { const nx = events[i + 1]; e.fd = Math.min(e.slam ? 0.11 : 0.12, nx ? Math.max(0.05, (nx.t - e.t) * 0.92) : 0.12); });
+          const digitOf = (y, k) => Math.floor(y / Math.pow(10, k)) % 10;       // k = 0 units ... 3 thousands
+          // a flip turns a square drum (radius half a cap) by 90 degrees: the old digit tips back over the top, the next turns up from below
+          const flip = (a, b, f) => {
+            if (f <= 0) return [[a, 0, 0.5]];
+            if (f >= 1) return [[b, (1 - f) * PI / 2, 0.5]];
+            const out = [], ra = -f * PI / 2; if (ra > -(PI / 2 - TL) + 0.03) out.push([a, ra, 0.5]);
+            out.push([b, (1 - f) * PI / 2, 0.5]); return out;
+          };
+          function columnFaces(t, k) {
+            let y = stops[0];
+            for (const e of events) { if (t >= e.t) y = e.to; }
+            let out = [[digitOf(y, k), 0, 0.5]];
+            for (const e of events) {
+              if (t < e.t || t >= e.t + e.fd + 0.12) continue;
+              const a = digitOf(e.from, k), b = digitOf(e.to, k); if (a === b) continue;
+              const f = (t - e.t) / e.fd;
+              out = flip(a, b, f >= 1 ? (e.slam ? 1 + 0.0 : 1) : (e.slam ? eOut(f) : eFlip(f)));
+            }
+            return out;
+          }
+          const pulse = (u, a) => (u < 0 ? 0 : a * Math.sin(u * 22) * Math.exp(-u * 8));
+          function stateAt(t) {
+            const items = [], st = { items };
+            const ue = t - T.enter, ul = t - T.land;
+            if (ue < 0) return st;
+            // --- group: entrance slam, tick pulses, tremble before the last year, landing squash + shake, slow push in the hold ---
+            let g = 1 + 0.3 * (1 - eBack(clamp(ue / 0.45, 0, 1)));
+            T.ticks.forEach((tk) => (g += pulse(t - tk - 0.06, 0.03)));
+            let gx = g, gy = g, shx = 0, shy = 0;
+            const ch0 = clamp((t - T.run[1]) / (tLastFlip - T.run[1]), 0, 1);
+            if (t < tLastFlip && ch0 > 0) { const fr = Math.floor(t * 30); shx = (Hh(fr * 5 + 3) * 2 - 1) * 3.5 * ch0; shy = (Hh(fr * 5 + 4) * 2 - 1) * 3.5 * ch0; gx *= 1 + 0.03 * eIn(ch0); gy *= 1 + 0.03 * eIn(ch0); }
+            if (t >= tLastFlip && ul < 0) { gx *= 1.03; gy *= 1.03; }
+            if (ul >= 0) {
+              const sq = ul < 0.05 ? eOut(ul / 0.05) : Math.exp(-(ul - 0.05) * 9) * Math.cos((ul - 0.05) * 28);
+              gy *= 1 - 0.16 * sq; gx *= 1 + 0.08 * sq;
+              if (ul < 0.32) { const fr = Math.floor(ul * 30), e2 = Math.pow(1 - ul / 0.32, 2); shx = (Hh(fr * 3 + 11) * 2 - 1) * 9 * e2; shy = (Hh(fr * 3 + 12) * 2 - 1) * 9 * e2; }
+              const hp = clamp((ul - 0.35) / (T.out - T.land - 0.35), 0, 1); gx *= 1 + 0.02 * eSine(hp); gy *= 1 + 0.02 * eSine(hp);
+            }
+            const grp = (it) => {
+              it.x = ax + (it.x - ax) * gx + shx; it.y = ay + (it.y - ay) * gy + shy; it.z = (it.z || 0) * g;
+              it.sx = (it.sx == null ? 1 : it.sx) * gx; it.sy = (it.sy == null ? 1 : it.sy) * gy;
+              items.push(it);
+            };
+            const face = (ch, x, y, s, rx, fr) => {
+              if (Math.abs(-TL + rx) > PI / 2 - 0.03 || s < 0.06) return;
+              fr = fr == null ? 0.5 : fr;
+              grp({ ch, set: "base", x, y: y + fr * CAP * s * Math.sin(rx), z: -fr * CAP * s * (1 - Math.cos(rx)), rx, s, clip: null });
+            };
+            const xo = (i) => eIn(clamp((t - T.out - i * 0.035) / 0.16, 0, 1));
+            const XA = -0.75 * (PI / 2 - TL), UP = PI / 2 + TL;
+            for (let i = 0; i < 4; i++) {           // i = 0 is the thousands column (left)
+              const k = 3 - i, left = xL + i * CELL;
+              const ex = xo(i); if (ex >= 1) continue;
+              const ui = ue - i * 0.04;
+              if (ui < 0) continue;
+              let faces = columnFaces(t, k);
+              if (ui < 0.3) faces = [[faces[0][0], UP * (1 - eFlip(clamp(ui / 0.26, 0, 1))), 0.3]];       // entrance: turns up into place
+              faces.forEach((F) => { const ch = String(F[0]);
+                face(ch, left + (S.inkL(ch) + S.inkR(ch)) / 2, yc, 1 - ex, F[1] + XA * ex, ex > 0 ? 0.3 : F[2]); });
+            }
+            // --- gold fill on the landing, hot meniscus ---
+            const uf = ul + 0.12, fp = clamp(uf / 0.16, 0, 1), yB = base + 50, yT = P.capTop - 50;
+            st.fill = { y: uf < 0 ? yB + 600 : yB + (yT - yB) * eSine(fp) - (uf > 0.16 ? (uf - 0.16) * 1400 : 0), amp: uf < 0 ? 0 : 9 * (1 - 0.5 * fp), ph: t * 15, hot: uf < 0 ? 0 : 2.0 + 1.6 * Math.exp(-Math.max(ul, 0) / 0.08) };
+            // --- light: key creeps up through the tremble, rakes on the slam; one specular sweep; bloom peaks 3 frames ---
+            st.key = { ang: -0.9 + 1.8 * eIO(clamp((ul + 0.05) / 0.7, 0, 1)), int: 2.0 + 0.6 * ch0 * (t < T.land ? 1 : 0) + 1.8 * Math.exp(-Math.pow((ul - 0.08) / 0.15, 2)) };
+            const spP = clamp((ul - 0.15) / 0.38, 0, 1), sx0 = ax - 700, sx1 = ax + 900;
+            st.spec = { x: sx0 + (sx1 - sx0) * eSpec(spP), amp: spP > 0 && spP < 1 ? 0.7 * Math.sin(PI * spP) : 0 };
+            let fl = 0; T.ticks.forEach((tk) => { const u = t - tk; if (u >= 0 && u < 0.2) fl = Math.max(fl, 0.08 * Math.exp(-u / 0.06)); });
+            if (ul >= 0) fl = Math.max(fl, ul < 0.1 ? 0.18 : 0.18 * Math.exp(-(ul - 0.1) / 0.12));
+            st.flash = fl;
+            st.bloom = 0.12 + (ul < 0 ? fl : ul < 0.1 ? 0.45 : 0.45 * Math.exp(-(ul - 0.1) / 0.14));
+            return st;
+          }
+          const tl = gsap.timeline({ paused: true });
+          const render = (t) => { const on = S.draw(stateAt(t)); $("#year").style.visibility = on ? "visible" : "hidden"; };
+          Look.drive(tl, 0, T.end, (p) => render(p * T.end));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") render(e.detail.time); });
+          if (plate) {
+            Look.impact(tl, T.land, { shake: "#shake", amp: 12, dur: 0.3, zoom: 1.03, flash: 0 });
+            Look.push(tl, "#push", 0, T.end, { from: 1.0, to: 1.04 });
+          }
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+          render(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

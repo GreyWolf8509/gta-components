@@ -1,0 +1,509 @@
+<!doctype html>
+<!-- 62 Like goal, variant A "Like goal counter" (16:9, 1920x1080, 30 fps, 6.5 s).
+     Two real 3D thumbs-up (Three.js, our own drawing) flank a rolling like count, lower-centre as creators place it.
+     The thumbs and a porcelain tube under the number fill with red liquid as the likes climb; at the goal the last
+     odometer carry rolls, the thumbs pump, light rakes the porcelain and mini thumbs burst.
+     Variable: bg "plate" (sample GTA V footage) / "none" (transparent overlay). See gta/DESIGN.md. -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      /* the 3D layer: a tight dark edge (the evidence glyphs' outline) + a soft drop shadow onto the footage */
+      #gl { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; display: block;
+        filter: drop-shadow(0 0 1.2px rgba(6,7,10,.9)) drop-shadow(0 4px 3px rgba(0,0,0,.35)) drop-shadow(0 18px 26px rgba(0,0,0,.42)); }
+      /* payoff light behind the number: additive, never a veil */
+      #fx { position: absolute; left: 0; top: 0; overflow: visible; filter: drop-shadow(0 0 9px rgba(255,46,70,.7)) drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+
+      /* ---------- type ---------- */
+      .arch { font-family: "Archivo", sans-serif; }
+      #labWin { position: absolute; left: 0; top: 0; overflow: hidden; padding: 8px 24px 24px; }
+      .lab { display: inline-block; white-space: nowrap; font-family: "Archivo", sans-serif; font-weight: 800; font-stretch: 100%; line-height: 1;
+        letter-spacing: .12em; color: #FFFFFF; paint-order: stroke fill; -webkit-text-stroke: 6px #0B0C10;
+        text-shadow: 0 3px 0 #0B0C10, 0 8px 14px rgba(0,0,0,.45); }
+      #lab2 { position: absolute; left: 24px; top: 8px; color: #FF4655; visibility: hidden; }
+      #numWrap { position: absolute; left: 0; top: 0; will-change: transform, filter;
+        filter: drop-shadow(0 16px 22px rgba(0,0,0,.5)); }
+      #num { position: relative; display: flex; align-items: flex-start; }
+      .col { position: relative; flex: none; clip-path: inset(0px -80px 0px -80px); }
+      .reel { position: absolute; left: 0; top: 0; width: 100%; will-change: transform; }
+      .cell, .comma { position: relative; display: block; text-align: center; white-space: nowrap; font-family: "Archivo", sans-serif;
+        font-weight: 900; font-stretch: 87.5%; letter-spacing: 0; }
+      .comma { flex: none; }
+      .bk { display: block; color: #FFFFFF; paint-order: stroke fill; -webkit-text-stroke: 18px #0B0C10;
+        text-shadow: 0 4px 0 #0B0C10, 0 8px 0 #0B0C10, 0 12px 0 #07080B; }
+      .fr { position: absolute; left: 0; top: 0; width: 100%; display: block; color: #FFFFFF; }
+
+      /* the target tag riding the tube's right end */
+      #tag { position: absolute; left: 0; top: 0; width: 140px; height: 52px; margin: -26px 0 0 -70px; overflow: hidden; }
+      #tag .t1, #tag .t2 { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+      #tag .t1 { font-family: "Archivo", sans-serif; font-weight: 900; font-stretch: 100%; font-size: 35px; letter-spacing: .02em; color: #1A0A0D; }
+      #tag .t2 { visibility: hidden; }
+      #tag svg { width: 40px; height: 40px; overflow: visible; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.5" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="s1" class="clip shot" style="z-index:5" src="assets/shots/v22-trio-jumpsuits-h.mp4" muted playsinline data-start="0" data-duration="1.6333" data-media-start="0" data-track-index="0"></video>
+        <video id="s2" class="clip shot" style="z-index:4" src="assets/shots/v06-franklin-lamar-portrait-h.mp4" muted playsinline data-start="1.5667" data-duration="1.6" data-media-start="0" data-track-index="1"></video>
+        <video id="s3" class="clip shot" style="z-index:3" src="assets/shots/v03-franklin-street-h.mp4" muted playsinline data-start="3.1" data-duration="0.7" data-media-start="0.2" data-track-index="0"></video>
+        <video id="s4" class="clip shot" style="z-index:2" src="assets/shots/v36-hills-city-view-h.mp4" muted playsinline data-start="3.7333" data-duration="1.9" data-media-start="0" data-track-index="1"></video>
+        <video id="s5" class="clip shot" style="z-index:1" src="assets/shots/v11-yacht-h.mp4" muted playsinline data-start="5.5667" data-duration="0.9333" data-media-start="0.3" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="6.5" data-track-index="2">
+        <svg id="fx" width="1920" height="1080" viewBox="0 0 1920 1080" data-layout-allow-overflow data-layout-allow-occlusion><g id="streaks"></g><circle id="ring" cx="960" cy="800" r="40" fill="none" stroke="#FFFFFF" stroke-width="0" opacity="1"/></svg>
+        <canvas id="gl" width="1920" height="1080"></canvas>
+        <div id="labWin" data-layout-allow-overflow data-layout-allow-occlusion><span class="lab" id="lab1" data-layout-allow-overflow data-layout-allow-occlusion></span><span class="lab" id="lab2" data-layout-allow-overflow data-layout-allow-occlusion></span></div>
+        <div id="numWrap" data-layout-allow-overflow data-layout-allow-occlusion><div id="num" data-layout-allow-overflow data-layout-allow-occlusion></div></div>
+        <div id="tag" data-layout-allow-overflow data-layout-allow-occlusion><div class="t1" id="tag1" data-layout-allow-overflow data-layout-allow-occlusion></div>
+          <div class="t2" id="tag2" data-layout-allow-overflow data-layout-allow-occlusion><svg viewBox="0 0 40 40"><path id="chk" d="M8 21 L17 30 L33 11" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        label: "LIKE GOAL",          // label over the number
+        labelHit: "GOAL HIT!",       // label after the goal
+        from: 12480,                 // likes when it appears
+        goal: 50000,                 // the goal
+        tag: "50K",                  // target printed on the tube end
+        colors: { porcelain: "#F4F5F8", like: "#F2122C", deep: "#6E0312", meniscus: "#FFE8EC" },
+        layout: {
+          thumbH: 262,               // big thumb height (px)
+          thumbLX: 404, thumbRX: 1516, thumbY: 800,   // thumb centres
+          numX: 960, numCapY: 800,   // number: centre x, centre of the digit caps
+          numMaxW: 740, numMaxFont: 260,
+          labelY: 632,               // label cap centre
+          labelFont: 56,
+          tubeX0: 590, tubeX1: 1330, tubeY: 975, tubeR: 26   // the fill tube
+        },
+        burst: { x: 960, y: 800, r0: 110, r1: 520, w: 26, d0: 1060,   // ring shock + speed streaks [angle deg, length, width, delay]
+          streaks: [[160, 430, 12, 0], [181, 470, 13, 0.02], [199, 400, 10, 0.035], [-17, 440, 12, 0.01], [3, 470, 13, 0.03], [21, 400, 10, 0.045]] },
+        timing: { thumbsIn: 0.12, tubeIn: 0.26, numIn: 0.32, labelIn: 0.44, count: 0.78, goal: 3.8, out: 5.7, end: 6.5 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, Ly = CONFIG.layout, C = CONFIG.colors, $ = (s) => document.querySelector(s), D = T.end, G = T.goal;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x)), cl01 = (x) => clamp(x, 0, 1);
+        const E = (n) => gsap.parseEase(n);
+        const eO3 = E("power3.out"), eIn3 = E("power3.in"), eIn2 = E("power2.in"), eIO = E("power2.inOut"), eB14 = E("back.out(1.4)"),
+              eB20 = E("back.out(2)"), eBIn = E("back.in(1.7)"), eO2 = E("power2.out"), eEl = E("elastic.out(1,0.45)");
+        const DEG = Math.PI / 180;
+
+        // ---------- renderer + camera (world units = page px on the z=0 plane, origin at the canvas centre) ----------
+        const W = 1920, H = 1080;
+        const renderer = new THREE.WebGLRenderer({ canvas: $("#gl"), alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+        renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 0);
+        renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+        const scene = new THREE.Scene();
+        const FOV = 18, L = (H / 2) / Math.tan(FOV / 2 * DEG);
+        const camera = new THREE.PerspectiveCamera(FOV, W / H, 100, 20000);
+        camera.position.set(0, 0, L); camera.lookAt(0, 0, 0); camera.updateMatrixWorld(); camera.updateProjectionMatrix();
+        const wx = (px) => px - W / 2, wy = (py) => H / 2 - py;
+
+        // studio environment: a lit dome, a wide softbox above-front for the clear-coat sheen, a strip key at the left
+        const envScene = new THREE.Scene();
+        envScene.add(new THREE.Mesh(new THREE.SphereGeometry(100, 48, 24), new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false,
+          vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 top = vec3(0.55,0.56,0.6); vec3 hor = vec3(0.32,0.31,0.32); vec3 low = vec3(0.06,0.055,0.06);" +
+            " vec3 c = y > 0.0 ? mix(hor, top, pow(clamp(y,0.0,1.0),0.7)) : mix(hor*0.6, low, clamp(-y*2.5,0.0,1.0)); gl_FragColor = vec4(c,1.0); }" })));
+        const hdr = (v) => new THREE.MeshBasicMaterial({ color: new THREE.Color(v, v, v * 0.97), side: THREE.DoubleSide });
+        const soft = new THREE.Mesh(new THREE.PlaneGeometry(150, 40), hdr(3.0)); soft.position.set(0, 70, 55); soft.lookAt(0, 0, 0); envScene.add(soft);
+        const strip = new THREE.Mesh(new THREE.PlaneGeometry(10, 80), hdr(2.0)); strip.position.set(-80, 20, 40); strip.lookAt(0, 0, 0); envScene.add(strip);
+        const strip2 = new THREE.Mesh(new THREE.PlaneGeometry(8, 70), hdr(1.2)); strip2.position.set(85, 10, 30); strip2.lookAt(0, 0, 0); envScene.add(strip2);
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        scene.environment = pmrem.fromScene(envScene, 0.02, 0.1, 400).texture;
+        scene.add(new THREE.HemisphereLight(0xf2f5ff, 0x3a2a26, 0.55));
+        const key = new THREE.DirectionalLight(0xfff4ea, 2.0); key.position.set(-700, 900, 1100); scene.add(key);
+        const rim = new THREE.DirectionalLight(0xd6e4ff, 0.9); rim.position.set(900, 300, -600); scene.add(rim);
+
+        // ---------- the liquid-fill porcelain material (world-space level + meniscus + specular sweep) ----------
+        const SW = { x: { value: -9999 }, w: { value: 34 }, a: { value: 0 } };
+        function fillUniforms(axis, cross) {
+          return { uAxis: { value: new THREE.Vector3().copy(axis) }, uCross: { value: new THREE.Vector3().copy(cross) },
+            uFill: { value: new THREE.Color(C.like) }, uDeep: { value: new THREE.Color(C.deep) }, uMenC: { value: new THREE.Color(C.meniscus) },
+            uLevel: { value: -9999 }, uQc: { value: 0 }, uSlope: { value: 0 }, uCurve: { value: 0 }, uWob: { value: 1.5 }, uPh: { value: 0 },
+            uMenW: { value: 1.1 }, uMen: { value: 1.2 }, uEmit: { value: 0.05 }, uDepthL: { value: 160 }, uSwX: SW.x, uSwW: SW.w, uSwA: SW.a };
+        }
+        function fillMat(U, o) {
+          const m = new THREE.MeshPhysicalMaterial(Object.assign({ color: new THREE.Color(C.porcelain), roughness: 0.32, metalness: 0,
+            clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 1.1 }, o || {}));
+          m.onBeforeCompile = (sh) => {
+            for (const k in U) sh.uniforms[k] = U[k];
+            sh.vertexShader = "varying vec3 vLgW;\n" + sh.vertexShader.replace("#include <worldpos_vertex>",
+              "#include <worldpos_vertex>\n  vLgW = (modelMatrix * vec4(transformed, 1.0)).xyz;");
+            sh.fragmentShader = "varying vec3 vLgW;\nuniform vec3 uAxis, uCross, uFill, uDeep, uMenC;\n" +
+              "uniform float uLevel, uQc, uSlope, uCurve, uWob, uPh, uMenW, uMen, uEmit, uDepthL, uSwX, uSwW, uSwA;\n" +
+              sh.fragmentShader
+                .replace("#include <color_fragment>", "#include <color_fragment>\n" +
+                  "  float lgS = dot(vLgW, uAxis), lgQ = dot(vLgW, uCross) - uQc;\n" +
+                  "  float lgL = uLevel + uSlope * lgQ - uCurve * lgQ * lgQ + uWob * (sin(lgQ * 0.045 + uPh) + 0.45 * sin(lgQ * 0.12 - uPh * 1.7));\n" +
+                  "  float lgD = lgS - lgL;\n" +
+                  "  float lgLiq = 1.0 - smoothstep(-0.9, 0.9, lgD);\n" +
+                  "  vec3 lgC = mix(uFill, uDeep, clamp(-lgD / uDepthL, 0.0, 1.0) * 0.55);\n" +
+                  "  lgC = mix(lgC, min(uFill * 1.45 + vec3(0.06, 0.02, 0.03), vec3(1.0)), smoothstep(-8.0, -1.0, lgD) * 0.55);\n" +
+                  "  diffuseColor.rgb = mix(diffuseColor.rgb, lgC, lgLiq);\n" +
+                  "  float lgMen = exp(-(lgD + 0.6) * (lgD + 0.6) / (2.0 * uMenW * uMenW));")
+                .replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\n  roughnessFactor = mix(roughnessFactor, 0.2, lgLiq);")
+                .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n" +
+                  "  totalEmissiveRadiance += uMenC * lgMen * uMen + lgC * lgLiq * uEmit;\n" +
+                  "  { float lgB = (vLgW.x + vLgW.y * 0.5 - uSwX) / uSwW; totalEmissiveRadiance += vec3(1.0, 0.96, 0.92) * exp(-lgB * lgB * 1.4) * uSwA; }");
+          };
+          return m;
+        }
+
+        // ---------- geometry: our own thumbs-up, built from extruded bevelled parts ----------
+        function rr(x0, y0, x1, y1, r) {          // rounded rect as an open point list (no duplicate closing point)
+          const pts = [], N = 10;
+          [[x1 - r, y0 + r, -Math.PI / 2], [x1 - r, y1 - r, 0], [x0 + r, y1 - r, Math.PI / 2], [x0 + r, y0 + r, Math.PI]].forEach(([cx, cy, a0]) => {
+            for (let i = 0; i <= N; i++) { const a = a0 + (i / N) * (Math.PI / 2); pts.push(new THREE.Vector2(cx + Math.cos(a) * r, cy + Math.sin(a) * r)); }
+          });
+          return new THREE.Shape(pts);
+        }
+        function smooth(g) {                       // smooth normals across the bevel facets (positions welded by value)
+          const pos = g.attributes.position, n = pos.count, fn = new Float32Array(n), nor = new Float32Array(n * 3), F = [];
+          const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
+          for (let i = 0; i < n; i += 3) { a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
+            e1.subVectors(c, b); e2.subVectors(a, b); e1.cross(e2).normalize(); F.push(e1.x, e1.y, e1.z); }
+          const map = new Map();
+          for (let i = 0; i < n; i++) { const k = Math.round(pos.getX(i) * 50) + "_" + Math.round(pos.getY(i) * 50) + "_" + Math.round(pos.getZ(i) * 50);
+            let arr = map.get(k); if (!arr) map.set(k, (arr = [])); arr.push(i); }
+          const cosT = Math.cos(60 * DEG);
+          map.forEach((arr) => { arr.forEach((i) => { const f = (i / 3 | 0) * 3; let sx = 0, sy = 0, sz = 0;
+            arr.forEach((j) => { const h = (j / 3 | 0) * 3; if (F[f] * F[h] + F[f + 1] * F[h + 1] + F[f + 2] * F[h + 2] >= cosT) { sx += F[h]; sy += F[h + 1]; sz += F[h + 2]; } });
+            const l = Math.hypot(sx, sy, sz) || 1; nor[i * 3] = sx / l; nor[i * 3 + 1] = sy / l; nor[i * 3 + 2] = sz / l; }); });
+          g.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
+          return g;
+        }
+        function ext(shape, depth, bev, bt) {
+          const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: bt, bevelSize: bev, bevelOffset: -bev,
+            bevelSegments: 7, curveSegments: 14, steps: 1 });
+          g.translate(0, 0, -depth / 2); return smooth(g);
+        }
+        function pathShape(start, segs) {          // lines / quadratic / cubic segments sampled to an open point list
+          const pts = [new THREE.Vector2(start[0], start[1])]; let p = start;
+          segs.forEach((g) => {
+            if (g[0] === "L") { pts.push(new THREE.Vector2(g[1], g[2])); p = [g[1], g[2]]; }
+            else if (g[0] === "Q") { for (let i = 1; i <= 10; i++) { const u = i / 10, m = 1 - u;
+              pts.push(new THREE.Vector2(m * m * p[0] + 2 * m * u * g[1] + u * u * g[3], m * m * p[1] + 2 * m * u * g[2] + u * u * g[4])); } p = [g[3], g[4]]; }
+            else { for (let i = 1; i <= 14; i++) { const u = i / 14, m = 1 - u;
+              pts.push(new THREE.Vector2(m * m * m * p[0] + 3 * m * m * u * g[1] + 3 * m * u * u * g[3] + u * u * u * g[5],
+                m * m * m * p[1] + 3 * m * m * u * g[2] + 3 * m * u * u * g[4] + u * u * u * g[6])); } p = [g[5], g[6]]; }
+          });
+          const A = pts[0], B = pts[pts.length - 1]; if (Math.hypot(A.x - B.x, A.y - B.y) < 0.01) pts.pop();
+          return new THREE.Shape(pts);
+        }
+        // design units: the icon spans x 1..95, y 1..104 (cuff on the left, fist on the right, thumb up)
+        const PARTS = (() => {
+          const P = [];
+          P.push({ g: ext(rr(1, 4, 20.5, 58, 6), 22, 4.5, 5.5), z: -1 });                 // cuff
+          const palm = pathShape([34, 1], [["L", 60, 1], ["Q", 64, 1, 64, 6], ["L", 64, 56], ["Q", 64, 61, 58, 61.5], ["Q", 53.5, 62, 53.5, 68],
+            ["C", 54, 78, 53, 88, 50.5, 95], ["C", 48, 103.5, 37, 104, 34.5, 96], ["C", 33, 88, 33.5, 78, 30.5, 70], ["Q", 27.5, 63, 26.5, 55],
+            ["L", 26, 10], ["Q", 26, 1, 34, 1]]);
+          P.push({ g: ext(palm, 24, 5.5, 7), z: 0 });                                        // palm + thumb, one volume
+          [[46.6, 60.4, 95], [32.2, 46.0, 92], [17.8, 31.6, 88], [4.0, 17.2, 82.5]].forEach(([y0, y1, x1]) =>
+            P.push({ g: ext(rr(42, y0, x1, y1, (y1 - y0) / 2 - 0.3), 18, 5, 5.5), z: 6 }));  // curled fingers, stepped, rounded knuckles
+          return P;
+        })();
+        const ICX = 48, ICY = 52.5, ICH = 103;        // icon centre and height in design units
+        function thumbMesh(mat, sizePx, mirror) {
+          const s = sizePx / ICH, outer = new THREE.Group(), body = new THREE.Group();
+          PARTS.forEach((p) => { const m = new THREE.Mesh(p.g, mat); m.position.set(-ICX, -ICY, p.z); body.add(m); });
+          body.scale.set(s * (mirror ? -1 : 1), s, s); outer.add(body);
+          return outer;
+        }
+
+        // ---------- the scene ----------
+        const thumbs = [-1, 1].map((side) => {
+          const U = fillUniforms(new THREE.Vector3(0, 1, 0), new THREE.Vector3(1, 0, 0));
+          const g = thumbMesh(fillMat(U), Ly.thumbH, side < 0); scene.add(g);
+          return { side, g, U, x: wx(side < 0 ? Ly.thumbLX : Ly.thumbRX), y: wy(Ly.thumbY) };
+        });
+        const TL = Ly.tubeX1 - Ly.tubeX0, TR = Ly.tubeR;
+        const tubeU = fillUniforms(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0));
+        tubeU.uMenW.value = 1.4; tubeU.uCurve.value = 0.012; tubeU.uWob.value = 0.6; tubeU.uDepthL.value = 900;
+        const tubeG = new THREE.CapsuleGeometry(TR, TL - 2 * TR, 16, 56); tubeG.rotateZ(Math.PI / 2);
+        const tube = new THREE.Mesh(tubeG, fillMat(tubeU, { roughness: 0.34 }));
+        const tubeCX = wx((Ly.tubeX0 + Ly.tubeX1) / 2), tubeCY = wy(Ly.tubeY);
+        tube.position.set(tubeCX, tubeCY, 0); scene.add(tube);
+
+        // ---------- motion, pure functions of t ----------
+        const V0 = CONFIG.from, V1 = CONFIG.goal;
+        // the count: a power3.out run to goal-5, then five readable ticks, the last one landing on the goal
+        const NT = 5, TICK = 0.15, VJ = V1 - NT, TJ = G - NT * TICK, CD = TJ - T.count;
+        function likes(t) {
+          if (t <= T.count) return V0;
+          if (t < TJ) return V0 + (VJ - V0) * eO3((t - T.count) / CD);
+          if (t >= G) return V1;
+          const n = Math.floor((t - TJ) / TICK), fr = (t - TJ - n * TICK) / TICK;
+          return VJ + n + eIO(cl01((fr - 0.45) / 0.55));
+        }
+        const inv1 = (c) => T.count + CD * (1 - Math.cbrt(1 - (c - V0) / (VJ - V0)));
+        const rate1 = (t) => { const u = cl01((t - T.count) / CD); return 3 * (VJ - V0) * (1 - u) * (1 - u) / CD; };
+        const eIn2b = E("power2.in");
+        function qAt(t) {                             // display fill 0..1
+          const q0 = V0 / V1;
+          if (t <= T.count) return q0;
+          if (t < TJ) return q0 + (0.9 - q0) * eO3((t - T.count) / CD);
+          if (t >= G) return 1;
+          return 0.9 + 0.1 * eIn2b((t - TJ) / (G - TJ));
+        }
+        // the thumb's fist fills during the run, the thumb digit itself fills in the final surge; the tube's last 16% too
+        const fThumb = (q) => q <= 0.9 ? 0.6 * q / 0.9 : 0.6 + 0.4 * (q - 0.9) / 0.1;
+        const fTube = (q) => q <= 0.9 ? 0.84 * q / 0.9 : 0.84 + 0.16 * (q - 0.9) / 0.1;
+        const spring = (tau, w, k) => tau <= 0 ? 0 : Math.exp(-k * tau) * Math.sin(w * tau);
+        function thumbPose(th, t) {
+          const s = th.side, t0 = T.thumbsIn + (s > 0 ? 0.06 : 0);
+          const u = cl01((t - t0) / 0.62);
+          let x = th.x, y = th.y, sc = 0.04 + 0.96 * eB20(u), yaw = -s * 22 * DEG + s * 200 * DEG * (1 - eB14(u)), rz = 0, sx = 1, sy = 1;
+          y += -70 * (1 - eO3(u));
+          const idle = t - t0; y += 5 * Math.sin(idle * 2.6 + (s > 0 ? 1.3 : 0)); rz += 1.6 * DEG * Math.sin(idle * 2.1 + (s > 0 ? 0.6 : 2.2));
+          yaw += 3 * DEG * Math.sin(idle * 1.7 + (s > 0 ? 0.4 : 1.9));
+          // anticipation squash just before the goal, then the pump: an upward thrust, a stretch and an outward lean on a damped spring
+          if (t > G - 0.12 && t < G) { const a = eIO((t - (G - 0.12)) / 0.12); sy *= 1 - 0.07 * a; sx *= 1 + 0.04 * a; y -= 8 * a; }
+          if (t >= G) { const tau = t - G, p = spring(tau, 2 * Math.PI * 2.1, 4.6), q = Math.exp(-7 * tau);
+            y += 58 * p - 8 * q * (tau < 0.05 ? 1 - tau / 0.05 : 0); sy *= 1 + 0.16 * p; sx *= 1 - 0.08 * p; sc *= 1 + 0.14 * Math.exp(-3.2 * tau) * (1 - Math.exp(-40 * tau));
+            rz += -s * 16 * DEG * spring(tau, 2 * Math.PI * 1.5, 3.4); }
+          // exit: spin away into nothing
+          const X0 = T.out + (s > 0 ? 0.04 : 0), xu = cl01((t - X0) / 0.3);
+          if (t >= X0) { sc *= 1 - eBIn(xu); yaw += -s * 110 * DEG * eIn2(xu); }
+          return { x, y, sc: Math.max(sc, 0), yaw, rz, sx, sy, vis: t >= t0 && xu < 1 };
+        }
+        function tubePose(t) {
+          const u = cl01((t - T.tubeIn) / 0.6);
+          let sx = u <= 0 ? 0 : eEl(u) * 0.98 + 0.02 * u, syz = 0.35 + 0.65 * eB20(cl01((t - T.tubeIn) / 0.34));
+          if (t >= G) syz *= 1 + 0.12 * spring(t - G, 2 * Math.PI * 2.4, 5);
+          const X0 = T.out + 0.06, xu = cl01((t - X0) / 0.28);
+          if (t >= X0) { sx *= 1 - eIn3(xu); syz *= 1 - 0.55 * eIn2(xu); }
+          return { sx: Math.max(sx, 0.0001), syz, vis: t >= T.tubeIn && xu < 1 };
+        }
+        function sweepAt(t) {                         // [world x of the specular band, amplitude]
+          const a = -W / 2 - 300, b = W / 2 + 300;
+          if (t >= T.thumbsIn + 0.6 && t < T.thumbsIn + 1.2) return [a + (b - a) * eIO((t - T.thumbsIn - 0.6) / 0.6), 0.4];
+          if (t >= G + 0.03 && t < G + 0.37) return [a + (b - a) * eIO((t - G - 0.03) / 0.34), 1.0];
+          if (t >= T.out - 0.8 && t < T.out - 0.2) return [a + (b - a) * eIO((t - T.out + 0.8) / 0.6), 0.4];
+          return [-9999, 0];
+        }
+        const SLOSH = [[inv1(20000), 0.07], [inv1(30000), -0.07], [inv1(40000), 0.07]];
+        for (let n = 0; n < NT; n++) SLOSH.push([TJ + (n + 0.75) * TICK, n % 2 ? 0.045 : -0.045]);
+        SLOSH.push([G, 0.26]);
+        const sloshAt = (t) => SLOSH.reduce((a, [t0, A]) => a + A * spring(t - t0, 2 * Math.PI * 1.5, 3.4), 0);
+        const V3 = new THREE.Vector3();
+        function worldY(obj, x, y) { V3.set(x, y, 0); obj.localToWorld(V3); return V3.y; }
+        function renderAt(t) {
+          t = clamp(t, 0, D);
+          const q = qAt(t), done = t >= G, over = done ? 0.15 * eO2(cl01((t - G) / 0.12)) : 0;
+          thumbs.forEach((th) => {
+            const ps = thumbPose(th, t), g = th.g;
+            g.visible = ps.vis; g.position.set(ps.x, ps.y, 0); g.rotation.set(0, ps.yaw, ps.rz); g.scale.set(ps.sc * ps.sx, ps.sc * ps.sy, ps.sc);
+            g.updateMatrixWorld(true);
+            const body = g.children[0], yb = worldY(body, 0, 1 - ICY), yt = worldY(body, 0, 104 - ICY);
+            const U = th.U, f = fThumb(q) + over;
+            U.uLevel.value = yb - 4 + (yt - yb + 4) * f;
+            U.uQc.value = ps.x;
+            const slosh = sloshAt(t);
+            const inSl = 0.18 * spring(t - T.thumbsIn - 0.3, 2 * Math.PI * 1.2, 3.5);
+            U.uSlope.value = -th.side * (slosh + inSl) - ps.rz * 0.5;
+            U.uWob.value = 1.4 + 2.5 * Math.exp(-Math.max(0, t - G) * 3) * (t >= G ? 1 : 0);
+            U.uPh.value = t * 6.0 + th.side;
+            U.uMen.value = done ? 1.25 + 2.2 * Math.exp(-(t - G) / 0.05) : 1.25 + 0.8 * cl01((t - TJ) / (G - TJ));
+            U.uEmit.value = done ? 0.08 + 0.3 * Math.exp(-(t - G) / 0.18) : 0.05 + 0.03 * q;
+          });
+          const tp = tubePose(t);
+          tube.visible = tp.vis; tube.scale.set(tp.sx, tp.syz, tp.syz);
+          const local = -TL / 2 - TR * 0.3 + (TL + TR * 0.3) * (fTube(q) + over);
+          tubeU.uLevel.value = tubeCX + local * tp.sx; tubeU.uQc.value = tubeCY;
+          tubeU.uPh.value = t * 5; tubeU.uSlope.value = 0;
+          tubeU.uLevel.value += 26 * sloshAt(t);           // the tube's front surges with the same slosh
+          tubeU.uMen.value = done ? 1.4 + 2.2 * Math.exp(-(t - G) / 0.05) : 1.4;
+          tubeU.uEmit.value = done ? 0.08 + 0.3 * Math.exp(-(t - G) / 0.2) : 0.06;
+          tubeU.uCurve.value = 0.012;
+          key.intensity = 2.0 + (t >= G ? 1.3 * Math.exp(-(t - G) / 0.14) : 0);
+          const sw = sweepAt(t); SW.x.value = sw[0]; SW.a.value = sw[1];
+          scene.updateMatrixWorld(true);
+          renderer.render(scene, camera);
+          return tp;
+        }
+        window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") { renderAt(e.detail.time); domAt(e.detail.time); } });
+
+        // ---------- DOM: label, odometer number, tag ----------
+        let domAt = () => {};
+        const FACES = ["900 100px Archivo", "800 100px Archivo", "900 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          // label
+          const lab1 = $("#lab1"), lab2 = $("#lab2"), labWin = $("#labWin");
+          lab1.textContent = CONFIG.label; lab2.textContent = CONFIG.labelHit;
+          [lab1, lab2].forEach((l) => (l.style.fontSize = Ly.labelFont + "px"));
+          const lw = Math.max(lab1.offsetWidth, lab2.offsetWidth);
+          labWin.style.width = (lw + 48) + "px";
+          lab2.style.left = (24 + (lw - lab2.offsetWidth) / 2) + "px"; lab1.style.marginLeft = ((lw - lab1.offsetWidth) / 2) + "px";
+          labWin.style.transform = "translate(" + (Ly.numX - (lw + 48) / 2) + "px," + (Ly.labelY - 8 - Ly.labelFont * 0.5) + "px)";
+
+          // number: fit the font so 5 digits + comma fit the width
+          const cv = document.createElement("canvas").getContext("2d");
+          const meas = (fs) => { cv.font = "900 " + fs + "px Archivo"; try { cv.fontStretch = "semi-condensed"; } catch (e) {}
+            let adv = 0; for (let d = 0; d < 10; d++) adv = Math.max(adv, cv.measureText(String(d)).width);
+            const m0 = cv.measureText("0"), mc = cv.measureText(",");
+            return { adv, comma: mc.width, capA: m0.actualBoundingBoxAscent, capD: m0.actualBoundingBoxDescent, fA: m0.fontBoundingBoxAscent, fD: m0.fontBoundingBoxDescent }; };
+          let FS = Ly.numMaxFont, M = meas(FS);
+          const widthOf = (m) => 5 * (m.adv + 4) + m.comma * 0.92;
+          if (widthOf(M) > Ly.numMaxW) { FS = Math.floor(FS * Ly.numMaxW / widthOf(M)); M = meas(FS); }
+          const ADV = Math.ceil(M.adv + 4), CH = Math.ceil(M.capA + 46);
+          const base = (CH - (M.fA + M.fD)) / 2 + M.fA;          // baseline inside a CH line box
+          const capMid = base - (M.capA - M.capD) / 2;           // ink centre of a digit inside the cell
+          const num = $("#num"), cols = [];
+          const mkCell = (ch, parent) => { const c = document.createElement("span"); c.className = "cell"; c.style.height = CH + "px"; c.style.lineHeight = CH + "px";
+            c.style.fontSize = FS + "px"; const bk = document.createElement("b"); bk.className = "bk"; bk.textContent = ch;
+            const fr = document.createElement("b"); fr.className = "fr"; fr.textContent = ch; c.appendChild(bk); c.appendChild(fr); parent.appendChild(c); return fr; };
+          const fronts = [];
+          [4, 3, -1, 2, 1, 0].forEach((k) => {
+            if (k < 0) { const c = document.createElement("span"); c.className = "comma"; c.style.width = Math.ceil(M.comma * 0.92) + "px"; num.appendChild(c);
+              const f = mkCell(",", c); f.parentNode.style.width = Math.ceil(M.comma * 0.92) + "px"; fronts.push({ el: f, x: 0 }); return; }
+            const col = document.createElement("span"); col.className = "col"; col.style.width = ADV + "px"; col.style.height = CH + "px";
+            // the window hugs the ink (cap top - stroke, baseline + stroke + extrusion), so a rolling digit is cut at the number's edges
+            col.style.clipPath = "inset(" + Math.max(0, Math.floor(base - M.capA - 13)) + "px -80px " + Math.max(0, Math.floor(CH - base - 25)) + "px -80px)";
+            const reel = document.createElement("span"); reel.className = "reel"; col.appendChild(reel);
+            for (let d = 0; d <= 10; d++) fronts.push({ el: mkCell(String(d % 10), reel), x: 0 });
+            const fid = "mb" + k; const svgNS = "http://www.w3.org/2000/svg";
+            num.appendChild(col); cols.push({ k, reel, col, fid });
+          });
+          // vertical motion blur filters per column (SVG), used only while a column spins fast
+          const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"); svg.setAttribute("width", "0"); svg.setAttribute("height", "0");
+          svg.style.position = "absolute"; document.body.appendChild(svg);
+          cols.forEach((c) => { svg.insertAdjacentHTML("beforeend", '<filter id="' + c.fid + '" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur id="' + c.fid + 'g" stdDeviation="0 0"/></filter>');
+            c.gb = document.getElementById(c.fid + "g"); });
+          num.querySelectorAll("*").forEach((e) => { e.setAttribute("data-layout-allow-overflow", ""); e.setAttribute("data-layout-allow-occlusion", ""); });
+          const NW = num.offsetWidth;
+          // the face gradient + a sheen band (painted at runtime, per glyph, sized to the whole number so the sweep is continuous)
+          const SHEEN = "linear-gradient(105deg, rgba(255,255,255,0) 40%, rgba(255,255,255,.95) 50%, rgba(255,255,255,0) 60%)";
+          const FACE = "linear-gradient(180deg, #FFFFFF 0%, #FFFFFF " + Math.round((base - M.capA * 0.55) / CH * 100) + "%, #DDE3EC " + Math.round(base / CH * 100) + "%)";
+          const frs = Array.from(num.querySelectorAll(".fr"));
+          frs.forEach((f) => { let x = 0, el = f.parentNode; while (el && el !== num) { if (el.classList.contains("col") || el.classList.contains("comma")) { x = el.offsetLeft; break; } el = el.parentNode; }
+            f.__x = x; f.style.backgroundImage = SHEEN + ", " + FACE; f.style.backgroundRepeat = "no-repeat";
+            f.style.backgroundSize = (NW * 3) + "px " + CH + "px, 100% 100%"; f.style.backgroundPosition = (NW * 1.6 - x) + "px 0px, 0px 0px";
+            f.style.webkitBackgroundClip = "text"; f.style.backgroundClip = "text"; f.style.webkitTextFillColor = "transparent"; f.style.color = "transparent"; });
+          const numWrap = $("#numWrap");
+          const NX = Ly.numX - NW / 2, NY = Ly.numCapY - capMid;
+          gsap.set(numWrap, { x: NX, y: NY, transformOrigin: (NW / 2) + "px " + capMid + "px" });
+
+          // glow + tag pins
+          $("#tag1").textContent = CONFIG.tag;
+          gsap.set("#tag", { x: Ly.tubeX1 - 70, y: Ly.tubeY, scale: 0 });
+
+          function colPos(v, k, t) {
+            const p = Math.pow(10, k), q = Math.floor(v / p + 1e-9), d = q % 10, lower = v - q * p;
+            if (k === 0) return t < TJ ? d : d + lower;                      // units: snaps (blurred) on the run, rolls on the final ticks
+            const r = clamp(lower - (p - 1), 0, 1); if (r > 0) return d + r; // odometer carry during the last unit (the final ticks)
+            const c = q * p;                                                 // a carry that happened faster than a frame: roll it after the fact
+            if (c > V0 && c <= VJ) { const tc = inv1(c), R = clamp(0.6 * p / Math.max(rate1(tc), 1), 0, 0.12);
+              if (R >= 1 / 30 && t >= tc && t - tc < R) return (d === 0 ? 10 : d) - 1 + eO2((t - tc) / R); }
+            return d;
+          }
+          domAt = function (t) {
+            t = clamp(t, 0, D);
+            const v = Math.min(likes(t), V1), rate = Math.abs(likes(t + 1 / 60) - likes(t - 1 / 60)) * 30;
+            cols.forEach((c) => {
+              const pos = colPos(v, c.k, t);
+              c.reel.style.transform = "translate3d(0," + (-pos * CH).toFixed(2) + "px,0)";
+              const sp = rate / Math.pow(10, c.k);            // digits per second on this column
+              const bl = sp > 6 ? Math.min(16, (sp - 6) * 0.5) : 0;
+              c.gb.setAttribute("stdDeviation", "0 " + bl.toFixed(2));
+              c.col.style.filter = bl > 0.05 ? "url(#" + c.fid + ")" : "none";
+            });
+            // the number's sheen at the goal
+            const sp = t >= G + 0.04 && t < G + 0.6 ? eO2((t - G - 0.04) / 0.56) : (t < G + 0.04 ? 0 : 1);
+            const bx = NW * 1.6 + (-NW * 3.2 - NW * 1.6) * sp;
+            frs.forEach((f) => { f.style.backgroundPosition = (bx - f.__x).toFixed(1) + "px 0px, 0px 0px"; });
+          };
+
+          const tl = gsap.timeline({ paused: true });
+          Look.drive(tl, 0, D, (p) => { renderAt(p * D); domAt(p * D); });
+
+          // number: slams in at full alpha under a blur, punches at the goal, collapses on exit
+          gsap.set(numWrap, { opacity: 0, scale: 1.5 });
+          tl.fromTo(numWrap, { opacity: 0 }, { opacity: 1, duration: 0.05, ease: "none", immediateRender: false }, T.numIn);
+          tl.fromTo(numWrap, { scale: 1.5, filter: "blur(14px) drop-shadow(0 16px 22px rgba(0,0,0,.5))" },
+            { scale: 1, filter: "blur(0px) drop-shadow(0 16px 22px rgba(0,0,0,.5))", duration: 0.34, ease: "back.out(1.7)", immediateRender: false }, T.numIn);
+          tl.set(numWrap, { scaleX: 1.1, scaleY: 0.86 }, G);
+          tl.to(numWrap, { scaleX: 1.12, scaleY: 1.12, duration: 0.08, ease: "power2.out" }, G + 0.067);
+          tl.to(numWrap, { scaleX: 1, scaleY: 1, duration: 0.42, ease: "elastic.out(1,0.5)" }, G + 0.147);
+          tl.to(numWrap, { scaleY: 0, scaleX: 1.08, filter: "blur(6px) drop-shadow(0 16px 22px rgba(0,0,0,.5))", duration: 0.24, ease: "power3.in" }, T.out + 0.08);
+          tl.set(numWrap, { opacity: 0 }, T.out + 0.32);
+
+          // label: masked rise, roll at the goal, masked drop on exit
+          gsap.set(lab1, { yPercent: 210 }); gsap.set(lab2, { yPercent: 210 });
+          tl.set(lab1, { visibility: "hidden" }, 0); tl.set(lab1, { visibility: "visible" }, T.labelIn);
+          tl.fromTo(lab1, { yPercent: 160 }, { yPercent: 0, duration: 0.42, ease: "back.out(1.6)", immediateRender: false }, T.labelIn);
+          tl.to(lab1, { yPercent: -200, duration: 0.12, ease: "power2.in" }, G);
+          tl.set(lab1, { visibility: "hidden" }, G + 0.12);
+          tl.set(lab2, { visibility: "visible" }, G + 0.06);
+          tl.fromTo(lab2, { yPercent: 160 }, { yPercent: 0, duration: 0.32, ease: "back.out(1.8)", immediateRender: false }, G + 0.06);
+          tl.to(lab2, { yPercent: 210, duration: 0.2, ease: "power3.in" }, T.out);
+          tl.set(lab2, { visibility: "hidden" }, T.out + 0.2);
+
+          // tag: pops on the tube end, rolls to a check at the goal
+          tl.to("#tag", { scale: 1, duration: 0.4, ease: "back.out(2.6)" }, T.tubeIn + 0.38);
+          gsap.set("#tag2", { yPercent: 170 });
+          tl.to("#tag1", { yPercent: -130, duration: 0.12, ease: "power2.in" }, G);
+          tl.set("#tag1", { visibility: "hidden" }, G + 0.12);
+          tl.set("#tag2", { visibility: "visible" }, G);
+          tl.fromTo("#tag2", { yPercent: 130 }, { yPercent: 0, duration: 0.3, ease: "back.out(2)", immediateRender: false }, G);
+          const ck = $("#chk"), cl = ck.getTotalLength();
+          gsap.set(ck, { strokeDasharray: cl + 2, strokeDashoffset: cl + 1 });
+          tl.to(ck, { strokeDashoffset: 0, duration: 0.22, ease: "power2.out" }, G + 0.06);
+          tl.to("#tag", { scale: 0, duration: 0.16, ease: "back.in(2)" }, T.out);
+          tl.set("#tag", { visibility: "hidden" }, T.out + 0.16);
+
+          // light: the glow behind the number (held 3 frames at peak), the footage expose + a small shake on the cut
+          // the burst: one tapered ring shock that thins to nothing (never fades) + thick tapered speed streaks from the frame edges
+          const ring = $("#ring"), BC = CONFIG.burst;
+          ring.setAttribute("cx", BC.x); ring.setAttribute("cy", BC.y);
+          Look.drive(tl, G, 0.3, (p) => { const u = p, on = p > 0 && p < 1;
+            ring.setAttribute("r", (BC.r0 + (BC.r1 - BC.r0) * eO3(u)).toFixed(1));
+            ring.setAttribute("stroke-width", on ? (BC.w * Math.pow(1 - u, 2)).toFixed(2) : "0"); });
+          const sg = $("#streaks"), NS = "http://www.w3.org/2000/svg";
+          BC.streaks.forEach(([deg, L0, w0, dl], i) => {
+            const pg = document.createElementNS(NS, "polygon"); pg.setAttribute("fill", "#FFFFFF"); pg.setAttribute("points", "0,0 0,0 0,0"); sg.appendChild(pg);
+            const a = deg * DEG, dx = Math.cos(a), dy = Math.sin(a), px = -dy, py = dx, D0 = BC.d0, LIFE = 0.34;
+            Look.drive(tl, G + dl, LIFE, (p) => {
+              if (p <= 0 || p >= 1) { pg.setAttribute("points", "0,0 0,0 0,0"); return; }
+              const env = p < 0.18 ? eO2(p / 0.18) : 1 - eIn2((p - 0.18) / 0.82);
+              const dB = D0 - 170 * eO3(p), dT = dB - L0 * env, w = w0 * env;
+              const bx = BC.x + dx * dB, by = BC.y + dy * dB, tx = BC.x + dx * dT, ty = BC.y + dy * dT;
+              pg.setAttribute("points", (bx + px * w / 2).toFixed(1) + "," + (by + py * w / 2).toFixed(1) + " " + (bx - px * w / 2).toFixed(1) + "," +
+                (by - py * w / 2).toFixed(1) + " " + tx.toFixed(1) + "," + ty.toFixed(1));
+            });
+          });
+          if (plate) {
+            Look.expose(tl, G, { target: "#push", peak: 1.08, dur: 0.26, saturate: 1.06 });
+            Look.impact(tl, G, { shake: "#shake", amp: 5, dur: 0.26, flash: 0, zoom: 1.012 });
+            Look.push(tl, "#push", 0, 3.8, { to: 1.03 });
+          }
+
+          tl.set({}, {}, D);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+          renderAt(0); domAt(0);
+        });
+        renderAt(0);
+      })();
+    </script>
+  </body>
+</html>

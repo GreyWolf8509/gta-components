@@ -1,0 +1,154 @@
+<!doctype html>
+<!-- GTA-niche 16 SFX word, variant B (9:16 Shorts, 1080x1920, 30 fps): stacked "BR / UH".
+     The reaction word as a stacked block in the middle of the Shorts safe zone, built as real geometry: extruded, bevelled
+     Archivo Black letters (Three.js), wrapped in one thick ink outline with a drop shadow. The letters pop in one by one as
+     white enamel; then a caption-yellow liquid fills the block from the bottom behind a wobbling meniscus with a hot band.
+     The payoff is the fill hitting the top: the block locks in with a pop, a quick shake, a key light raking across the
+     bevels and one specular sweep. See ../DECISIONS.md. Variable: bg "plate" (sample GTA V footage) / "none" (transparent). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <script src="media/sfx3d.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Archivo", sans-serif; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; pointer-events: none; }
+      #word { position: absolute; inset: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="4" data-width="1080" data-height="1920">
+      <div id="shake"><div id="push">
+        <video id="shotA" class="clip shot" src="assets/shots/v32-skydive-towers-v.mp4" muted playsinline data-start="0" data-duration="0.8" data-media-start="0.05" data-track-index="0"></video>
+        <video id="shotB" class="clip shot" src="assets/shots/v37-tower-looking-up-v.mp4" muted playsinline data-start="0.8" data-duration="1.94" data-media-start="0" data-track-index="0"></video>
+        <video id="shotC" class="clip shot" src="assets/shots/v36-hills-city-view-v.mp4" muted playsinline data-start="2.74" data-duration="0.96" data-media-start="0.1" data-track-index="0"></video>
+        <video id="shotD" class="clip shot" src="assets/shots/v45-beach-aerial-v.mp4" muted playsinline data-start="3.7" data-duration="0.3" data-media-start="0.2" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="4" data-track-index="1"><div id="word"></div></div>
+    </div>
+    <script>
+      const CONFIG = {
+        // The reaction word, one entry per stacked line.
+        lines: ["BR", "UH"],
+        font: { size: 600, gap: 66 },                                  // Archivo Black (80% width); gap between the lines (px)
+        place: { cx: 504, cy: 842 },                                   // block centre: the middle of the Shorts safe zone (x 72-936)
+        depth: 104, bevel: 9, tilt: 0.30, yaw: -0.16,                 // extrusion (px) and its direction: down and to the right
+        ink: 16, shadow: 0.6,                                          // ink outline (px) and drop-shadow strength
+        colors: {
+          face: ["#FFFFFF", "#F5F7FA", "#DCE1EA"], side: ["#7F889A", "#161A22"], lip: "#E6EBF2",       // white enamel state
+          fillFace: ["#FFE84A", "#FFC814", "#FF8E0A"], fillSide: ["#C95F00", "#2E0C00"], fillLip: "#FFC23A",  // the yellow fill
+          hot: "#FFF8D8", ink: "#0B0C10"
+        },
+        timing: {
+          first: 0.8,      // the first letter pops (on the cut)
+          step: 0.06,       // between letters
+          pop: 0.1,         // a letter's pop
+          fill: 1.12,       // the liquid starts rising from the bottom
+          lock: 1.62,       // it hits the top: the payoff lock-in
+          out: 3.5,         // exit: the block collapses into its centre, gone on the 3.70 cut
+          end: 4.0
+        }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, C = CONFIG.colors, $ = (s) => document.querySelector(s);
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x)), H = Look.hash;
+        const E = (n) => gsap.parseEase(n), eOut = E("power2.out"), eIO = E("power2.inOut"), eSine = E("sine.inOut"), eIn = E("power3.in"), eFill = E("sine.inOut");
+        Promise.all(["900 100px Archivo"].map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          const G = window.SFX_GLYPHS, cap = G.cap * CONFIG.font.size / G.upm, nL = CONFIG.lines.length;
+          const blockH = nL * cap + (nL - 1) * CONFIG.font.gap, top = CONFIG.place.cy - blockH / 2;
+          const S = SFX3D({
+            W: 1080, H: 1920, glyphs: G, pcx: CONFIG.place.cx, pcy: CONFIG.place.cy, fov: 10,
+            lines: CONFIG.lines.map((tx, i) => ({ text: tx, cx: CONFIG.place.cx, base: top + cap + i * (cap + CONFIG.font.gap), size: CONFIG.font.size })),
+            tracking: -0.01, depth: CONFIG.depth, bevel: CONFIG.bevel, tilt: CONFIG.tilt, yaw: CONFIG.yaw,
+            inkPx: CONFIG.ink, inkColor: C.ink, shadow: CONFIG.shadow, shadowOff: [8, 18], curveSeg: 16, bevelSeg: 5, specW: 0.22, hotW: 9,
+            hot: C.hot, fill: { set: "fill" },
+            sets: {
+              base: { face: C.face, side: C.side, lip: C.lip, metal: [0.0, 0.55], rough: [0.28, 0.3], emis: [0.5, 0.06] },
+              fill: { face: C.fillFace, side: C.fillSide, lip: C.fillLip, metal: [0.0, 0.7], rough: [0.24, 0.26], emis: [0.26, 0.05], tint: [1.0, 0.4] }
+            }
+          });
+          $("#word").appendChild(S.canvas);
+          const Ls = S.letters, N = Ls.length;
+          const tIn = Ls.map((L, i) => T.first + T.step * i);
+          const jitY = Ls.map((L, i) => (H(i * 7 + 1) - 0.5) * 10), jitR = Ls.map((L, i) => (H(i * 7 + 3) - 0.5) * 0.08);
+          const spin = Ls.map((L, i) => (H(i * 7 + 5) - 0.5) * 0.55);
+          const yBot = top + blockH + 46, yTop = top - 34;
+
+          function stateAt(t) {
+            const st = { letters: [], word: { px: CONFIG.place.cx, py: CONFIG.place.cy } };
+            const v = t - T.lock;
+            // lock-in pop: a fast punch to 1.08, then a small damped wobble; a slow push through the hold
+            let g = 1;
+            if (v >= 0) g = v < 0.16 ? 1 + 0.08 * Math.sin(Math.PI * v / 0.16) : 1 + 0.022 * Math.exp(-(v - 0.16) * 6) * Math.sin((v - 0.16) * 26);
+            g *= 1 + 0.02 * eSine(clamp(v / (T.out - T.lock), 0, 1));
+            // exit: a 0.2 s collapse into the block centre, height leading width, reaching zero on the 3.70 cut
+            const xv = t - T.out; let ink = 1, rz = 0, gx = g, gy = g;
+            if (xv >= 0) { const by = clamp(xv / 0.17, 0, 1), bx = clamp((xv - 0.03) / 0.17, 0, 1); gy = g * (1 - eIn(by)); gx = g * (1 - eIn(bx)); ink = clamp(Math.min(gx, gy) * 1.3, 0, 1); }
+            // quick shake on the lock (word layer)
+            let sx = 0, sy = 0;
+            if (v >= 0 && v < 0.26) { const fr = Math.floor(v * 30), e2 = Math.pow(1 - v / 0.26, 2); sx = (H(fr * 3 + 21) * 2 - 1) * 8 * e2; sy = (H(fr * 3 + 22) * 2 - 1) * 8 * e2; }
+            Object.assign(st.word, { x: sx, y: sy, sx: gx, sy: gy, rz });
+            const gone = xv >= 0 && gy < 0.02;
+            const hold = clamp((t - T.lock) / (T.out - T.lock), 0, 1);
+            Ls.forEach((L, i) => {
+              const u = t - tIn[i];
+              if (u < 0 || gone) { st.letters.push({ vis: false }); return; }
+              let s, r = jitR[i], y = jitY[i];
+              if (u < T.pop) { const p = u / T.pop; s = 0.35 + 0.81 * eOut(p); r += spin[i] * (1 - p); }
+              else { const w = u - T.pop; s = 1 + 0.16 * Math.exp(-w * 9) * Math.cos(w * 24); }
+              y += (s - 1) * L.cap * 0.5;                              // pop about the letter's centre
+              st.letters.push({ vis: true, top: u < T.pop + 0.1, s, rz: r, y, yaw: -0.04 + 0.08 * eSine(hold) });
+            });
+            // the liquid fill: rises bottom to top with a wobbling meniscus and a hot band, settles as it locks
+            const fp = clamp((t - T.fill) / (T.lock - T.fill), 0, 1);
+            const lvl = t < T.fill ? yBot + 400 : yBot + (yTop - yBot) * eFill(fp) - (v > 0 ? v * 400 : 0);
+            const amp = t < T.fill ? 0 : 11 * (1 - 0.55 * fp) * (v > 0 ? Math.exp(-v * 10) : 1);
+            const hot = t < T.fill ? 0 : v < 0 ? 2.2 : 2.2 + 1.8 * Math.exp(-v / 0.08);
+            st.fill = { y: lvl, amp, ph: t * 15, hot };
+            // light: key rake + one specular sweep on the lock, bloom peaks for 3 frames
+            const rk = eIO(clamp((t - T.lock + 0.05) / 0.7, 0, 1));
+            st.key = { ang: -0.9 + 1.8 * rk, int: 2.0 + 2.0 * Math.exp(-Math.pow((v - 0.08) / 0.15, 2)) };
+            const spP = clamp((t - T.lock - 0.03) / 0.25, 0, 1), x0 = CONFIG.place.cx - 700, x1 = CONFIG.place.cx + 900;
+            st.spec = { x: x0 + (x1 - x0) * eIO(spP), amp: spP > 0 && spP < 1 ? 0.6 * Math.sin(Math.PI * spP) : 0 };
+            st.flash = v < 0 ? 0 : v < 0.1 ? 0.16 : 0.16 * Math.exp(-(v - 0.1) / 0.12);
+            st.bloom = 0.14 + (v < 0 ? 0 : v < 0.1 ? 0.5 : 0.5 * Math.exp(-(v - 0.1) / 0.13));
+            st.ink = ink;
+            return st;
+          }
+
+          const tl = gsap.timeline({ paused: true });
+          // the layer is hidden outright once the word is gone, so the exit always reaches an empty frame
+          const render = (t) => { const on = S.draw(stateAt(t)); $("#word").style.visibility = on ? "visible" : "hidden"; };
+          Look.drive(tl, 0, T.end, (p) => render(p * T.end));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") render(e.detail.time); });
+          Look.mblur(tl, "#word", T.out, 0.17, { x: 0, y: 0, to: [0, 8], ease: "power2.in" });
+          if (plate) {
+            Look.impact(tl, T.lock, { shake: "#shake", amp: 16, dur: 0.3, zoom: 1.04, flash: 0 });
+            Look.expose(tl, T.lock, { target: "#push", peak: 1.06, hold: 3 / 30, dur: 0.3, saturate: 1.12 });
+            Look.push(tl, "#push", 0, T.end, { from: 1.0, to: 1.04 });
+          }
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+          render(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,265 @@
+<!doctype html>
+<!-- 10 Avatar cutout, variant A (16:9, 1920x1080, 30 fps, 6.4 s): "Presenter avatar".
+     Our own illustrated presenter bust as a die-cut vinyl sticker, docked bottom-left and cropped by the frame edge,
+     with a slanted cyan name blade across the chest. It springs up from below, talks (lip-sync, head bob, blink),
+     hits a SHOCK state on the payoff, then drops back out. Variable bg: "plate" (sample GTA V footage) / "none" (transparent). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="media/avatar.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; }
+      #avPos { position: absolute; will-change: transform; }
+      #avSq { position: absolute; inset: 0; }
+      #avSq svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+      #barWrap { position: absolute; }
+      #barIn { position: absolute; left: 0; top: 0; }
+      .barName { position: absolute; white-space: nowrap; color: #fff; font-family: "Archivo"; font-weight: 900; font-stretch: 72%;
+        letter-spacing: -0.01em; line-height: 1; paint-order: stroke fill; -webkit-text-stroke: 8px #15110E;
+        text-shadow: 0 4px 0 rgba(10, 30, 40, .35); transform: skewX(-10deg); }
+      .barTag { position: absolute; white-space: nowrap; color: #05384C; font-family: "Inter"; font-weight: 800; line-height: 1;
+        letter-spacing: 0.01em; transform: skewX(-10deg); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="6.4" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="s1" class="clip shot" src="assets/shots/v31-red-car-sunset-h.mp4" muted playsinline data-start="0" data-duration="1.45" data-media-start="0.1" data-track-index="0"></video>
+        <video id="s2" class="clip shot" src="assets/shots/v17-deluxo-sunset-h.mp4" muted playsinline data-start="1.45" data-duration="1.58" data-media-start="0" data-track-index="1"></video>
+        <video id="s3" class="clip shot" src="assets/shots/v26-bridge-explosion-h.mp4" muted playsinline data-start="3.03" data-duration="1.68" data-media-start="0" data-track-index="2"></video>
+        <video id="s4" class="clip shot" src="assets/shots/v11-yacht-h.mp4" muted playsinline data-start="4.71" data-duration="1.69" data-media-start="0.4" data-track-index="3"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="6.4" data-track-index="5">
+        <div id="avPos"><div id="avSq"></div></div>
+        <div id="barWrap"><div id="barIn"></div></div>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        name: "EVEREST",                 // big name on the blade
+        handle: "@everestchris6",        // small tag after the name ("" to hide)
+        colors: {                        // the avatar's palette (light, base, shadow)
+          hoodie: ["#FFE58A", "#FFC93A", "#E0901A"], skin: ["#FFDCC2", "#F4BC94", "#D98B68"],
+          hair: ["#6A432C", "#3C2518", "#22140C"], gear: ["#565F72", "#2B303B", "#171A21"],
+          accent: "#33D6FF", rim: "#FFC27E", iris: ["#9A6236", "#40240F"]
+        },
+        bar: { colors: ["#B4F4FF", "#4CDDFF", "#16B0E4", "#0B8FC2"], w: 660, h: 78, nameSize: 64, tagSize: 27 },
+        // placement: art space -> screen. scale, x/y of art (0,0); bar left/top
+        place: { scale: 0.84, x: 84, y: 329, barX: 66, barY: 930 },
+        // face script (seconds). talk = lip-sync windows; mood switches at these times
+        talk: [[0.80, 2.50], [2.74, 3.22], [4.12, 5.00]],
+        mood: [[0, "talk"], [2.66, "shock"], [4.05, "laugh"]],
+        blinks: [1.92],
+        glance: [1.50, 2.10],            // looks at camera in this window, otherwise at the gameplay
+        timing: { in: 0.30, bar: 0.62, hit: 2.66, out: 5.32, end: 6.4 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const T = CONFIG.timing, PL = CONFIG.place, FPS = 30, $ = (s) => document.querySelector(s), $$ = (s) => Array.from(document.querySelectorAll(s));
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+
+        // ---- build the avatar sticker ----
+        const S = PL.scale;
+        const pos = $("#avPos");
+        pos.style.left = (PL.x - 70 * S) + "px"; pos.style.top = (PL.y - 70 * S) + "px";
+        pos.style.width = (740 * S) + "px"; pos.style.height = (1080 * S) + "px";
+        $("#avSq").innerHTML = Avatar.build(CONFIG.colors);
+        // ---- name blade ----
+        const B = CONFIG.bar, bw = $("#barWrap");
+        bw.style.left = PL.barX + "px"; bw.style.top = PL.barY + "px"; bw.style.width = B.w + "px"; bw.style.height = B.h + "px";
+        $("#barIn").innerHTML = Avatar.bar({ w: B.w, h: B.h, colors: B.colors, glossId: "barGloss" }) +
+          '<div class="barName" id="barName"></div><div class="barTag" id="barTag"></div>';
+        $("#barName").textContent = CONFIG.name; $("#barTag").textContent = CONFIG.handle;
+
+        const FACES = ["900 100px Archivo", "800 100px Inter"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          // fit + place the blade type (optically centred on the cap height)
+          const nm = $("#barName"), tg = $("#barTag");
+          nm.style.fontSize = B.nameSize + "px"; tg.style.fontSize = B.tagSize + "px";
+          const capN = B.nameSize * 0.70, capT = B.tagSize * 0.72;
+          nm.style.left = "50px"; nm.style.top = (B.h / 2 - capN / 2 - B.nameSize * 0.155) + "px";
+          const nW = nm.getBoundingClientRect().width;
+          tg.style.left = (50 + nW + 22) + "px"; tg.style.top = (B.h / 2 - capT / 2 - B.tagSize * 0.16 + 3) + "px";
+          if (!CONFIG.handle) tg.style.display = "none";
+
+          const tl = gsap.timeline({ paused: true });
+          const pivotY = ((1080 - PL.y) / S + 70) * S;          // frame-bottom line inside the sticker box
+          gsap.set("#avSq", { transformOrigin: "50% " + pivotY + "px" });
+
+          // ---------- entrance: springs up from below the frame, stretched on the rise, squashed at the apex ----------
+          gsap.set("#avPos", { y: 820 });
+          tl.fromTo("#avPos", { y: 820 }, { y: -38, duration: 0.30, ease: "power3.out", immediateRender: false }, T.in);
+          tl.to("#avPos", { y: 0, duration: 0.55, ease: "elastic.out(1, 0.45)" }, T.in + 0.30);
+          gsap.set("#avSq", { rotation: -9, scaleX: 0.92, scaleY: 1.10 });
+          tl.fromTo("#avSq", { rotation: -9, scaleX: 0.92, scaleY: 1.10 }, { rotation: 2, scaleX: 1.05, scaleY: 0.94, duration: 0.30, ease: "power2.out", immediateRender: false }, T.in);
+          tl.to("#avSq", { rotation: 0, scaleX: 1, scaleY: 1, duration: 0.6, ease: "elastic.out(1, 0.4)" }, T.in + 0.30);
+          Look.mblur(tl, "#avPos", T.in, 0.26, { y: 22 });
+          // hair and drawstrings follow through
+          gsap.set("#avHair", { svgOrigin: "300 250", scaleY: 0.9, rotation: 0 });
+          tl.fromTo("#avHair", { scaleY: 0.9 }, { scaleY: 1.08, duration: 0.3, ease: "power2.out", immediateRender: false }, T.in + 0.1);
+          tl.to("#avHair", { scaleY: 1, duration: 0.7, ease: "elastic.out(1, 0.35)" }, T.in + 0.4);
+          ["#avStrL", "#avStrR"].forEach((id, i) => {
+            const x = i ? 316 : 284;
+            gsap.set(id, { svgOrigin: x + " 624", rotation: 0 });
+            tl.fromTo(id, { rotation: i ? -14 : 14 }, { rotation: 0, duration: 1.0, ease: "elastic.out(1, 0.3)", immediateRender: false }, T.in + 0.28);
+          });
+
+          // ---------- name blade: slams in from the left edge, then a gloss pass ----------
+          gsap.set("#barIn", { x: -820 });
+          tl.fromTo("#barIn", { x: -820 }, { x: 0, duration: 0.46, ease: "back.out(1.25)", immediateRender: false }, T.bar);
+          Look.mblur(tl, "#barIn", T.bar, 0.28, { x: 34 });
+          gsap.set("#barGloss", { x: -120 });
+          tl.fromTo("#barGloss", { x: -120 }, { x: B.w + 140, duration: 0.6, ease: "power2.inOut", immediateRender: false }, T.bar + 0.42);
+
+          // ---------- the face + pose: lip-sync, moods (talk / shock / laugh), blinks, glance, head motion (all from time) ----------
+          const MOUTHS = ["avMA", "avMO", "avME", "avMC", "avMA", "avME", "avMO"];
+          const mouthEls = {}; ["avMC", "avMA", "avMO", "avME", "avMS", "avML"].forEach((id) => (mouthEls[id] = $("#" + id)));
+          const N = Math.round(T.end * FPS) + 1, mouthF = [], moodF = [];
+          const moodAt = (name) => (CONFIG.mood.find((m) => m[1] === name) || [T.end])[0];
+          const H = T.hit, L = moodAt("laugh");
+          for (let f = 0; f < N; f++) {
+            const t = f / FPS;
+            let mood = "talk"; CONFIG.mood.forEach((m) => { if (t >= m[0]) mood = m[1]; }); moodF[f] = mood;
+            let m = mood === "shock" ? "avMS" : (mood === "laugh" ? "avML" : "avMC");
+            CONFIG.talk.forEach((w, wi) => {
+              if (t >= w[0] && t < w[1]) {
+                const k = Math.floor((f - Math.round(w[0] * FPS)) / 3);
+                if (mood === "shock") m = (k % 3 === 2) ? "avMA" : "avMS";
+                else if (mood === "laugh") m = (k % 2) ? "avME" : "avML";
+                else { m = MOUTHS[Math.floor(Look.hash(k * 7 + wi * 131 + 3) * MOUTHS.length)]; if (k % 4 === 3) m = "avMC"; }
+              }
+            });
+            mouthF[f] = m;
+          }
+          const eyes = { talk: $("#avEyesT"), shock: $("#avEyesS"), laugh: $("#avEyesL") };
+          const brows = { talk: $("#avBrowsT"), shock: $("#avBrowsS"), laugh: $("#avBrowsL") };
+          const lids = $("#avLids"), irises = $$("#avEyesT .avIris"), bob = $("#avBob");
+          const armsS = $("#avArmsS"), armP = $("#avArmP"), armSL = $("#avArmSL"), armSR = $("#avArmSR");
+          function face(t) {
+            const f = Math.max(0, Math.min(N - 1, Math.round(t * FPS))), mood = moodF[f];
+            for (const k in eyes) { const on = k === mood ? 1 : 0; eyes[k].style.opacity = on; brows[k].style.opacity = on; }
+            for (const id in mouthEls) mouthEls[id].style.opacity = (id === mouthF[f]) ? 1 : 0;
+            armsS.style.opacity = mood === "shock" ? 1 : 0; armP.style.opacity = mood === "laugh" ? 1 : 0;
+            const blink = mood === "talk" && CONFIG.blinks.some((b) => f >= Math.round(b * FPS) && f < Math.round(b * FPS) + 3);
+            lids.style.opacity = blink ? 1 : 0;
+            // gaze: at the gameplay (right) by default, at the camera inside the glance window (2-frame move)
+            const g0 = CONFIG.glance[0], g1 = CONFIG.glance[1];
+            const gz = t < g0 ? 0 : t < g0 + 0.07 ? (t - g0) / 0.07 : t < g1 ? 1 : t < g1 + 0.07 ? 1 - (t - g1) / 0.07 : 0;
+            irises.forEach((n) => n.setAttribute("transform", "translate(" + (-11 * gz).toFixed(2) + " " + (-2 * gz).toFixed(2) + ")"));
+            const talking = CONFIG.talk.some((w) => t >= w[0] && t < w[1]);
+            const lift = talking && mood === "talk" ? -5 * Math.max(0, Math.sin(t * Math.PI * 2 * 1.3)) : 0;
+            brows.talk.setAttribute("transform", "translate(0 " + lift.toFixed(2) + ")");
+            // head: a talking bob, a decaying shock tremble after the hit, a "ha-ha" bounce while laughing
+            let rx = 0, ry = 0, rr = 0, wave = 0;
+            if (mood === "talk" && talking) { rr = 2.2 * Math.sin(t * Math.PI * 2 * 0.9 + 0.6); ry = -4 * Math.pow(Math.sin(t * Math.PI * 2 * 1.9), 2); }
+            const dt = t - H;
+            if (mood === "shock" && dt > 0.12) {
+              const env = Math.max(0.25, 1 - (dt - 0.12) / 1.2), q = Math.floor(f / 2);
+              rx = (Look.hash(q * 3 + 11) * 2 - 1) * 2.2 * env; ry = (Look.hash(q * 3 + 12) * 2 - 1) * 1.4 * env; rr = (Look.hash(q * 3 + 13) * 2 - 1) * 0.7 * env;
+              wave = 4 * Math.sin(dt * Math.PI * 2 * 2.4) * env;
+            }
+            if (mood === "laugh") { const u = t - L; ry = -8 * Math.abs(Math.sin(u * Math.PI * 3.2)); rr = -2.5 + 1.5 * Math.sin(u * Math.PI * 3.2); }
+            bob.setAttribute("transform", "translate(" + rx.toFixed(2) + " " + ry.toFixed(2) + ") rotate(" + rr.toFixed(2) + " 300 520)");
+            armSL.setAttribute("transform", "rotate(" + (-wave).toFixed(2) + " 40 900)");
+            armSR.setAttribute("transform", "rotate(" + wave.toFixed(2) + " 560 900)");
+          }
+          Look.drive(tl, 0, T.end, (p) => face(p * T.end));
+
+          // ---------- payoff: anticipation dip -> SHOCK (new drawing: wide eyes, scream, hands up; head snaps back while the body squashes) ----------
+          gsap.set("#avHead", { svgOrigin: "300 520", y: 0, rotation: 0 });
+          gsap.set("#avBody", { svgOrigin: "300 900", scaleX: 1, scaleY: 1 });
+          tl.to("#avHead", { y: 12, rotation: 2, duration: 0.10, ease: "power2.in" }, H - 0.10);
+          tl.to("#avBody", { scaleY: 0.97, scaleX: 1.02, duration: 0.10, ease: "power2.in" }, H - 0.10);
+          tl.to("#avHead", { y: -42, rotation: -7, duration: 0.10, ease: "power3.out" }, H);
+          tl.to("#avHead", { y: 0, rotation: 0, duration: 0.8, ease: "elastic.out(1, 0.4)" }, H + 0.10);
+          tl.to("#avBody", { scaleX: 1.06, scaleY: 0.94, duration: 0.08, ease: "power2.out" }, H);
+          tl.to("#avBody", { scaleX: 1, scaleY: 1, duration: 0.6, ease: "elastic.out(1, 0.4)" }, H + 0.08);
+          tl.to("#avSq", { scaleX: 1.035, scaleY: 1.035, duration: 0.08, ease: "power2.out" }, H);
+          tl.to("#avSq", { scaleX: 1, scaleY: 1, duration: 0.55, ease: "elastic.out(1, 0.45)" }, H + 0.08);
+          gsap.set("#avArmsS", { y: 0 });
+          tl.fromTo("#avArmsS", { y: 190 }, { y: 0, duration: 0.17, ease: "back.out(2.2)", immediateRender: false }, H);
+          // follow-through: hair springs up, strings and mic boom lag the head
+          tl.to("#avHair", { scaleY: 1.2, duration: 0.09, ease: "power2.out" }, H);
+          tl.to("#avHair", { scaleY: 1, duration: 0.85, ease: "elastic.out(1, 0.3)" }, H + 0.09);
+          ["#avStrL", "#avStrR"].forEach((id, i) => {
+            tl.to(id, { rotation: i ? 12 : -12, duration: 0.1, ease: "power2.out" }, H + 0.03);
+            tl.to(id, { rotation: 0, duration: 0.9, ease: "elastic.out(1, 0.3)" }, H + 0.13);
+          });
+          gsap.set("#avMic", { svgOrigin: "124 362", rotation: 0 });
+          tl.to("#avMic", { rotation: -9, duration: 0.1, ease: "power2.out" }, H + 0.06);
+          tl.to("#avMic", { rotation: 0, duration: 0.8, ease: "elastic.out(1, 0.35)" }, H + 0.16);
+          // shock marks: yellow flash wedges pop out and pulse; sweat drop slides
+          const wedges = $$("#avShock .avWedge");
+          gsap.set(wedges, { transformOrigin: "50% 100%", scale: 0 });
+          wedges.forEach((w, i) => {
+            const at = H + 0.02 + (i % 3) * 0.035;
+            tl.fromTo(w, { scale: 0 }, { scale: 1, duration: 0.24, ease: "back.out(3)", immediateRender: false }, at);
+            tl.to(w, { scale: 1.12, duration: 0.1, ease: "sine.inOut", yoyo: true, repeat: 5 }, at + 0.3);
+            tl.to(w, { scale: 0, duration: 0.12, ease: "power2.in" }, L - 0.12);
+          });
+          const sweat = $("#avSweat");
+          gsap.set(sweat, { svgOrigin: "420 256", opacity: 0, scale: 0.4, y: -6 });
+          tl.fromTo(sweat, { opacity: 0, scale: 0.4, y: -6 }, { opacity: 1, scale: 1, y: 0, duration: 0.2, ease: "back.out(2.5)", immediateRender: false }, H + 0.08);
+          tl.to(sweat, { y: 26, duration: 1.1, ease: "power1.in" }, H + 0.3);
+          tl.to(sweat, { scale: 0, duration: 0.1, ease: "power2.in" }, L - 0.1);
+          // light: the explosion-side rim snaps on hot (1-frame attack, 3-frame peak), then embers down
+          const hots = $$("#av .avHot");
+          gsap.set(hots, { opacity: 0 });
+          tl.fromTo(hots, { opacity: 0 }, { opacity: 1, duration: 1 / FPS, ease: "none", immediateRender: false }, H);
+          tl.to(hots, { opacity: 0.34, duration: 0.42, ease: "power2.out" }, H + 4 / FPS);
+          tl.to(hots, { opacity: 0, duration: 0.25, ease: "power1.in" }, L - 0.25);
+          if (plate) { Look.impact(tl, H, { shake: "#shake", amp: 9, dur: 0.30, flash: 0, zoom: 1.025 }); Look.expose(tl, H, { target: "#shake", peak: 1.3, hold: 2 / FPS, dur: 0.3 }); }
+
+          // ---------- second beat: LAUGH (squeezed eyes + tears, pointing at the gameplay) ----------
+          gsap.set("#avArmP", { svgOrigin: "520 940", rotation: 0 });
+          tl.fromTo("#avArmP", { rotation: 40 }, { rotation: 0, duration: 0.3, ease: "back.out(2)", immediateRender: false }, L);
+          tl.to("#avHead", { y: -16, rotation: -5, duration: 0.08, ease: "power2.out" }, L);
+          tl.to("#avHead", { y: 0, rotation: 0, duration: 0.6, ease: "elastic.out(1, 0.45)" }, L + 0.08);
+          tl.to("#avSq", { scaleX: 1.05, scaleY: 1.05, duration: 0.07, ease: "power2.out" }, L);
+          tl.to("#avSq", { scaleX: 1, scaleY: 1, duration: 0.5, ease: "back.out(3)" }, L + 0.07);
+          tl.to("#avMic", { rotation: 6, duration: 0.1, ease: "power2.out" }, L + 0.05);
+          tl.to("#avMic", { rotation: 0, duration: 0.7, ease: "elastic.out(1, 0.35)" }, L + 0.15);
+
+          // the blade takes the hit too
+          gsap.set("#barIn", { rotation: 0, transformOrigin: "20% 50%" });
+          tl.to("#barIn", { rotation: -2.6, y: -6, duration: 0.09, ease: "power2.out" }, H + 0.03);
+          tl.to("#barIn", { rotation: 0, y: 0, duration: 0.7, ease: "elastic.out(1, 0.35)" }, H + 0.12);
+
+          // ---------- entrance gloss: light catches the laminate as the sticker lands ----------
+          gsap.set("#avGloss", { x: -520 });
+          tl.fromTo("#avGloss", { x: -520 }, { x: 1120, duration: 0.7, ease: "power2.inOut", immediateRender: false }, T.in + 0.42);
+
+          // ---------- exit: blade retracts, avatar dips then drops below the frame (opaque the whole way) ----------
+          tl.to("#barIn", { x: -840, duration: 0.30, ease: "power3.in" }, T.out);
+          Look.mblur(tl, "#barIn", T.out + 0.12, 0.18, { x: 0, to: [30, 0], ease: "power2.in" });
+          tl.to("#avPos", { y: -18, duration: 0.10, ease: "power2.out" }, T.out + 0.06);
+          tl.to("#avSq", { scaleY: 0.95, scaleX: 1.04, duration: 0.10, ease: "power2.out" }, T.out + 0.06);
+          tl.to("#avPos", { y: 880, duration: 0.32, ease: "power3.in" }, T.out + 0.16);
+          tl.to("#avSq", { scaleY: 1.07, scaleX: 0.95, rotation: -5, duration: 0.32, ease: "power2.in" }, T.out + 0.16);
+          Look.mblur(tl, "#avPos", T.out + 0.24, 0.24, { y: 0, to: [0, 26], ease: "power2.in" });
+          gsap.set("#avPos", { autoAlpha: 1 }); gsap.set("#barIn", { autoAlpha: 1 });
+          tl.set("#avPos", { autoAlpha: 0 }, T.out + 0.5); tl.set("#barIn", { autoAlpha: 0 }, T.out + 0.32);
+
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

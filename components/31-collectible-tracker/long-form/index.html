@@ -1,0 +1,426 @@
+<!doctype html>
+<!-- 31 Collectible tracker, variant A (16:9, 1920x1080, 30 fps): "Found 2/8 -> 3/8".
+     The creators' gold collection shield, top-left: a real 3D shield (polished gold rim, black enamel, extruded gold
+     italic count) drops in from the top edge, a gunmetal socket rail slides out of it, and on the find a gold coin pops
+     off the car, flies into the next socket and the count flips over. Variable bg: "plate" / "none". -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="media/glyphs.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #streak, #gl { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; }
+      #streak { z-index: 1; }
+      #gl { z-index: 2; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5.4" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="s1" class="clip shot" src="assets/shots/v57-gp-red-car-highway-h.mp4" muted playsinline data-start="0" data-duration="1.95" data-media-start="0.05" data-track-index="0"></video>
+        <video id="s2" class="clip shot" src="assets/shots/v17-deluxo-sunset-h.mp4" muted playsinline data-start="1.95" data-duration="1.55" data-media-start="0" data-track-index="0"></video>
+        <video id="s3" class="clip shot" src="assets/shots/v36-hills-city-view-h.mp4" muted playsinline data-start="3.5" data-duration="1.9" data-media-start="0" data-track-index="0"></video>
+      </div></div>
+      <canvas id="streak" data-layout-allow-occlusion width="1920" height="1080"></canvas>
+      <canvas id="gl" data-layout-allow-occlusion width="1920" height="1080"></canvas>
+    </div>
+    <script>
+      const CONFIG = {
+        label: "SUPERCARS",                 // printed in gold along the shield's top edge
+        found: 2, total: 8,                 // count before the find; the find makes it found + 1 (keep the digit count the same)
+        gold: "#F7BC3C", goldDeep: "#C9851C", enamel: "#07070A", railColor: "#15161B",
+        shield: { x: 56, y: 40, w: 252, h: 280 },            // docked box, top-left (1920x1080 canvas px)
+        rail: { x0: 306, cy: 118, first: 352, pitch: 82, hole: 33, coin: 29, z: -44 },   // socket rail sliding out from behind the shield
+        find: { from: [900, 560] },                          // where the coin pops off the found car (canvas px)
+        timing: { drop: 0.2, rail: 0.56, fill: 0.84, pop: 1.45, fly: 1.62, land: 1.95, flip: 2.02, out: 4.95, end: 5.4 }
+      };
+
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        const C = CONFIG, T = C.timing, $ = (s) => document.querySelector(s), W = 1920, H = 1080;
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x)), seg = (t, a, d) => clamp((t - a) / d, 0, 1), lerp = (a, b, k) => a + (b - a) * k;
+        const E = (n) => gsap.parseEase(n);
+        const wx = (x) => x - W / 2, wy = (y) => H / 2 - y;
+
+        // ---------- renderer: z = 0 maps 1:1 to canvas px ----------
+        const canvas = $("#gl");
+        const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+        renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 0);
+        renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.18;
+        renderer.localClippingEnabled = true;
+        const scene = new THREE.Scene();
+        const FOV = 22, DIST = (H / 2) / Math.tan((FOV / 2) * Math.PI / 180);
+        const camera = new THREE.PerspectiveCamera(FOV, W / H, 10, DIST * 3);
+        camera.position.set(0, 0, DIST); camera.lookAt(0, 0, 0);
+
+        // studio environment for gold: a warm softbox overhead, a cool strip left, a low warm bounce, dark floor
+        const envScene = new THREE.Scene();
+        envScene.add(new THREE.Mesh(new THREE.SphereGeometry(50, 48, 24), new THREE.ShaderMaterial({
+          side: THREE.BackSide, depthWrite: false,
+          vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 top = vec3(0.75,0.68,0.58), hor = vec3(0.16,0.12,0.09), low = vec3(0.015,0.012,0.01);" +
+            " vec3 c = y > 0.0 ? mix(hor, top, smoothstep(0.1, 0.9, y)) : mix(hor, low, smoothstep(0.0, 0.35, -y)); gl_FragColor = vec4(c, 1.0); }"
+        })));
+        const panel = (w, h, x, y, z, c) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); envScene.add(m); };
+        panel(40, 10, -4, 30, 26, new THREE.Color(4.2, 3.8, 3.2));
+        panel(5, 34, -30, 4, 22, new THREE.Color(2.4, 2.6, 3.0));
+        panel(34, 6, 6, -6, 34, new THREE.Color(1.6, 1.0, 0.5));
+        panel(14, 26, 32, 8, 10, new THREE.Color(2.2, 1.7, 1.2));
+        panel(56, 30, 2, 10, 44, new THREE.Color(0.75, 0.62, 0.45));
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        scene.environment = pmrem.fromScene(envScene, 0.0, 0.1, 200).texture;
+        const key = new THREE.DirectionalLight(0xfff0dc, 1.4); scene.add(key); scene.add(key.target);
+        const rimL = new THREE.DirectionalLight(0xffd9a0, 0.7); rimL.position.set(0.9, 0.4, -0.3); scene.add(rimL);
+        scene.add(new THREE.HemisphereLight(0xfff4e6, 0x1a120a, 0.5));
+
+        // ---------- materials ----------
+        const gold = (rough, col) => new THREE.MeshPhysicalMaterial({ color: new THREE.Color(col || C.gold), metalness: 1, roughness: rough, clearcoat: 0.35, clearcoatRoughness: 0.12, envMapIntensity: 1.25 });
+        const goldFace = gold(0.2), goldSide = gold(0.3, C.goldDeep), goldSatin = gold(0.52, "#DE9B2A"), goldNum = gold(0.16, "#FFCB4E"), goldNumSide = gold(0.28, C.goldDeep);
+        // numeral faces: a 4-stop gold ramp from cap to baseline (UVs of the extruded faces are shield-local px)
+        const GC = document.createElement("canvas"); GC.width = 4; GC.height = 256; { const g = GC.getContext("2d"), lg = g.createLinearGradient(0, 0, 0, 256);
+          lg.addColorStop(0, "#FFF6D0"); lg.addColorStop(0.42, "#FFD35C"); lg.addColorStop(0.72, "#F0A428"); lg.addColorStop(1, "#B5680E"); g.fillStyle = lg; g.fillRect(0, 0, 4, 256); }
+        const rampTex = new THREE.CanvasTexture(GC); rampTex.colorSpace = THREE.SRGBColorSpace; rampTex.wrapS = rampTex.wrapT = THREE.ClampToEdgeWrapping;
+        const goldNumFace = new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: rampTex, metalness: 0.9, roughness: 0.2, clearcoat: 0.5, clearcoatRoughness: 0.08, envMapIntensity: 1.35 });
+        // black lacquer: a diagonal falloff map (lit top-left, deep bottom-right) under a clear coat that barely reflects the front
+        const EC = document.createElement("canvas"); EC.width = EC.height = 256; { const g = EC.getContext("2d"), lg = g.createLinearGradient(0, 0, 256, 256);
+          lg.addColorStop(0, "#2A2A31"); lg.addColorStop(0.45, "#0E0E12"); lg.addColorStop(1, "#040405"); g.fillStyle = lg; g.fillRect(0, 0, 256, 256); }
+        const enTex = new THREE.CanvasTexture(EC); enTex.colorSpace = THREE.SRGBColorSpace;
+        enTex.repeat.set(1 / C.shield.w, 1 / C.shield.h); enTex.offset.set(0.5, 0.5);   // UVs are shield-local px
+        const enamelMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: enTex, metalness: 0, roughness: 0.35, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 0.18 });
+        const inkMat = new THREE.MeshStandardMaterial({ color: 0x0b0803, roughness: 0.6, metalness: 0 });
+
+        // ---------- shield ----------
+        const SW = C.shield.w / 2, SH = C.shield.h / 2;
+        function shieldShape(d, P) {               // heraldic shield inset by d px; y up, centred on the box centre
+          const x = SW - d, tip = SH - d * 0.9, dip = SH - 17 - d * 0.75, side = 18, bot = -SH + d * 1.75;
+          const p = P || new THREE.Shape();
+          p.moveTo(-x, tip - 6);
+          p.quadraticCurveTo(-x, tip, -x + 6, tip);
+          p.quadraticCurveTo(-x * 0.42, tip - 3, 0, dip);
+          p.quadraticCurveTo(x * 0.42, tip - 3, x - 6, tip);
+          p.quadraticCurveTo(x, tip, x, tip - 6);
+          p.lineTo(x - 1, side);
+          p.bezierCurveTo(x - 2, -SH * 0.42, x * 0.46, -SH * 0.74 + d * 0.4, 0, bot);
+          p.bezierCurveTo(-x * 0.46, -SH * 0.74 + d * 0.4, -x + 2, -SH * 0.42, -x + 1, side);
+          p.closePath();
+          return p;
+        }
+        const RIM = 15;
+        const rimShape = shieldShape(0); rimShape.holes.push(shieldShape(RIM, new THREE.Path()));
+        const rimGeo = new THREE.ExtrudeGeometry(rimShape, { depth: 14, bevelEnabled: true, bevelThickness: 5, bevelSize: 4, bevelOffset: -4, bevelSegments: 5, curveSegments: 18 });
+        rimGeo.translate(0, 0, -14);                                   // front face (with bevel) at z = +5
+        const rimMesh = new THREE.Mesh(rimGeo, [goldFace, goldSide]);
+        const enGeo = new THREE.ExtrudeGeometry(shieldShape(RIM - 2), { depth: 6, bevelEnabled: false, curveSegments: 18 });
+        enGeo.translate(0, 0, -10);                                    // enamel front at z = -4 (recessed 9 px under the rim)
+        const enMesh = new THREE.Mesh(enGeo, enamelMat);
+        const inkGeo = new THREE.ExtrudeGeometry(shieldShape(0), { depth: 4, bevelEnabled: true, bevelThickness: 1, bevelSize: 6, bevelSegments: 2, curveSegments: 18 });
+        inkGeo.translate(0, 0, -20);
+        const inkMesh = new THREE.Mesh(inkGeo, inkMat);
+
+        // label printed in gold along the top (canvas texture on the enamel)
+        const LC = document.createElement("canvas"); LC.width = 1024; LC.height = 256;
+        const lw = 216, lh = lw * LC.height / LC.width;
+        const labelTex = new THREE.CanvasTexture(LC); labelTex.colorSpace = THREE.SRGBColorSpace; labelTex.anisotropy = 4;
+        const labelMat = new THREE.MeshBasicMaterial({ map: labelTex, transparent: true, depthWrite: false, toneMapped: false });
+        const labelMesh = new THREE.Mesh(new THREE.PlaneGeometry(lw, lh), labelMat);
+        const LBASE = 200, LSC = lh / LC.height;   // canvas baseline row, local px per canvas px
+        labelMesh.position.set(0, 80 - lh / 2 + LBASE * LSC, -3.4);       // centre baseline at local y = 80
+        function drawLabel() {
+          const x = LC.getContext("2d"); x.clearRect(0, 0, LC.width, LC.height);
+          const txt = C.label.toUpperCase(), fs = 124, R = 2100, cx = 512, cy = LBASE - R;   // arc centre ABOVE: ends rise with the shield's top edge
+          x.font = "800 " + fs + "px Archivo"; x.textBaseline = "alphabetic";
+          const tr = 0.1 * fs, ws = [...txt].map((ch) => x.measureText(ch).width), total = ws.reduce((a, b) => a + b, 0) + tr * (txt.length - 1);
+          const fit = Math.min(1, 900 / total);
+          const g = x.createLinearGradient(0, LBASE - 90, 0, LBASE);
+          g.addColorStop(0, "#FFE9A6"); g.addColorStop(0.5, "#F6BE3E"); g.addColorStop(1, "#C47F16");
+          let a = -(total * fit) / 2 / R;
+          [...txt].forEach((ch, i) => {
+            const w = ws[i] * fit, ang = a + w / 2 / R;
+            x.save(); x.translate(cx + Math.sin(ang) * R, cy + Math.cos(ang) * R); x.rotate(-ang); x.scale(fit, fit);
+            x.lineJoin = "round"; x.lineWidth = 12; x.strokeStyle = "rgba(0,0,0,0.9)"; x.strokeText(ch, -ws[i] / 2, 0);
+            x.fillStyle = g; x.fillText(ch, -ws[i] / 2, 0);
+            x.restore();
+            a += (w + tr * fit) / R;
+          });
+          labelTex.needsUpdate = true;
+        }
+
+        // the count: traced Archivo (wdth 80, wght 900) numerals, italic-sheared, extruded with a rounded bevel
+        const F = window.NUM_GLYPHS, SKEW = 0.2, MIN_SEG = 0.6, CURVE_SEG = 7;
+        function glyphShapes(d, ox, oy, s) {
+          const sp = new THREE.ShapePath(); const re = /([MLQCZ])([^MLQCZ]*)/g; let m;
+          while ((m = re.exec(d))) {
+            const n = m[2].trim() ? m[2].trim().split(/[\s,]+/).map(Number) : [];
+            const P = []; for (let i = 0; i < n.length; i += 2) P.push(ox + (n[i] - SKEW * n[i + 1]) * s, oy - n[i + 1] * s);
+            if (m[1] === "M") sp.moveTo(P[0], P[1]);
+            else if (m[1] === "L") sp.lineTo(P[0], P[1]);
+            else if (m[1] === "Q") sp.quadraticCurveTo(P[0], P[1], P[2], P[3]);
+            else if (m[1] === "C") sp.bezierCurveTo(P[0], P[1], P[2], P[3], P[4], P[5]);
+          }
+          const clean = (pts) => { const out = []; for (const p of pts) if (!out.length || p.distanceTo(out[out.length - 1]) > MIN_SEG) out.push(p);
+            while (out.length > 3 && out[0].distanceTo(out[out.length - 1]) <= MIN_SEG) out.pop(); return out; };
+          return sp.toShapes(false).map((sh) => { const s2 = new THREE.Shape(clean(sh.getPoints(CURVE_SEG)));
+            sh.holes.forEach((h) => s2.holes.push(new THREE.Path(clean(h.getPoints(CURVE_SEG))))); return s2; });
+        }
+        const CAP = 92, NS = CAP / F.cap, TRACK = -34, NUMY = 16;    // cap height px, ink centre y (shield-local)
+        function numGroup(str, x0, base) {           // one group per string, pivot at its ink centre (for the flip)
+          const grp = new THREE.Group(), meshes = []; let pen = 0;
+          for (const ch of str) {
+            const g = F.g[ch]; if (!g) continue;
+            const shapes = glyphShapes(g[1], x0 + pen * NS, base, NS);
+            const geo = new THREE.ExtrudeGeometry(shapes, { depth: 9, bevelEnabled: true, bevelThickness: 3, bevelSize: 2.2, bevelOffset: -2.2, bevelSegments: 4, curveSegments: 1 });
+            meshes.push(geo); pen += g[0] + TRACK;
+          }
+          const box = new THREE.Box3(); meshes.forEach((g) => { g.computeBoundingBox(); box.union(g.boundingBox); });
+          const cx = (box.min.x + box.max.x) / 2, cy = (box.min.y + box.max.y) / 2;
+          meshes.forEach((geo) => { geo.translate(-cx, -cy, -9); geo.computeVertexNormals(); grp.add(new THREE.Mesh(geo, [goldNumFace, goldNumSide])); });
+          grp.position.set(cx, cy, 2); return grp;
+        }
+        const width = (str) => { let w = 0; [...str].forEach((ch, i) => { const g = F.g[ch]; w += (i < str.length - 1 ? g[0] + TRACK : g[3]); }); return w; };
+        const sA = String(C.found), sB = String(C.found + 1), sR = "/" + C.total;
+        const fullW = (width(sB + sR) - F.g[sB[0]][2]) * NS, skewShift = SKEW * CAP / 2;
+        const x0 = -fullW / 2 - F.g[sB[0]][2] * NS - skewShift, base = NUMY - CAP / 2;
+        rampTex.repeat.set(1, 1 / (CAP + 8)); rampTex.offset.set(0, -(base - 4) / (CAP + 8));
+        const penB = [...sB].reduce((a, ch) => a + F.g[ch][0] + TRACK, 0) * NS;
+        const penA = [...sA].reduce((a, ch) => a + F.g[ch][0] + TRACK, 0) * NS;
+        const numOld = numGroup(sA, x0 + penB - penA, base), numNew = numGroup(sB, x0, base), numRest = numGroup(sR, x0 + penB, base);
+
+        // specular band clipped to the shield front (soft gaussian, additive, no hairlines)
+        const bandMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, toneMapped: false,
+          uniforms: { uPos: { value: -1e4 }, uAmp: { value: 0 } },
+          vertexShader: "varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "uniform float uPos; uniform float uAmp; varying vec2 vP; void main(){ float d = dot(vP, normalize(vec2(0.86, 0.5))); float a = uAmp * exp(-pow((d - uPos) / 34.0, 2.0)); gl_FragColor = vec4(1.0, 0.93, 0.78, a); }" });
+        const band = new THREE.Mesh(new THREE.ShapeGeometry(shieldShape(2), 18), bandMat); band.position.z = 14; band.renderOrder = 5;
+
+        const shield = new THREE.Group(); [inkMesh, enMesh, rimMesh, labelMesh, numOld, numNew, numRest, band].forEach((o) => shield.add(o));
+        const punch = new THREE.Group(); punch.add(shield);
+        const hang = new THREE.Group(); hang.add(punch); scene.add(hang);   // pivot at the shield's top centre (pendulum)
+        shield.position.y = 0; punch.position.y = -SH;   // punch scales and wobbles about the shield centre
+        const HX = wx(C.shield.x + SW), HY = wy(C.shield.y);
+
+        // ---------- the car mark (our own wedge supercar profile, facing right, y up, ground 0, 0..100 wide) ----------
+        function carShapes(scale, cx, cy) {
+          const S = (x, y) => [cx + (x - 50) * scale, cy + (y - 17) * scale];
+          const body = new THREE.Shape(), mv = (x, y) => body.moveTo(...S(x, y)), ln = (x, y) => body.lineTo(...S(x, y)), qd = (a, b, x, y) => body.quadraticCurveTo(...S(a, b), ...S(x, y));
+          mv(3, 9); ln(3, 18); qd(3, 22, 8, 22.5); ln(30, 25.5); qd(38, 27, 44, 32.5); qd(50, 36.5, 58, 36); qd(64, 35.6, 70, 30); ln(80, 23.5); ln(95, 19.5); qd(99, 18.5, 99, 14); ln(98.5, 9);
+          ln(90, 9); body.absarc(...S(77, 8), 12.5 * scale, 0, Math.PI, false); ln(37, 9); body.absarc(...S(24, 8), 12.5 * scale, 0, Math.PI, false); ln(3, 9);
+          const win = new THREE.Path(), W2 = (x, y) => S(x, y);
+          win.moveTo(...W2(46, 26.5)); win.quadraticCurveTo(...W2(51, 32.5), ...W2(57, 32.8)); win.quadraticCurveTo(...W2(62, 32.4), ...W2(66, 28)); win.lineTo(...W2(70, 25)); win.lineTo(...W2(46, 25)); win.closePath();
+          body.holes.push(win);
+          const wheel = (x) => { const s = new THREE.Shape(); s.absarc(...S(x, 8), 9.5 * scale, 0, Math.PI * 2, false); const h = new THREE.Path(); h.absarc(...S(x, 8), 4 * scale, 0, Math.PI * 2, true); s.holes.push(h); return s; };
+          return [body, wheel(24), wheel(77)];
+        }
+
+        // ---------- coins ----------
+        const CR = C.rail.coin;
+        const prof = [[0, -5.6], [CR - 3, -5.6], [CR - 1, -5], [CR, -3], [CR, 3], [CR - 1, 5], [CR - 3, 5.6], [CR - 5, 4.6], [CR - 6.5, 3.2], [0, 3.2]].map((p) => new THREE.Vector2(p[0], p[1]));
+        const coinGeo = new THREE.LatheGeometry(prof, 64); coinGeo.rotateX(Math.PI / 2);
+        const carGeo = new THREE.ExtrudeGeometry(carShapes(CR * 1.42 / 100, 0, 1), { depth: 1.6, bevelEnabled: true, bevelThickness: 1.1, bevelSize: 0.5, bevelOffset: -0.5, bevelSegments: 3, curveSegments: 10 });
+        carGeo.translate(0, 0, 3.2);
+        let coinMats = null;   // clipped clones (set once the rail clip plane exists)
+        function makeCoin() {
+          const g = new THREE.Group();
+          g.add(new THREE.Mesh(coinGeo, coinMats[0]));
+          g.add(new THREE.Mesh(carGeo, [coinMats[1], coinMats[2]]));
+          return g;
+        }
+
+        // ---------- the socket rail ----------
+        const R = C.rail, NSOCK = C.total, RH = 88, RX1 = R.first + R.pitch * (NSOCK - 1) + RH / 2, RL = RX1 - R.x0;
+        const railCx = wx((R.x0 + RX1) / 2), railCy = wy(R.cy);
+        function pill(w, h, inset, P) {   // centred pill
+          const r = h / 2 - inset, x = w / 2 - h / 2, p = P || new THREE.Shape();
+          p.moveTo(-x, r); p.lineTo(x, r); p.absarc(x, 0, r, Math.PI / 2, -Math.PI / 2, true); p.lineTo(-x, -r); p.absarc(-x, 0, r, -Math.PI / 2, Math.PI / 2, true); p.closePath();
+          return p;
+        }
+        const sockX = (i) => wx(R.first + R.pitch * i) - railCx;     // socket centre, rail-local
+        const clipPlane = new THREE.Plane(new THREE.Vector3(1, 0, 0), -wx(C.shield.x + SW + 40));
+        const railMat = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(C.railColor), metalness: 0.55, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.06, envMapIntensity: 0.5, clippingPlanes: [clipPlane] });
+        const railSide = railMat.clone(); railSide.color = new THREE.Color("#2A2B33"); railSide.clippingPlanes = [clipPlane];
+        const trimF = goldFace.clone(); trimF.clippingPlanes = [clipPlane]; const trimS = goldSide.clone(); trimS.clippingPlanes = [clipPlane];
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0d, roughness: 0.7, metalness: 0.2, clippingPlanes: [clipPlane] });
+        const ghostMat = new THREE.MeshStandardMaterial({ color: 0x4a4c56, roughness: 0.4, metalness: 0.6, clippingPlanes: [clipPlane] });
+        const railShape = pill(RL, RH, 0); for (let i = 0; i < NSOCK; i++) { const h = new THREE.Path(); h.absarc(sockX(i), 0, R.hole, 0, Math.PI * 2, true); railShape.holes.push(h); }
+        const railGeo = new THREE.ExtrudeGeometry(railShape, { depth: 10, bevelEnabled: true, bevelThickness: 3.5, bevelSize: 3, bevelOffset: -3, bevelSegments: 4, curveSegments: 40 });
+        railGeo.translate(0, 0, -10);
+        const trimShape = pill(RL + 12, RH + 12, 0); trimShape.holes.push(pill(RL - 2, RH - 2, 0, new THREE.Path()));
+        const trimGeo = new THREE.ExtrudeGeometry(trimShape, { depth: 10, bevelEnabled: true, bevelThickness: 2.5, bevelSize: 2, bevelOffset: -2, bevelSegments: 3, curveSegments: 40 });
+        trimGeo.translate(0, 0, -11);
+        const floorGeo = new THREE.ExtrudeGeometry(pill(RL + 18, RH + 18, 0), { depth: 4, bevelEnabled: false, curveSegments: 40 }); floorGeo.translate(0, 0, -22);
+        const rail = new THREE.Group(); rail.add(new THREE.Mesh(railGeo, [railMat, railSide])); rail.add(new THREE.Mesh(trimGeo, [trimF, trimS])); rail.add(new THREE.Mesh(floorGeo, floorMat));
+        const ghostGeo = new THREE.ExtrudeGeometry(carShapes(CR * 1.45 / 100, 0, 0), { depth: 1.2, bevelEnabled: true, bevelThickness: 0.8, bevelSize: 0.6, bevelOffset: -0.6, bevelSegments: 2, curveSegments: 10 });
+        ghostGeo.translate(0, 0, -18);
+        for (let i = 0; i < NSOCK; i++) { const g = new THREE.Mesh(ghostGeo, ghostMat); g.position.x = sockX(i); rail.add(g); }
+        const railOuter = new THREE.Group(); railOuter.add(rail); railOuter.position.set(railCx, railCy, R.z); scene.add(railOuter);
+        coinMats = [goldSatin, goldNum, goldSide].map((m) => { const c = m.clone(); c.clippingPlanes = [clipPlane]; return c; });
+        const coins = []; for (let i = 0; i < C.found + 1; i++) { const c = makeCoin(); scene.add(c); coins.push(c); }   // the last one is the find
+
+        // ring burst + socket bloom on the landing (normal blending so it survives the transparent render)
+        const ringMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: false, toneMapped: false,
+          uniforms: { uR: { value: 30 }, uW: { value: 8 }, uA: { value: 0 }, uG: { value: 0 } },
+          vertexShader: "varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+          fragmentShader: "uniform float uR; uniform float uW; uniform float uA; uniform float uG; varying vec2 vP; void main(){ float r = length(vP);" +
+            " float ring = exp(-pow((r - uR) / uW, 2.0)) * uA; float glow = exp(-pow(r / 62.0, 2.0)) * uG; float a = clamp(ring + glow * 0.55, 0.0, 1.0);" +
+            " vec3 c = mix(vec3(1.0, 0.78, 0.3), vec3(1.0, 0.97, 0.85), clamp(ring * 1.4, 0.0, 1.0)); gl_FragColor = vec4(c, a); }" });
+        const ring = new THREE.Mesh(new THREE.PlaneGeometry(320, 320), ringMat); ring.renderOrder = 10; scene.add(ring);
+        const popRing = new THREE.Mesh(new THREE.PlaneGeometry(420, 420), ringMat.clone()); popRing.renderOrder = 10; scene.add(popRing);
+
+        // soft shadows that land on the footage
+        function shadowPlane(drawFn, w, h) {
+          const SC = document.createElement("canvas"); SC.width = 512; SC.height = Math.round(512 * h / w); const x = SC.getContext("2d");
+          x.filter = "blur(" + Math.round(10 * 512 / w) + "px)"; x.fillStyle = "#000"; drawFn(x, SC.width / w); x.fill();
+          const tex = new THREE.CanvasTexture(SC); tex.colorSpace = THREE.SRGBColorSpace;
+          const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.5, depthWrite: false, color: 0x0a0602 }));
+          m.renderOrder = -1; return m;
+        }
+        const shShield = shadowPlane((x, k) => { const pts = shieldShape(-3).getPoints(24); x.beginPath(); pts.forEach((p, i) => { const X = (p.x + SW + 40) * k, Y = (SH + 40 - p.y) * k; i ? x.lineTo(X, Y) : x.moveTo(X, Y); }); x.closePath(); }, C.shield.w + 80, C.shield.h + 80);
+        shShield.position.set(10, -SH - 16, -60); hang.add(shShield);
+        const shRail = shadowPlane((x, k) => { x.beginPath(); x.roundRect(40 * k, 40 * k, (RL + 16) * k, (RH + 16) * k, (RH + 16) / 2 * k); }, RL + 96, RH + 96);
+        shRail.material.clippingPlanes = [clipPlane]; shRail.position.set(8, -14, -40); rail.add(shRail);
+
+        // ---------- gold streak behind the flying coin (2D, under the GL layer) ----------
+        const sk = $("#streak").getContext("2d");
+
+        // ---------- motion: everything is a pure function of t ----------
+        const eBackA = E("back.out(2.2)"), eIn3 = E("power3.in"), eOut3 = E("power3.out"), eKey = E("power2.inOut"), eEl = E("elastic.out(1,0.42)");
+        const SOCK3 = { x: wx(R.first + R.pitch * C.found), y: railCy };
+        const P0 = { x: wx(C.find.from[0]), y: wy(C.find.from[1]) }, P1 = { x: SOCK3.x + 90, y: P0.y + 40 };   // swings left over the road, then rises into the socket from below
+        const bez = (u) => { const a = (1 - u) * (1 - u), b = 2 * u * (1 - u), c = u * u; return { x: a * P0.x + b * P1.x + c * SOCK3.x, y: a * P0.y + b * P1.y + c * SOCK3.y }; };
+        const FLY = T.land - T.fly, flyU = (t) => { const u = seg(t, T.fly, FLY); return u * u * (1.55 - 0.55 * u) / 1.0; };
+
+        function renderAt(t) {
+          // --- shield: drops from above the top edge on a damped spring, swings on its top pivot, then lifts out
+          const td = t - T.drop;
+          let dy = 0, sw = 0, tilt = 0, vis = td >= 0 && t < T.end - 0.001;
+          if (td < 0) dy = 420;
+          else { const u = seg(td, 0, 0.32); dy = 420 * (1 - eIn3(u) * 1) * (u < 1 ? 1 : 0);
+            if (u >= 1) { const s = td - 0.32; dy = -16 * Math.exp(-7.5 * s) * Math.sin(2 * Math.PI * 2.1 * s); }
+            sw = 0.11 * Math.exp(-4.2 * Math.max(0, td - 0.2)) * Math.sin(2 * Math.PI * 1.25 * Math.max(0, td - 0.2));
+            tilt = -0.5 * (1 - eOut3(seg(td, 0, 0.42))); }
+          const to = seg(t, T.out + 0.14, 0.28), eo = E("back.in(1.7)")(to);
+          dy += 460 * eo; sw += -0.06 * eo; tilt += 0.35 * eo;
+          hang.position.set(HX, HY + dy, 0); hang.rotation.z = sw; hang.rotation.x = tilt; hang.visible = vis && to < 1;
+          // payoff punch: scale kick + a Y wobble that shows the gold edge
+          const tp = t - T.flip;
+          let ps = 1, wob = 0;
+          if (tp >= 0) { ps = 1 + 0.12 * Math.exp(-6 * tp) * Math.cos(2 * Math.PI * 1.8 * tp); wob = 0.22 * Math.exp(-4.5 * tp) * Math.sin(2 * Math.PI * 1.5 * tp); }
+          const idle = 0.05 * Math.sin(2 * Math.PI * 0.45 * Math.max(0, t - T.flip - 0.9)) * seg(t, T.flip + 0.9, 0.6);
+          punch.scale.setScalar(ps); punch.rotation.y = wob + idle;
+          // count flip: old digits fold back, new digits swing down with overshoot (real extruded edges, no crossing)
+          const f1 = seg(t, T.flip, 0.09), f2 = seg(t, T.flip + 0.09, 0.34);
+          numOld.visible = f1 < 1; numOld.rotation.x = -Math.PI / 2 * eIn3(f1);
+          numNew.visible = t >= T.flip + 0.09; numNew.rotation.x = Math.PI / 2 * (1 - E("back.out(2.6)")(f2));
+          // light: the key rakes across the gold at the payoff
+          const ks = eKey(seg(t, T.flip - 0.05, 0.6));
+          key.position.set(lerp(-1.0, 0.9, ks), 0.8, 1.0);
+          key.intensity = 1.4 + 2.2 * Math.exp(-Math.pow((t - T.flip - 0.12) / 0.14, 2)) + 0.8 * Math.exp(-Math.pow((td - 0.34) / 0.12, 2));
+          const bu = seg(t, T.flip + 0.1, 0.42);
+          bandMat.uniforms.uPos.value = bu <= 0 || bu >= 1 ? -1e4 : lerp(-260, 260, eKey(bu));
+          bandMat.uniforms.uAmp.value = 0.5 * Math.sin(Math.PI * bu);
+
+          // --- rail slides out of the shield, later retracts into it
+          const ri = eOut3(seg(t, T.rail, 0.36)), ro = Math.max(0, E("back.in(1.4)")(seg(t, T.out, 0.22)));
+          const rx = -(RL + 30) * (1 - ri) - (RL + 30) * ro;
+          rail.position.x = rx + 10 * Math.exp(-9 * Math.max(0, t - T.rail - 0.36)) * Math.sin(2 * Math.PI * 1.8 * Math.max(0, t - T.rail - 0.36)) * (t > T.rail + 0.36 ? 1 : 0);
+          railOuter.visible = t >= T.rail && ro < 1;
+
+          // --- coins already found pop into their sockets; the find coin pops off the car and flies in
+          coins.forEach((c, i) => {
+            const sx = SOCK3.x + (i - C.found) * R.pitch + rail.position.x, sy = railCy;
+            if (i < C.found) {
+              const tc = t - (T.fill + i * 0.08), u = seg(tc, 0, 0.3);
+              const s = tc < 0 ? 0 : eBackA(u);
+              c.visible = tc >= 0 && ro < 0.999 && s > 0.01;
+              c.position.set(sx, sy, R.z + 8);
+              c.scale.setScalar(Math.max(0.001, s)); c.rotation.set(0, (1 - eOut3(u)) * Math.PI * 2, 0);
+              return;
+            }
+            // the find
+            const tpp = t - T.pop;
+            if (tpp < 0 || ro >= 0.999) { c.visible = false; return; }
+            c.visible = true;
+            const spin = -Math.PI * 4 * (1 - E("power2.out")(seg(t, T.pop, T.land - T.pop)));   // two turns, face-on at the landing
+            if (t < T.fly) {
+              const u = seg(tpp, 0, 0.16), s = 2.5 * eBackA(u);
+              c.position.set(P0.x, P0.y - 30 + 30 * eOut3(u), 120); c.scale.setScalar(Math.max(0.001, s));
+              c.rotation.set(0.25, spin, 0);
+            } else if (t < T.land) {
+              const u = flyU(t), p = bez(u);
+              c.position.set(p.x, p.y, 120 * (1 - u) + 30 * Math.sin(Math.PI * u));
+              c.scale.setScalar(lerp(2.5, 1.0, E("power2.in")(seg(t, T.fly, FLY))));
+              c.rotation.set(0.25 * (1 - u), spin, 0.3 * Math.sin(Math.PI * u));
+            } else {
+              const tl2 = t - T.land, sq = Math.exp(-10 * tl2) * Math.cos(2 * Math.PI * 2.4 * tl2);
+              c.position.set(sx, sy, R.z + 8 + 6 * sq); c.rotation.set(0, 0, 0);
+              c.scale.set(1 + 0.16 * sq, 1 + 0.16 * sq, 1 - 0.3 * Math.max(0, sq));
+            }
+          });
+
+          // ring burst at the socket on the landing, a small one at the car on the pop
+          const tr = t - T.land, ru = seg(tr, 0, 0.36);
+          ring.visible = tr >= 0 && ru < 1; ring.position.set(SOCK3.x + rail.position.x, railCy, 10);
+          ringMat.uniforms.uR.value = lerp(R.hole + 2, 118, eOut3(ru)); ringMat.uniforms.uW.value = lerp(9, 3, ru);
+          ringMat.uniforms.uA.value = 0.95 * (1 - ru) * (1 - ru);
+          ringMat.uniforms.uG.value = tr < 0 ? 0 : tr < 0.033 ? tr / 0.033 * 0.8 : tr < 0.13 ? 0.8 : 0.8 * Math.exp(-(tr - 0.13) / 0.12);
+          const pr = t - T.pop, pu = seg(pr, 0, 0.3), pm = popRing.material.uniforms;
+          popRing.visible = pr >= 0 && pu < 1; popRing.position.set(P0.x, P0.y, 110);
+          pm.uR.value = lerp(40, 190, eOut3(pu)); pm.uW.value = lerp(12, 4, pu); pm.uA.value = 0.8 * (1 - pu) * (1 - pu);
+          pm.uG.value = pr < 0 ? 0 : 0.7 * Math.exp(-pr / 0.1);
+
+          renderer.render(scene, camera);
+
+          // gold light streak along the flight path (behind the coin), resolves to nothing on landing
+          sk.clearRect(0, 0, W, H);
+          if (t > T.fly && t < T.land + 0.05) {
+            const u1 = flyU(Math.min(t, T.land)), u0 = Math.max(0, u1 - 0.26), fade = 1 - seg(t, T.land, 0.05), N = 24;
+            const pts = []; for (let i = 0; i <= N; i++) { const p = bez(lerp(u0, u1, i / N)); pts.push([p.x + W / 2, H / 2 - p.y]); }
+            const sc = lerp(2.5, 1.0, E("power2.in")(seg(t, T.fly, FLY)));
+            sk.lineCap = "round";
+            for (let pass = 0; pass < 2; pass++) {
+              sk.shadowColor = pass ? "rgba(255,190,70,0)" : "rgba(255,170,40,0.9)"; sk.shadowBlur = pass ? 0 : 18;
+              for (let i = 1; i <= N; i++) {
+                const k = i / N; sk.beginPath(); sk.moveTo(pts[i - 1][0], pts[i - 1][1]); sk.lineTo(pts[i][0], pts[i][1]);
+                if (pass === 0) { sk.strokeStyle = "rgba(255,196,80," + (0.32 * k * k * fade).toFixed(3) + ")"; sk.lineWidth = CR * 1.1 * sc * (0.2 + 0.8 * k); }
+                else { sk.strokeStyle = "rgba(255,246,214," + (0.85 * k * k * fade).toFixed(3) + ")"; sk.lineWidth = 9 * sc * (0.15 + 0.85 * k); }
+                sk.stroke();
+              }
+            }
+            sk.shadowBlur = 0;
+          }
+        }
+        window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+
+        const FACES = ["800 124px Archivo", "900 100px Archivo"];
+        Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready).then(() => {
+          drawLabel();
+          const tl = gsap.timeline({ paused: true });
+          renderAt(0);
+          Look.drive(tl, 0, T.end, (p) => renderAt(p * T.end));
+          if (plate) {
+            Look.impact(tl, T.land, { shake: "#shake", amp: 6, dur: 0.28, flash: 0, host: "#root", zoom: 1.02 });
+            Look.push(tl, "#push", 0, T.end, { from: 1.0, to: 1.04 });
+          }
+          tl.set({}, {}, T.end);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+        });
+      })();
+    </script>
+  </body>
+</html>

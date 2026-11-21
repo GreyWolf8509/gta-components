@@ -1,0 +1,372 @@
+<!doctype html>
+<!-- 22 Celebration FX, variant A (16:9): 3D money rain. Our own fictional "Los Santos 100" notes (media/make_notes.py builds the
+     textures) as real Three.js paper: bent, fluttering, tumbling, catching a warm key light, a satin clearcoat and a foil ribbon.
+     A money-gun burst from the bottom edge, then rain from above; three depth layers (far / focus / near) give the depth of
+     field, and 15 sub-frame samples per frame give real motion blur. Variable: bg "plate" / "none" (transparent overlay). -->
+<html lang="en" data-composition-variables='[
+  {"id":"bg","type":"enum","label":"Background","default":"plate","options":[{"value":"plate","label":"Sample footage"},{"value":"none","label":"Transparent"}]}
+]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="stylesheet" href="assets/fonts/fonts.css" />
+    <link rel="stylesheet" href="assets/kit/look/look.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="assets/kit/look/look.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "Inter", sans-serif; }
+      #shake, #push { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #ov { position: absolute; inset: 0; pointer-events: none; }
+      .layer { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+      /* depth of field: the far bills sit just behind focus, the near ones are right at the lens */
+      #lFar { filter: blur(2.2px); }
+      /* the payoff bloom: the hero note alone, blurred and screened behind it for 3 frames on the cut */
+      #lBloom { filter: blur(34px) sepia(.45) saturate(1.5) brightness(1.8); mix-blend-mode: screen; opacity: 0; }
+      #lMid { filter: drop-shadow(0 16px 20px rgba(8, 20, 10, .30)); }
+      #lNear { filter: blur(9px) drop-shadow(0 24px 30px rgba(8, 20, 10, .25)); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5.5" data-width="1920" data-height="1080">
+      <div id="shake"><div id="push">
+        <video id="shotA" class="clip shot" src="assets/shots/v28-tennis-mansion-h.mp4" muted playsinline data-start="0" data-duration="2.4" data-media-start="0.05" data-track-index="0"></video>
+        <video id="shotB" class="clip shot" src="assets/shots/v18-pool-skyline-h.mp4" muted playsinline data-start="2.4" data-duration="1.3" data-media-start="0" data-track-index="0"></video>
+        <video id="shotC" class="clip shot" src="assets/shots/v11-yacht-h.mp4" muted playsinline data-start="3.7" data-duration="1.8" data-media-start="0.1" data-track-index="0"></video>
+      </div></div>
+      <div id="ov" class="clip" data-start="0" data-duration="5.5" data-track-index="1">
+        <canvas id="lFar" class="layer" width="1920" height="1080"></canvas>
+        <canvas id="lBloom" class="layer" width="1920" height="1080"></canvas>
+        <canvas id="lMid" class="layer" width="1920" height="1080"></canvas>
+        <canvas id="lNear" class="layer" width="1920" height="1080"></canvas>
+      </div>
+    </div>
+    <script>
+      const CONFIG = {
+        // the note artwork (our own design; swap in your own PNGs at 1536x654, back pre-mirrored)
+        notes: { front: "media/note-front.png", back: "media/note-back.png", frontMaps: "media/note-front-orm.png", backMaps: "media/note-back-orm.png" },
+        burst: { at: 0.22, count: 20 },          // money-gun burst from the bottom edge (seconds, bills)
+        burst2: { at: 2.4, count: 9 },           // a second, smaller burst on the cut (behind the hero)
+        rain: { from: 0.45, count: 34 },         // rain from above, spawned so the last bill is gone by timing.clear
+        hero: { apex: 2.38, x: 0.70, y: 0.36 },   // the one bill that flips to face the lens (x, y as fractions of the frame)
+        dof: { nearBlur: 9, farBlur: 2.2 },
+        motionBlur: { samples: 15, shutter: 0.5 }, // sub-frame samples, shutter in frames (0.5 = 180 degrees)
+        light: {
+          exposure: 0.9,
+          // the bills take each shot's light: key colour / strength / direction, rim, sky + ground fill, and a matching reflection environment
+          shots: [
+            { until: 2.4, key: "#FFF4DC", ki: 2.6, from: [7, 8, 7], rim: 0.25, sky: "#E8F2FF", ground: "#52623F", fill: 0.34, env: "day" },     // tennis
+            { until: 3.7, key: "#FF9A55", ki: 3.0, from: [-11, 1.2, 5], rim: 0.55, sky: "#FFB27A", ground: "#22301F", fill: 0.2, env: "sunset" }, // pool
+            { until: 99, key: "#E6F0FF", ki: 2.7, from: [2, 9, 6], rim: 0.4, sky: "#DCE9FF", ground: "#36525C", fill: 0.32, env: "sea" }       // yacht
+          ]
+        },
+        timing: { clear: 5.0, end: 5.5 }
+      };
+      (function () {
+        const VARS = (window.__hyperframes && window.__hyperframes.getVariables) ? window.__hyperframes.getVariables() : {};
+        const plate = VARS.bg !== "none";
+        if (!plate) document.querySelectorAll("video.shot").forEach((v) => (v.style.display = "none"));
+        document.getElementById("lNear").style.filter = "blur(" + CONFIG.dof.nearBlur + "px) drop-shadow(0 24px 30px rgba(8,20,10,.25))";
+        document.getElementById("lFar").style.filter = "blur(" + CONFIG.dof.farBlur + "px)";
+
+        const W = 1920, H = 1080, FPS = 30, END = CONFIG.timing.end;
+        const FOV = 38, CAMZ = 10, TAN = Math.tan((FOV / 2) * Math.PI / 180);
+        const halfH = (z) => (CAMZ - z) * TAN, halfW = (z) => halfH(z) * W / H;
+        const NW = 2.4, NH = NW * 654 / 1536;
+        const hs = (i, k) => { const s = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return s - Math.floor(s); };
+        const lerp = (a, b, u) => a + (b - a) * u;
+
+        const loadImg = (src) => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; });
+        const FACES = ["900 100px Inter"];
+        Promise.all([
+          Promise.all(FACES.map((f) => document.fonts.load(f))).then(() => document.fonts.ready),
+          loadImg(CONFIG.notes.front), loadImg(CONFIG.notes.back), loadImg(CONFIG.notes.frontMaps), loadImg(CONFIG.notes.backMaps)
+        ]).then(([, imF, imB, imFm, imBm]) => {
+          // ---------- renderer: one offscreen WebGL canvas, composited into three depth layers ----------
+          const glc = document.createElement("canvas"); glc.width = W; glc.height = H;
+          const renderer = new THREE.WebGLRenderer({ canvas: glc, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: true });
+          renderer.setPixelRatio(1); renderer.setSize(W, H, false);
+          renderer.outputColorSpace = THREE.SRGBColorSpace;
+          renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = CONFIG.light.exposure;
+          renderer.setClearColor(0x000000, 0);
+          const scene = new THREE.Scene();
+          const camera = new THREE.PerspectiveCamera(FOV, W / H, 0.1, 100); camera.position.set(0, 0, CAMZ); camera.lookAt(0, 0, 0);
+
+          // environments, one per shot (sky dome + emissive soft boxes), so the clearcoat and the foil reflect the shot they sit on
+          const pmrem = new THREE.PMREMGenerator(renderer);
+          function makeEnv(lo, hi, g0, g1, boxes) {
+            const es = new THREE.Scene(), v3 = (c) => "vec3(" + c.map((x) => x.toFixed(3)).join(",") + ")";
+            es.add(new THREE.Mesh(new THREE.SphereGeometry(50, 48, 24), new THREE.ShaderMaterial({
+              side: THREE.BackSide, depthWrite: false,
+              vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+              fragmentShader: "varying vec3 vP; void main(){ float y = vP.y; vec3 sky = mix(" + v3(lo) + ", " + v3(hi) + ", smoothstep(-.1,.8,y)); vec3 gnd = mix(" + v3(g0) + ", " + v3(g1) + ", smoothstep(-1.,-.05,y)); gl_FragColor = vec4(y > -.05 ? sky : gnd, 1.0); }"
+            })));
+            boxes.forEach(([c, w, h, p]) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(...c), side: THREE.DoubleSide })); m.position.set(...p); m.lookAt(0, 0, 0); es.add(m); });
+            return pmrem.fromScene(es, 0.02).texture;
+          }
+          const ENVS = {
+            day: makeEnv([.62, .70, .66], [1.0, .98, .92], [.30, .36, .26], [.5, .54, .44], [[[6, 5.6, 4.9], 26, 14, [18, 24, 24]], [[2.0, 2.1, 2.2], 6, 40, [-26, 6, 18]]]),
+            sunset: makeEnv([.55, .30, .16], [.30, .30, .42], [.08, .07, .06], [.20, .12, .08], [[[9, 4.6, 1.9], 16, 8, [-28, 4, 14]], [[1.2, 1.5, 2.2], 6, 30, [26, 8, 10]]]),
+            sea: makeEnv([.55, .68, .86], [.42, .58, .9], [.10, .20, .26], [.30, .42, .48], [[[6.5, 6.6, 7], 18, 12, [4, 26, 20]], [[2.4, 2.5, 2.6], 30, 3, [0, -6, 26]]])
+          };
+          scene.environment = ENVS.day;
+          const hemi = new THREE.HemisphereLight(0xe8f2ff, 0x52623f, 0.34); scene.add(hemi);
+          const key = new THREE.DirectionalLight(0xfff4dc, 2.6); key.position.set(7, 8, 7); scene.add(key);
+          const rim = new THREE.DirectionalLight(0xdfffe8, 0.25); rim.position.set(-7, -2, -6); scene.add(rim);
+          const SHOTS = CONFIG.light.shots;
+          let curShot = -1;
+          function shotLight(t) {
+            let i = 0; while (i < SHOTS.length - 1 && t >= SHOTS[i].until) i++;
+            if (i === curShot) return; curShot = i;
+            const L = SHOTS[i];
+            key.color.set(L.key); key.intensity = L.ki; key.position.set(...L.from);
+            rim.intensity = L.rim; rim.position.set(-L.from[0], -2, -6);
+            hemi.color.set(L.sky); hemi.groundColor.set(L.ground); hemi.intensity = L.fill;
+            scene.environment = ENVS[L.env];
+          }
+          // payoff glint: a warm light swung across from the lens side, so its reflection rakes across the curved hero bill
+          const glint = new THREE.DirectionalLight(0xfff4e0, 0); scene.add(glint);
+          const glintAt = (t) => { const u = (t - (CONFIG.hero.apex - 0.22)) / 0.75; if (u <= 0 || u >= 1) { glint.intensity = 0; return; }
+            glint.intensity = 1.0 * Math.sin(u * Math.PI); glint.position.set(lerp(-5.5, 5.5, u), 2.2, 9); };
+
+          const tex = (img, srgb) => { const t = new THREE.Texture(img); t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+            t.anisotropy = renderer.capabilities.getMaxAnisotropy(); t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter; t.needsUpdate = true; return t; };
+          const tF = tex(imF, true), tB = tex(imB, true), oF = tex(imFm, false), oB = tex(imBm, false);
+          const paper = (map, orm, side) => new THREE.MeshPhysicalMaterial({
+            map, bumpMap: orm, bumpScale: 1.6, roughnessMap: orm, metalnessMap: orm, roughness: 1, metalness: 1,
+            clearcoat: 0.45, clearcoatRoughness: 0.2, sheen: 0.5, sheenRoughness: 0.55, sheenColor: new THREE.Color(0xf4fff0),
+            envMapIntensity: 0.7, side
+          });
+          const matF = paper(tF, oF, THREE.FrontSide), matB = paper(tB, oB, THREE.BackSide);
+
+          // ---------- the bills: physics is closed-form in time (drag toward a terminal flutter), so any seek is exact ----------
+          const SX = 24, SY = 8;
+          const notes = [];
+          function makeNote(p) {
+            const geo = new THREE.PlaneGeometry(NW, NH, SX, SY);
+            const base = Float32Array.from(geo.attributes.position.array);
+            const g = new THREE.Group();
+            g.add(new THREE.Mesh(geo, matF)); g.add(new THREE.Mesh(geo, matB));
+            g.visible = false; scene.add(g);
+            const n = Object.assign({ geo, base, g }, p);
+            notes.push(n); return n;
+          }
+          const layerOf = (z) => (z > 4.6 ? 2 : z < -3 ? 0 : 1);
+
+          function state(n, t) {
+            const tau = t - n.t0;
+            if (tau < 0) return null;
+            const e = Math.exp(-n.k * tau), gk = (1 - e) / n.k;
+            const sw = Math.sin(n.ws * tau + n.ph), cw = Math.cos(n.ws * tau + n.ph), grow = 1 - e;
+            const x = n.x0 + n.vx * gk + n.sa * grow * sw;
+            const y = n.y0 - n.vt * tau + (n.vy + n.vt) * gk;
+            const z = n.z0 + n.vz * gk;
+            const e2 = Math.exp(-n.k2 * tau), g2 = (1 - e2) / n.k2;
+            const rx = n.rx0 + n.wxEnd * tau + (n.wx0 - n.wxEnd) * g2 + n.fa * grow * Math.sin(n.ws * tau + n.ph + 1.2);
+            const ry = n.ry0 + n.wy * tau;
+            const rz = n.rz0 + n.wz * g2 + n.bank * grow * cw;
+            const bend = n.c0 + n.c1 * Math.sin(n.wb * tau + n.ph * 1.7);
+            const st = { x, y, z, rx, ry, rz, bend, cross: n.d0 * Math.sin(n.wb * 0.7 * tau + n.ph), wave: n.wv * grow, wph: n.ph + tau * n.wws, twist: 0 };
+            if (n.hero) {
+              // rises showing its back, flips in the last 0.34 s and lands face-on on the cut with a damped spring (~6 deg overshoot,
+              // settled in 0.3 s), then a slow tip; a lengthwise bow and a corner flutter keep it paper
+              const v = t - CONFIG.hero.apex, Tf = 0.34, D = n.rxB - n.rxT;
+              if (v < -Tf) st.rx = n.rxT + D + 0.35 * (v + Tf);
+              else if (v < 0) { const u = (v + Tf) / Tf, m1 = 0.6; st.rx = n.rxT + D * (1 - (3 * u * u - 2 * u * u * u + m1 * (u * u * u - u * u))); }
+              else st.rx = n.rxT - 0.19 * Math.exp(-10 * v) * Math.sin(26 * v) - 0.3 * Math.max(0, v - 0.55);
+              st.twist = 0.075 * Math.sin(13.8 * tau + 0.5) * (0.6 + 0.4 * Math.exp(-4 * Math.max(0, v)));
+            }
+            return st;
+          }
+          function deform(n, s) {
+            const a = n.geo.attributes.position.array, b = n.base;
+            for (let i = 0; i < a.length; i += 3) {
+              const x = b[i], y = b[i + 1];
+              a[i] = x; a[i + 1] = y;
+              a[i + 2] = s.bend * x * x + s.cross * y * y + s.twist * x * y + s.wave * Math.sin(x * 2.6 + s.wph) + 0.02 * Math.sin(x * 1.3 + y * 4 + s.wph);
+            }
+            n.geo.attributes.position.needsUpdate = true;
+            n.geo.computeVertexNormals();
+          }
+          const onScreen = (s) => Math.abs(s.y) < halfH(s.z) + NW * 0.62 && Math.abs(s.x) < halfW(s.z) + NW * 0.62 && s.z < CAMZ - 0.6;
+
+          // common aerodynamics per bill (hash-seeded)
+          function aero(i, salt, kind) {
+            const r = (k) => hs(i + salt, k);
+            const tumbler = r(9) < 0.38;
+            return {
+              k: lerp(2.1, 2.9, r(1)), k2: lerp(1.2, 2.0, r(2)),
+              ws: lerp(2.4, 4.2, r(3)), ph: r(4) * 6.283, sa: lerp(0.25, 0.7, r(5)),
+              rx0: lerp(-1.2, 1.2, r(6)), ry0: lerp(-0.9, 0.9, r(7)), rz0: lerp(-1.4, 1.4, r(8)),
+              wx0: (r(10) < 0.5 ? -1 : 1) * lerp(6, 14, r(11)) * (kind === "burst" ? 1 : 0.5),
+              wxEnd: tumbler ? (r(12) < 0.5 ? -1 : 1) * lerp(3.5, 7, r(13)) : lerp(-0.4, 0.4, r(13)),
+              fa: tumbler ? 0 : lerp(0.35, 0.7, r(14)),
+              wy: lerp(-0.9, 0.9, r(15)), wz: lerp(-2.5, 2.5, r(16)), bank: lerp(0.2, 0.5, r(17)),
+              c0: lerp(0.06, 0.15, r(18)) * (r(19) < 0.5 ? -1 : 1), c1: lerp(0.03, 0.07, r(20)), wb: lerp(2, 5, r(21)),
+              d0: lerp(0.03, 0.09, r(22)), wv: lerp(0.02, 0.06, r(23)), wws: lerp(4, 8, r(24))
+            };
+          }
+          // depth bands: far (small, soft), focus, near (huge, at the lens)
+          const BANDS = [[-9, -4.2], [-1.8, 3.6], [5.0, 6.2]];
+          const pickZ = (band, u) => lerp(BANDS[band][0], BANDS[band][1], u);
+          const edgeX = (z, u, bias) => { const hw = halfW(z); const s = u < 0.5 ? -1 : 1; const m = (u < 0.5 ? u * 2 : (u - 0.5) * 2); return s * hw * (bias + (1.02 - bias) * m); };
+
+          // burst: bills fired up from below the bottom edge, fanning out, hanging at the top of the arc, then fluttering down
+          const B = CONFIG.burst, bandsB = [0, 1, 0, 1, 2, 1, 0, 1, 1, 0, 1, 2, 0, 1, 1, 0, 1, 2, 1, 0];
+          for (let i = 0; i < B.count; i++) {
+            const band = bandsB[i % bandsB.length], z = pickZ(band, hs(i, 31));
+            const hh = halfH(z), hw = halfW(z);
+            const ux = lerp(-1, 1, (i * 0.618 + hs(i, 32) * 0.3) % 1);
+            const x0 = (band === 0 ? ux * 0.8 : Math.sign(ux || 1) * ((band === 2 ? 0.5 : 0.2) + 0.5 * Math.abs(ux))) * hw;
+            const a = aero(i, 100, "burst");
+            const apexY = lerp(-0.1, 0.85, hs(i, 33)) * hh;                 // where it hangs
+            const vt = lerp(2.3, 3.2, hs(i, 34)), tA = lerp(0.55, 0.85, hs(i, 35));
+            // solve vy so the arc peaks at tA: e^{-k tA} = vt / (vy + vt)
+            const vy = vt * Math.exp(a.k * tA) - vt;
+            const y0 = apexY + vt * tA - (vy + vt) * (1 - Math.exp(-a.k * tA)) / a.k;
+            makeNote(Object.assign(a, { t0: B.at + hs(i, 36) * 0.12, x0, y0, z0: z, vx: (x0 / hw) * lerp(1.5, 4, hs(i, 37)), vy, vz: lerp(-1, 1, hs(i, 38)), vt, layer: band }));
+          }
+          // second burst on the cut: mid and far bills only, so nothing crosses in front of the hero
+          const B2 = CONFIG.burst2, bands2 = [1, 0, 1, 1, 0, 1, 0, 1, 1];
+          for (let i = 0; i < B2.count; i++) {
+            const band = bands2[i % bands2.length], z = pickZ(band, hs(i, 131)), hh = halfH(z), hw = halfW(z);
+            const ux = lerp(-1, 1, (i * 0.618 + hs(i, 132) * 0.3) % 1), x0 = ux * 0.85 * hw;
+            const a = aero(i, 500, "burst");
+            const apexY = lerp(-0.25, 0.5, hs(i, 133)) * hh, vt = lerp(2.9, 3.6, hs(i, 134)), tA = lerp(0.5, 0.7, hs(i, 135));
+            const vy = vt * Math.exp(a.k * tA) - vt, y0 = apexY + vt * tA - (vy + vt) * (1 - Math.exp(-a.k * tA)) / a.k;
+            makeNote(Object.assign(a, { t0: B2.at + hs(i, 136) * 0.08, x0, y0, z0: z, vx: (x0 / hw) * lerp(1.5, 3.5, hs(i, 137)), vy, vz: lerp(-0.6, 0.6, hs(i, 138)), vt, layer: band }));
+          }
+          // the hero bill: comes up showing its back, flips to face the lens at the apex, the key light rakes across it
+          {
+            const z = 4.4, hh = halfH(z), hw = halfW(z), a = aero(7, 900, "burst");
+            const tA = 0.85, t0h = CONFIG.hero.apex - tA, apexY = (0.5 - CONFIG.hero.y) * 2 * hh, apexX = (CONFIG.hero.x - 0.5) * 2 * hw;
+            const vt = 2.1, k = 2.5, vy = vt * Math.exp(k * tA) - vt;
+            const y0 = apexY + vt * tA - (vy + vt) * (1 - Math.exp(-k * tA)) / k;
+            const vx = 2.2, x0 = apexX - vx * (1 - Math.exp(-k * tA)) / k;
+            makeNote(Object.assign(a, { t0: t0h, k, k2: 2.4, x0, y0, z0: z, vx, vy, vz: 0, vt, sa: 0.3, ph: -0.4,
+              rx0: 2.9, wx0: 0, wxEnd: 0, fa: 0.0, rxT: 0.1, rxB: 2.92, ry0: -0.34, wy: 0.16, rz0: 0.3, wz: -0.38, bank: 0.1,
+              c0: 0.1, c1: 0.025, layer: 1, hero: true }));
+          }
+          // the payoff light on the hero: a specular band clipped to its face sweeps across as it faces the lens on the cut,
+          // and the note's own bloom peaks behind it for 3 frames (#lBloom)
+          const heroN = notes[notes.length - 1];
+          {                                                                // the hero's clearcoat is a touch rougher: the rake reads as a broad sheen, never a hot spot
+            const hF = matF.clone(), hB = matB.clone(); hF.clearcoatRoughness = hB.clearcoatRoughness = 0.42;
+            heroN.g.children[0].material = hF; heroN.g.children[1].material = hB;
+          }
+          const addBlend = { transparent: true, depthWrite: false, toneMapped: false, blending: THREE.CustomBlending, blendEquation: THREE.AddEquation,
+            blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor };
+          const BAND = { uC: { value: -1 }, uI: { value: 0 } };
+          heroN.g.add(new THREE.Mesh(heroN.geo, new THREE.ShaderMaterial(Object.assign({
+            uniforms: BAND, side: THREE.FrontSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+            vertexShader: "varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+            fragmentShader: "uniform float uC, uI; varying vec2 vUv; void main(){ float x = vUv.x + (vUv.y - .5) * .35; float b = exp(-pow((x - uC) / .07, 2.0)) + .3 * exp(-pow((x - uC) / .2, 2.0)); float e = smoothstep(0.0, .012, vUv.x) * smoothstep(1.0, .988, vUv.x) * smoothstep(0.0, .03, vUv.y) * smoothstep(1.0, .97, vUv.y); float I = uI * b * e; gl_FragColor = vec4(vec3(1.0, .95, .84) * I, clamp(I * .3, 0.0, 1.0)); }"
+          }, addBlend))));
+          const GL = { uI: { value: 0 } };                          // payoff bloom level (drives #lBloom)
+          function payoffLight(t, s) {
+            const A = CONFIG.hero.apex, u = (t - (A - 0.13)) / 0.36;
+            BAND.uC.value = lerp(-0.35, 1.35, Math.min(1, Math.max(0, u)));
+            BAND.uI.value = u > 0 && u < 1 ? 0.3 * Math.sin(u * Math.PI) : 0;
+            const v = t - A, att = 0.1;
+            GL.uI.value = v < -att ? 0 : v < 0 ? (v + att) / att : v < 3 / FPS ? 1 : Math.exp(-(v - 3 / FPS) / 0.13);
+          }
+          // rain: from above the top edge, spawned so every bill has fallen out by timing.clear
+          const R = CONFIG.rain, bandsR = [0, 1, 0, 1, 2, 1, 0, 1, 1, 0, 2, 1];
+          for (let i = 0; i < R.count; i++) {
+            const band = bandsR[i % bandsR.length], z = pickZ(band, hs(i, 41)), hh = halfH(z);
+            const a = aero(i, 300, "rain");
+            const y0 = hh + NW * 0.62, cross = lerp(1.8, 2.4, hs(i, 42)) * (band === 2 ? 0.8 : 1);
+            const vt = (2 * hh + NW * 1.24) / cross;                       // falls through the frame in `cross` seconds
+            const x0 = edgeX(z, hs(i, 44), band === 1 ? 0.3 : band === 2 ? 0.45 : 0.0);
+            const n = makeNote(Object.assign(a, { t0: 0, x0, y0, z0: z, vx: lerp(-0.6, 0.6, hs(i, 45)), vy: -vt * 0.6, vz: 0, vt, k: lerp(1.3, 1.8, hs(i, 47)), layer: band }));
+            // time on screen from spawn, then spread the spawns so bills keep arriving and the last one leaves at timing.clear
+            let dur = 0; for (let t = 0; t < 12; t += 1 / FPS) { const s = state(n, t); if (s && onScreen(s)) dur = t; }
+            const u = (i + hs(i, 43) * 0.8) / R.count;
+            n.t0 = lerp(R.from, CONFIG.timing.clear - dur, Math.pow(u, 0.85));
+          }
+          // safety: every bill must have left the frame by timing.clear (speeds up any straggler)
+          notes.forEach((n) => {
+            for (let tries = 0; tries < 12; tries++) {
+              let last = 0;
+              for (let t = n.t0; t <= END; t += 1 / FPS) { const s = state(n, t); if (s && onScreen(s)) last = t; }
+              if (last <= CONFIG.timing.clear) break;
+              n.vt *= 1.12;
+            }
+            n.layer = n.hero ? 1 : layerOf(n.z0);
+          });
+          // near (9 px blur) bills keep out of the hero's corner of the frame around the payoff: mirror them, else shift them, else drop them
+          const HB = [980, 140, 1920, 660], HT = [2.15, 3.1];
+          const nearHits = (n) => { for (let t = HT[0]; t <= HT[1]; t += 1 / FPS) { const s = state(n, t); if (!s || !onScreen(s)) continue;
+            const px = W / 2 + s.x / halfW(s.z) * W / 2, py = H / 2 - s.y / halfH(s.z) * H / 2, m = 0.42 * NW * (H / 2) / halfH(s.z);
+            if (px > HB[0] - m && px < HB[2] + m && py > HB[1] - m && py < HB[3] + m) return true; } return false; };
+          const clears = (n) => { let last = 0; for (let t = n.t0; t <= END; t += 1 / FPS) { const s = state(n, t); if (s && onScreen(s)) last = t; } return last <= CONFIG.timing.clear; };
+          notes.forEach((n) => {
+            if (n.layer !== 2 || !nearHits(n)) return;
+            n.x0 = -n.x0; n.vx = -n.vx; if (!nearHits(n)) return;
+            const t0 = n.t0;
+            for (const d of [0.9, -0.9, 1.4, -1.4]) { n.t0 = t0 + d; if (n.t0 >= 0 && clears(n) && !nearHits(n)) return; }
+            n.t0 = t0; n.skip = true;
+          });
+
+          // ---------- compositing: N sub-frame samples per layer, averaged with 'lighter' at 1/N (exact premultiplied mean) ----------
+          const ctx = ["lFar", "lMid", "lNear"].map((id) => document.getElementById(id).getContext("2d"));
+          const bloomEl = document.getElementById("lBloom"), bloomCtx = bloomEl.getContext("2d");
+          const N = CONFIG.motionBlur.samples, SH = CONFIG.motionBlur.shutter / FPS;
+          let lastT = -1;
+          function renderAt(t) {
+            if (Math.abs(t - lastT) < 1e-6) return; lastT = t;
+            ctx.forEach((c) => { c.globalCompositeOperation = "source-over"; c.globalAlpha = 1; c.clearRect(0, 0, W, H); c.globalCompositeOperation = "lighter"; c.globalAlpha = 1 / N; });
+            for (let k = 0; k < N; k++) {
+              const tk = Math.max(0, t + (N > 1 ? (k / (N - 1) - 0.5) : 0) * SH);
+              glintAt(tk); shotLight(tk);
+              const any = [false, false, false];
+              for (const n of notes) {
+                const s = state(n, tk);
+                if (n.skip || !s || !onScreen(s)) { n.g.visible = false; n.vis = false; continue; }
+                n.vis = true; any[n.layer] = true;
+                n.g.position.set(s.x, s.y, s.z); n.g.rotation.set(s.rx, s.ry, s.rz);
+                deform(n, s);
+              }
+              payoffLight(tk, heroN.vis ? state(heroN, tk) : null);
+              for (let L = 0; L < 3; L++) {
+                if (!any[L]) continue;
+                for (const n of notes) n.g.visible = n.vis && n.layer === L;
+                renderer.render(scene, camera);
+                ctx[L].drawImage(glc, 0, 0);
+              }
+            }
+            ctx.forEach((c) => { c.globalCompositeOperation = "source-over"; c.globalAlpha = 1; });
+            // payoff bloom: the hero alone at time t (one pass, no sub-sample averaging, so the soft glow can't band)
+            glintAt(t); shotLight(t);
+            const hs0 = state(heroN, t); payoffLight(t, hs0);
+            bloomCtx.clearRect(0, 0, W, H);
+            const bl = GL.uI.value;
+            bloomEl.style.opacity = bl > 0.003 && hs0 ? (0.95 * bl).toFixed(3) : "0";
+            if (bl > 0.003 && hs0) {
+              for (const n of notes) n.g.visible = n === heroN;
+              heroN.g.position.set(hs0.x, hs0.y, hs0.z); heroN.g.rotation.set(hs0.rx, hs0.ry, hs0.rz); deform(heroN, hs0);
+              renderer.render(scene, camera); bloomCtx.drawImage(glc, 0, 0);
+            }
+          }
+
+          const tl = gsap.timeline({ paused: true });
+          if (plate) {
+            Look.push(tl, "#push", 0, END, { from: 1.0, to: 1.05 });
+            Look.impact(tl, B.at + 0.04, { shake: "#shake", amp: 7, dur: 0.34, flash: 0, zoom: 1.018 });
+            Look.impact(tl, 2.4, { shake: "#shake", amp: 5, dur: 0.3, flash: 0, zoom: 1.02 });
+          }
+          Look.drive(tl, 0, END, (p) => renderAt(p * END));
+          window.addEventListener("hf-seek", (e) => { if (e && e.detail && typeof e.detail.time === "number") renderAt(e.detail.time); });
+          tl.set({}, {}, END);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["main"] = tl;
+          tl.seek(0);
+          renderAt(0);
+        });
+      })();
+    </script>
+  </body>
+</html>
